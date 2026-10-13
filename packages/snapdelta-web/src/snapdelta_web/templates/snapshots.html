@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+{% from "_macros.html" import pager as pages, search %}
+{% block title %}Snapshots · snapdelta{% endblock %}
+{% block content %}
+<div class="title-row"><h1>Snapshots</h1>{{ search("/snapshots", q, "Filter by target") }}<a class="button primary" href="/take">Take snapshot</a></div>
+<div id="results">
+{% if deleted %}<p class="notice">Deleted {{ deleted }}.</p>{% endif %}
+{% if rows %}
+<table class="list">
+  <thead><tr><th>Target</th><th class="num-col">Snapshots</th><th>Latest capture</th></tr></thead>
+  <tbody>
+    {% for row in rows %}
+    <tr>
+      <td><a class="row-link mono" href="/snapshots/{{ row.name }}">{{ row.name }}</a></td>
+      <td class="num-col mono">{{ row.count }}</td>
+      <td class="muted">{{ row.latest | when if row.latest else "" }}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{{ pages(pager, "/snapshots", q) }}
+{% elif q %}
+<p class="empty">No target matches "{{ q }}".</p>
+{% else %}
+<div class="empty-state"><p>No snapshot yet. Take one here, or run <code>snapdelta snapshot</code> in a terminal.</p><a class="button primary" href="/take">Take snapshot</a></div>
+{% endif %}
+</div>
+{% endblock %}

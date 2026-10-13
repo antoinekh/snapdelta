@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+{% block title %}Admin · snapdelta{% endblock %}
+{% block content %}
+<div class="title-row"><h1>Admin</h1></div>
+{% with section = "store" %}{% include "_admin_nav.html" %}{% endwith %}
+{% if deleted %}<p class="notice">Deleted {{ deleted }}.</p>{% endif %}
+<section class="panel">
+  <h2>Store</h2>
+  <dl class="facts">
+    <div><dt>Backend</dt><dd>{{ info.backend }}</dd></div>
+    <div><dt>Targets</dt><dd class="mono">{{ info.targets }}</dd></div>
+    <div><dt>Snapshots</dt><dd class="mono">{{ info.snapshots }}</dd></div>
+    <div><dt>Outputs</dt><dd class="mono">{{ info.outputs }}</dd></div>
+    <div><dt>Runs</dt><dd class="mono"><a href="/activity">{{ info.runs }}</a></dd></div>
+    <div><dt>Size</dt><dd class="mono">{{ info.size_bytes | size }}</dd></div>
+    <div class="wide"><dt>Location</dt><dd class="mono">{{ info.location }}</dd></div>
+  </dl>
+</section>
+<section class="panel">
+  <h2>Prune</h2>
+  <form method="post" action="/admin/prune" class="prune">
+    <label class="field">Target<input name="target" value="{{ form.target or "" }}" placeholder="all"></label>
+    <label class="field">Keep newest<input name="keep" value="{{ form.keep or "" }}" inputmode="numeric" placeholder="per target"></label>
+    <label class="field">Older than, in days<input name="older_than" value="{{ form.older_than or "" }}" inputmode="numeric"></label>
+    <label class="check"><input type="checkbox" name="outputs" value="1" {{ "checked" if form.outputs }}> Outputs too</label>
+    <button type="submit" class="button">Preview</button>
+  </form>
+  {% if plan %}
+  <div class="plan">
+    <p><b>{{ plan.snapshots | length }}</b> snapshots and <b>{{ plan.outputs | length }}</b> outputs would be deleted.</p>
+    {% if plan.snapshots or plan.outputs %}
+    <ul class="mono small">{% for reference in plan.snapshots %}<li>{{ reference }}</li>{% endfor %}{% for name in plan.outputs %}<li>{{ name }}</li>{% endfor %}</ul>
+    <form method="post" action="/admin/prune" data-confirm="Delete these files?">
+      {% for key, value in form.items() %}<input type="hidden" name="{{ key }}" value="{{ value }}">{% endfor %}
+      <input type="hidden" name="confirm" value="1">
+      <button type="submit" class="button danger">Delete</button>
+    </form>
+    {% endif %}
+  </div>
+  {% endif %}
+</section>
+{% endblock %}

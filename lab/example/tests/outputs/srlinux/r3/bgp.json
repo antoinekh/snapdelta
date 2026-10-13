@@ -1,0 +1,312 @@
+{
+  "neighbor": [
+    {
+      "admin-state": "enable",
+      "advertised-capabilities": [
+        "ROUTE_REFRESH",
+        "4-OCTET_ASN",
+        "MP_BGP",
+        "GRACEFUL_RESTART"
+      ],
+      "afi-safi": [
+        {
+          "admin-state": "disable",
+          "afi-safi-name": "evpn",
+          "oper-state": "down"
+        },
+        {
+          "active-routes": 2,
+          "add-paths": {
+            "receive": false,
+            "send": false
+          },
+          "admin-state": "enable",
+          "afi-safi-name": "ipv4-unicast",
+          "ipv4-unicast": {
+            "advertise-ipv6-next-hops": false,
+            "link-bandwidth": {
+              "add-next-hop-count-to-received-bgp-routes": "disable"
+            },
+            "prefix-limit-received": {
+              "max-received-routes": 4294967295,
+              "prefix-limit-exceeded": false,
+              "prevent-teardown": false,
+              "warning-threshold-pct": 90
+            },
+            "receive-ipv6-next-hops": false
+          },
+          "oper-state": "up",
+          "received-routes": 6,
+          "received-routes-withdrawn-due-to-error": 0,
+          "rejected-routes": 0,
+          "send-community-type": [
+            "standard",
+            "extended",
+            "large"
+          ],
+          "sent-routes": 4,
+          "suppressed-routes": 0
+        },
+        {
+          "admin-state": "disable",
+          "afi-safi-name": "ipv6-unicast",
+          "ipv6-unicast": {
+            "link-bandwidth": {
+              "add-next-hop-count-to-received-bgp-routes": "disable"
+            }
+          },
+          "oper-state": "down"
+        },
+        {
+          "admin-state": "disable",
+          "afi-safi-name": "route-target",
+          "oper-state": "down"
+        }
+      ],
+      "as-path-options": {
+        "allow-own-as": 0,
+        "remove-private-as": {
+          "ignore-peer-as": false,
+          "leading-only": false,
+          "mode": "disabled"
+        },
+        "replace-peer-as": false
+      },
+      "authentication": {
+        "transmit-active": false
+      },
+      "description": "r1",
+      "established-transitions": "1",
+      "export-policy": [
+        "announce"
+      ],
+      "failure-detection": {
+        "enable-bfd": false,
+        "fast-failover": true
+      },
+      "graceful-restart": {
+        "admin-state": "disable",
+        "mode": "HELPER_ONLY"
+      },
+      "import-policy": [
+        "accept-all"
+      ],
+      "last-established": "2026-10-13T18:21:59.700Z (6 minutes ago)",
+      "last-event": "recvOpen",
+      "last-state": "active",
+      "local-as": {
+        "as-number": 65003,
+        "prepend-global-as": true,
+        "prepend-local-as": true
+      },
+      "local-preference": 100,
+      "maintenance-group": "",
+      "multihop": {
+        "admin-state": "disable"
+      },
+      "next-hop-self": false,
+      "peer-address": "10.13.0.1",
+      "peer-as": 65001,
+      "peer-group": "ebgp",
+      "peer-router-id": "10.0.0.1",
+      "peer-type": "ebgp",
+      "received-afi-safi": [
+        "ipv4-unicast"
+      ],
+      "received-capabilities": [
+        "ROUTE_REFRESH",
+        "4-OCTET_ASN",
+        "MP_BGP",
+        "GRACEFUL_RESTART",
+        "ADD_PATH"
+      ],
+      "received-end-of-rib": [
+        "ipv4-unicast"
+      ],
+      "route-flap-damping": false,
+      "route-reflector": {
+        "client": false
+      },
+      "send-default-route": {
+        "ipv4-unicast": false,
+        "ipv6-unicast": false
+      },
+      "sent-end-of-rib": [
+        "ipv4-unicast"
+      ],
+      "session-state": "established",
+      "timers": {
+        "connect-retry": 120,
+        "hold-time": 90,
+        "keepalive-interval": 30,
+        "minimum-advertisement-interval": 5,
+        "negotiated-hold-time": 90,
+        "negotiated-keepalive-interval": 30,
+        "prefix-limit-restart-timer": 0
+      },
+      "transport": {
+        "local-address": "10.13.0.3",
+        "local-port": 179,
+        "mtu-discovery": true,
+        "passive-mode": false,
+        "remote-port": 42701,
+        "tcp-mss": 1024
+      },
+      "under-maintenance": false
+    },
+    {
+      "admin-state": "enable",
+      "advertised-capabilities": [
+        "ROUTE_REFRESH",
+        "4-OCTET_ASN",
+        "MP_BGP",
+        "GRACEFUL_RESTART"
+      ],
+      "afi-safi": [
+        {
+          "admin-state": "disable",
+          "afi-safi-name": "evpn",
+          "oper-state": "down"
+        },
+        {
+          "active-routes": 2,
+          "add-paths": {
+            "receive": false,
+            "send": false
+          },
+          "admin-state": "enable",
+          "afi-safi-name": "ipv4-unicast",
+          "ipv4-unicast": {
+            "advertise-ipv6-next-hops": false,
+            "link-bandwidth": {
+              "add-next-hop-count-to-received-bgp-routes": "disable"
+            },
+            "prefix-limit-received": {
+              "max-received-routes": 4294967295,
+              "prefix-limit-exceeded": false,
+              "prevent-teardown": false,
+              "warning-threshold-pct": 90
+            },
+            "receive-ipv6-next-hops": false
+          },
+          "oper-state": "up",
+          "received-routes": 6,
+          "received-routes-withdrawn-due-to-error": 0,
+          "rejected-routes": 0,
+          "send-community-type": [
+            "standard",
+            "extended",
+            "large"
+          ],
+          "sent-routes": 4,
+          "suppressed-routes": 0
+        },
+        {
+          "admin-state": "disable",
+          "afi-safi-name": "ipv6-unicast",
+          "ipv6-unicast": {
+            "link-bandwidth": {
+              "add-next-hop-count-to-received-bgp-routes": "disable"
+            }
+          },
+          "oper-state": "down"
+        },
+        {
+          "admin-state": "disable",
+          "afi-safi-name": "route-target",
+          "oper-state": "down"
+        }
+      ],
+      "as-path-options": {
+        "allow-own-as": 0,
+        "remove-private-as": {
+          "ignore-peer-as": false,
+          "leading-only": false,
+          "mode": "disabled"
+        },
+        "replace-peer-as": false
+      },
+      "authentication": {
+        "transmit-active": false
+      },
+      "description": "r2",
+      "established-transitions": "1",
+      "export-policy": [
+        "announce"
+      ],
+      "failure-detection": {
+        "enable-bfd": false,
+        "fast-failover": true
+      },
+      "graceful-restart": {
+        "admin-state": "disable",
+        "mode": "HELPER_ONLY"
+      },
+      "import-policy": [
+        "accept-all"
+      ],
+      "last-established": "2026-10-13T18:21:59.700Z (6 minutes ago)",
+      "last-event": "recvOpen",
+      "last-state": "active",
+      "local-as": {
+        "as-number": 65003,
+        "prepend-global-as": true,
+        "prepend-local-as": true
+      },
+      "local-preference": 100,
+      "maintenance-group": "",
+      "multihop": {
+        "admin-state": "disable"
+      },
+      "next-hop-self": false,
+      "peer-address": "10.23.0.2",
+      "peer-as": 65002,
+      "peer-group": "ebgp",
+      "peer-router-id": "10.0.0.2",
+      "peer-type": "ebgp",
+      "received-afi-safi": [
+        "ipv4-unicast"
+      ],
+      "received-capabilities": [
+        "ROUTE_REFRESH",
+        "4-OCTET_ASN",
+        "MP_BGP",
+        "GRACEFUL_RESTART",
+        "ADD_PATH"
+      ],
+      "received-end-of-rib": [
+        "ipv4-unicast"
+      ],
+      "route-flap-damping": false,
+      "route-reflector": {
+        "client": false
+      },
+      "send-default-route": {
+        "ipv4-unicast": false,
+        "ipv6-unicast": false
+      },
+      "sent-end-of-rib": [
+        "ipv4-unicast"
+      ],
+      "session-state": "established",
+      "timers": {
+        "connect-retry": 120,
+        "hold-time": 90,
+        "keepalive-interval": 30,
+        "minimum-advertisement-interval": 5,
+        "negotiated-hold-time": 90,
+        "negotiated-keepalive-interval": 30,
+        "prefix-limit-restart-timer": 0
+      },
+      "transport": {
+        "local-address": "10.23.0.3",
+        "local-port": 179,
+        "mtu-discovery": true,
+        "passive-mode": false,
+        "remote-port": 42383,
+        "tcp-mss": 1024
+      },
+      "under-maintenance": false
+    }
+  ]
+}

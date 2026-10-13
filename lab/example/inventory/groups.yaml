@@ -1,0 +1,4 @@
+# lab: every router (eBGP, one AS per router); trunk: the two ends of the 802.1Q trunk that the scenario changes.
+lab: {}
+trunk:
+  groups: [lab]

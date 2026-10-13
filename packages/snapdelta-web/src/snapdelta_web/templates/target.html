@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+{% from "_macros.html" import pager as pages %}
+{% block title %}{{ target }} · snapdelta{% endblock %}
+{% block content %}
+<nav class="crumbs" aria-label="Breadcrumb"><a href="/snapshots">Snapshots</a></nav>
+<div class="title-row"><h1>{{ target }}</h1><a class="button primary" href="/new?left={{ target }}@latest">Compare</a></div>
+{% if deleted %}<p class="notice">Deleted {{ deleted }}.</p>{% endif %}
+{% if unreadable %}<p class="notice warn">Unreadable: {{ unreadable | join(", ") }}</p>{% endif %}
+{% if pager.number == 1 %}<section id="timeline" class="panel timeline-panel" hx-get="/targets/{{ target | urlencode }}/timeline" hx-trigger="load" aria-busy="true"><h2>Timeline</h2><p class="muted">Comparing each snapshot with the one before…</p></section>{% endif %}
+<form method="post" action="/snapshots/{{ target }}/delete" data-confirm-selected="references">
+<input type="hidden" name="page" value="{{ pager.number }}">
+<table class="list">
+  <thead><tr><th class="pick"><input type="checkbox" data-select-all aria-label="Select all on this page"></th><th>Captured</th><th>Label</th><th>Source</th><th>Models</th><th class="num-col">Warnings</th><th class="num-col">Unmapped</th></tr></thead>
+  <tbody>
+    {% for row in rows %}
+    <tr>
+      <td class="pick"><input type="checkbox" name="references" value="{{ row.reference }}" aria-label="Select"></td>
+      <td><a class="row-link" href="/snapshots/{{ row.reference }}">{{ row.captured_at | when }}</a></td>
+      <td>{% if row.label %}<span class="tag label">{{ row.label }}</span>{% endif %}</td>
+      <td><span class="tag">{{ row.source }}</span></td>
+      <td class="muted">{{ row.loaded | join(", ") }}</td>
+      <td class="num-col mono {{ 'warn-text' if row.warnings }}">{{ row.warnings }}</td>
+      <td class="num-col mono">{{ row.unmapped }}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+<div class="bulk"><button type="submit" class="button danger">Delete selected</button></div>
+</form>
+{{ pages(pager, "/snapshots/" ~ target) }}
+{% endblock %}

@@ -1,0 +1,110 @@
+{% macro side_label(side) -%}
+<span class="side-label"><b class="mono">{{ side.target }}</b> <span class="tag">{{ side.source }}</span>{% if side.label %} <span class="tag label">{{ side.label }}</span>{% endif %}</span>
+{%- endmacro %}
+
+{% macro side_name(side) -%}
+{{ side.target }}{% if side.label %} {{ side.label }}{% endif %}
+{%- endmacro %}
+
+{% macro strip(delta, size="small") -%}
+<span class="strip {{ size }}" role="img" aria-label="{{ delta.only_left }} only left, {{ delta.only_right }} only right, {{ delta.changed }} changed, {{ delta.unchanged }} unchanged">
+  {%- for status, count, percent in delta.parts() if count %}<span class="seg {{ status }}" style="--share: {{ '%.3f' | format(percent) }}%"></span>{% endfor -%}
+</span>
+{%- endmacro %}
+
+{% macro counts(delta) -%}
+<span class="counts mono"><span class="count-left {{ 'zero' if not delta.only_left }}">−{{ delta.only_left }}</span><span class="count-right {{ 'zero' if not delta.only_right }}">+{{ delta.only_right }}</span><span class="count-changed {{ 'zero' if not delta.changed }}">~{{ delta.changed }}</span></span>
+{%- endmacro %}
+
+{% macro log_table(lines, with_target=True) -%}
+<div class="scroll">
+<table class="list dense log-table">
+  <thead><tr><th>Time</th><th>Level</th>{% if with_target %}<th>Target</th>{% endif %}<th>Logger</th><th>Message</th></tr></thead>
+  <tbody>
+    {% for line in lines %}
+    <tr class="log-{{ line.level }}"><td class="mono nowrap">{{ line.at.strftime("%H:%M:%S.%f")[:12] }}</td><td><span class="level level-{{ line.level }}">{{ line.level }}</span></td>{% if with_target %}<td class="mono">{{ line.target or "" }}</td>{% endif %}<td class="mono muted">{{ line.logger }}</td><td class="mono log-message">{{ line.message }}</td></tr>
+    {% endfor %}
+  </tbody>
+</table>
+</div>
+{%- endmacro %}
+
+{% macro run_status(status) -%}
+<span class="run-status {{ status }}">{{ {"ok": "OK", "partial": "Partial", "failed": "Failed"}[status] }}</span>
+{%- endmacro %}
+
+{% macro review_count(done, total, oob=False) -%}
+<span id="review-count" class="review-count{{ ' complete' if done == total }}"{% if oob %} hx-swap-oob="true"{% endif %}><b class="mono">{{ done }}</b> of <b class="mono">{{ total }}</b> changes accepted<span class="review-meter" aria-hidden="true"><span style="width: {{ '%.1f'|format(done * 100 / total if total else 0) }}%"></span></span></span>
+{%- endmacro %}
+
+{% macro review_bar(key, review, name) -%}
+<div class="review{{ ' done' if review }}">
+  <form method="post" action="/diffs/{{ name }}/reviews" hx-post="/diffs/{{ name }}/reviews" hx-target="closest .review" hx-swap="outerHTML" hx-include="#reviewer">
+    <input type="hidden" name="key" value="{{ key }}">
+    {% if review %}
+    <span class="review-mark" aria-hidden="true">✓</span>
+    <span class="review-text">Accepted{% if review.by %} by <b>{{ review.by }}</b>{% endif %} <span class="muted">{{ review.at | when }}</span>{% if review.comment %}<span class="review-comment-text">{{ review.comment }}</span>{% endif %}</span>
+    <input type="hidden" name="undo" value="true">
+    <button type="submit" class="button quiet small-button">Undo</button>
+    {% else %}
+    <input name="comment" class="review-comment" maxlength="500" placeholder="Comment, optional" aria-label="Comment on {{ key }}" autocomplete="off">
+    <button type="submit" class="button quiet small-button" data-accept>Accept</button>
+    {% endif %}
+  </form>
+</div>
+{%- endmacro %}
+
+{% macro card(item, left, right, name) -%}
+{% set marks = {"only-left": "−", "only-right": "+", "changed": "~", "children": "›"} %}
+<article class="card {{ item.status }}" id="card-{{ item.key }}" data-status="{{ item.status }}" tabindex="-1">
+  <header class="card-head">
+    <span class="mark" aria-hidden="true">{{ marks[item.status] }}</span>
+    <span class="card-name mono" title="{{ item.name }}">{{ item.label }}</span>
+    <span class="card-model">{{ item.model }}</span>
+    {% if item.status == "only-left" %}<span class="badge">only on {{ side_name(left) }}</span>{% endif %}
+    {% if item.status == "only-right" %}<span class="badge">only on {{ side_name(right) }}</span>{% endif %}
+    <a class="card-link" href="#card-{{ item.key }}" data-copy-link="{{ item.name }}" title="Copy a link to this object" aria-label="Copy a link to {{ item.label }}">#</a>
+  </header>
+  {% if item.rows and item.status in ("only-left", "only-right") %}
+  <dl class="inline">
+    {% for row in item.rows %}<div{% if row.context %} class="context" title="Kept in the snapshot, never compared"{% endif %}><dt>{{ row.name }}</dt><dd class="mono">{{ row.left if item.status == "only-left" else row.right }}</dd></div>{% endfor %}
+  </dl>
+  {% elif item.rows %}
+  <div class="grid">
+    <div class="grid-head"></div>
+    <div class="grid-head">{{ side_name(left) }}</div>
+    <div class="grid-head">{{ side_name(right) }}</div>
+    {% for row in item.rows %}
+    {% set state = "changed" if row.changed else "accepted" if row.accepted else "context" if row.context else "same" %}
+    <div class="attr {{ state }}"{% if row.context %} title="Kept in the snapshot, never compared"{% endif %}>{{ row.name }}{% if row.accepted %} <span class="tag">{{ row.accepted }}</span>{% endif %}{% if row.context %} <span class="tag">not compared</span>{% endif %}</div>
+    <div class="value left {{ state }} mono">{{ row.left_marked or row.left }}</div>
+    <div class="value right {{ state }} mono">{{ row.right_marked or row.right }}</div>
+    {% endfor %}
+  </div>
+  {% endif %}
+  {% if not item.complete %}<p class="note">Only the changed values are shown: a snapshot of this diff was deleted.</p>{% endif %}
+  {% if item.reviewable %}{{ review_bar(item.key, item.review, name) }}{% endif %}
+  {% if item.children %}
+  <div class="children">
+    {% for child in item.children %}{{ card(child, left, right, name) }}{% endfor %}
+  </div>
+  {% endif %}
+</article>
+{%- endmacro %}
+
+{% macro pager(pager, base, q="") -%}
+{% if pager.has_previous or pager.has_next %}
+<nav class="pager" aria-label="Pages">
+  {% if pager.has_previous %}<a class="button quiet" href="{{ base }}?{% if q %}q={{ q | urlencode }}&{% endif %}page={{ pager.number - 1 }}">Previous</a>{% endif %}
+  <span class="muted">Page {{ pager.number }}</span>
+  {% if pager.has_next %}<a class="button quiet" href="{{ base }}?{% if q %}q={{ q | urlencode }}&{% endif %}page={{ pager.number + 1 }}">Next</a>{% endif %}
+</nav>
+{% endif %}
+{%- endmacro %}
+
+{% macro search(base, q, placeholder) -%}
+<form class="search-form" method="get" action="{{ base }}" role="search">
+  <input type="search" name="q" value="{{ q }}" placeholder="{{ placeholder }}" aria-label="{{ placeholder }}"
+         hx-get="{{ base }}" hx-trigger="input changed delay:250ms, search" hx-target="#results" hx-select="#results" hx-push-url="true">
+</form>
+{%- endmacro %}

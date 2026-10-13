@@ -1,0 +1,1 @@
+{"device": "EDGE1", "interfaces": [{"name": "wan0", "description": "internet", "mtu": 1500}], "state": {"wan0": "up"}}

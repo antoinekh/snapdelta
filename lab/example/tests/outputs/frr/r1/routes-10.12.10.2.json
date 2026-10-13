@@ -1,0 +1,107 @@
+{
+  "defaultLocPrf": 100,
+  "localAS": 65001,
+  "numRoutes": 4,
+  "routerId": "10.0.0.1",
+  "routes": {
+    "10.0.0.2/32": [
+      {
+        "bestpath": true,
+        "metric": 0,
+        "network": "10.0.0.2/32",
+        "nexthops": [
+          {
+            "afi": "ipv4",
+            "hostname": "r2",
+            "ip": "10.12.10.2",
+            "used": true
+          }
+        ],
+        "origin": "IGP",
+        "path": "65002",
+        "pathFrom": "external",
+        "peerId": "10.12.10.2",
+        "prefix": "10.0.0.2",
+        "prefixLen": 32,
+        "selectionReason": "AS Path",
+        "valid": true,
+        "version": 3,
+        "weight": 0
+      }
+    ],
+    "10.0.0.3/32": [
+      {
+        "network": "10.0.0.3/32",
+        "nexthops": [
+          {
+            "afi": "ipv4",
+            "hostname": "r2",
+            "ip": "10.12.10.2",
+            "used": true
+          }
+        ],
+        "origin": "IGP",
+        "path": "65002 65003",
+        "pathFrom": "external",
+        "peerId": "10.12.10.2",
+        "prefix": "10.0.0.3",
+        "prefixLen": 32,
+        "valid": true,
+        "version": 5,
+        "weight": 0
+      }
+    ],
+    "192.168.2.0/24": [
+      {
+        "bestpath": true,
+        "metric": 0,
+        "network": "192.168.2.0/24",
+        "nexthops": [
+          {
+            "afi": "ipv4",
+            "hostname": "r2",
+            "ip": "10.12.10.2",
+            "used": true
+          }
+        ],
+        "origin": "IGP",
+        "path": "65002",
+        "pathFrom": "external",
+        "peerId": "10.12.10.2",
+        "prefix": "192.168.2.0",
+        "prefixLen": 24,
+        "selectionReason": "AS Path",
+        "valid": true,
+        "version": 4,
+        "weight": 0
+      }
+    ],
+    "192.168.3.0/24": [
+      {
+        "network": "192.168.3.0/24",
+        "nexthops": [
+          {
+            "afi": "ipv4",
+            "hostname": "r2",
+            "ip": "10.12.10.2",
+            "used": true
+          }
+        ],
+        "origin": "IGP",
+        "path": "65002 65003",
+        "pathFrom": "external",
+        "peerId": "10.12.10.2",
+        "prefix": "192.168.3.0",
+        "prefixLen": 24,
+        "valid": true,
+        "version": 6,
+        "weight": 0
+      }
+    ]
+  },
+  "tableVersion": 6,
+  "totalPaths": 10,
+  "totalRoutes": 4,
+  "vrfId": 0,
+  "vrfName": "default"
+}

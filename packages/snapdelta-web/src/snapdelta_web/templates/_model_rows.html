@@ -1,0 +1,4 @@
+{% for name, values in table.rows %}
+<tr><td class="mono strong" title="{{ name }}">{{ name | id_label }}</td>{% for value in values %}<td class="mono{% if loop.index > table.columns | length %} context{% endif %}">{{ value }}</td>{% endfor %}</tr>
+{% endfor %}
+{% if table.next_offset %}<tr class="more-row"><td colspan="{{ table.columns | length + table.context | length + 1 }}"><button type="button" class="button quiet" hx-get="/snapshots/{{ reference }}?model={{ table.model | urlencode }}&amp;offset={{ table.next_offset }}" hx-target="closest tr" hx-swap="outerHTML">Show more ({{ table.remaining }} left)</button></td></tr>{% endif %}

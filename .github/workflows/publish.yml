@@ -1,0 +1,53 @@
+name: publish
+
+on:
+  release:
+    types: [published]
+
+permissions:
+  contents: read
+
+jobs:
+  ci:
+    uses: ./.github/workflows/ci.yml
+
+  build:
+    needs: ci
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v10.2.0
+      # A release tag that differs from a package version would publish the wrong version under it.
+      - name: Check the tag against the package versions
+        run: |
+          for package in snapdelta snapdelta-web; do
+            version="v$(uv version --package "$package" --short)"
+            if [[ $version != "$GITHUB_REF_NAME" ]]; then
+              echo "$package is $version, the release tag is $GITHUB_REF_NAME"
+              exit 1
+            fi
+          done
+      - run: uv build --package snapdelta --out-dir dist
+      - run: uv build --package snapdelta-web --out-dir dist
+      - uses: actions/upload-artifact@v7
+        with:
+          name: dist
+          path: dist/
+
+  pypi:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: pypi
+      url: https://pypi.org/project/snapdelta/
+    permissions:
+      id-token: write
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          name: dist
+          path: dist/
+      # A run again after a partial upload must not stop at the files that PyPI already has.
+      - uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          skip-existing: true

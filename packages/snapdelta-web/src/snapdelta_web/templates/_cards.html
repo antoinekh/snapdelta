@@ -1,0 +1,4 @@
+{% from "_macros.html" import card %}
+{% if chip_counts %}{% for status, count in [("only-left", model_delta.only_left), ("only-right", model_delta.only_right), ("changed", model_delta.changed)] %}<b class="num" id="chip-{{ status }}" hx-swap-oob="true">{{ count }}</b>{% endfor %}{% endif %}
+{% for item in page.cards %}{{ card(item, left, right, name) }}{% else %}{% if page.offset == 0 %}<p class="empty">{{ "No object matches the filters." if filters.active else "No difference in " ~ model ~ "." }}</p>{% endif %}{% endfor %}
+{% if page.next_offset %}<button type="button" id="more-cards" class="button quiet more" hx-get="/diffs/{{ name }}?{{ filters.query_string(model=model, offset=page.next_offset) }}" hx-target="this" hx-swap="outerHTML">Show more ({{ page.remaining }} left)</button>{% endif %}

@@ -1,0 +1,6 @@
+{% extends "base.html" %}
+{% block title %}{{ "Snapshots taken" if job.done else "Taking snapshots" }} · snapdelta{% endblock %}
+{% block content %}
+<nav class="crumbs" aria-label="Breadcrumb"><a href="/snapshots">Snapshots</a></nav>
+{% include "_take_job.html" %}
+{% endblock %}

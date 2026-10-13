@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+{% from "_macros.html" import run_status, log_table %}
+{% block title %}{{ run.kind | capitalize }} run · snapdelta{% endblock %}
+{% block content %}
+<nav class="crumbs" aria-label="Breadcrumb"><a href="/activity">Activity</a></nav>
+<div class="title-row"><h1>{{ run.kind | capitalize }} {{ run_status(run.status) }}</h1></div>
+<dl class="facts">
+  <div><dt>Started</dt><dd>{{ run.started_at | when }}</dd></div>
+  <div><dt>Duration</dt><dd class="mono">{{ "%.2f"|format(run.duration_s) }} s</dd></div>
+  <div><dt>From</dt><dd>{{ run.origin }}{% if run.user %}, {{ run.user }}{% endif %}</dd></div>
+  <div><dt>Targets</dt><dd class="mono">{{ run.targets | join(", ") or "none" }}</dd></div>
+  {% if run.saved %}<div class="wide"><dt>Saved snapshots</dt><dd class="mono">{% for reference in run.saved %}<a href="/snapshots/{{ reference }}">{{ reference }}</a>{{ ", " if not loop.last }}{% endfor %}</dd></div>{% endif %}
+  {% if run.output %}<div class="wide"><dt>Diff</dt><dd class="mono"><a href="/diffs/{{ run.output }}">{{ run.output }}</a></dd></div>{% endif %}
+</dl>
+{% if run.errors %}<ul class="notice warn">{% for target, error in run.errors | dictsort %}<li><b class="mono">{{ "the run" if target == "*" else target }}</b>: {{ error }}</li>{% endfor %}</ul>{% endif %}
+<section class="panel">
+  <div class="panel-head">
+    <h2>Log <span class="count mono">{{ lines | length }}</span></h2>
+    <nav class="subnav" aria-label="Lowest level">
+      {% for value in levels[:4] %}<a href="/activity/{{ run.id }}?level={{ value }}" {{ 'aria-current=page' if level == value }}>{{ value }}</a>{% endfor %}
+    </nav>
+  </div>
+  {% if lines %}{{ log_table(lines) }}{% else %}<p class="muted">No message{% if level != "debug" %} at {{ level }} or above{% endif %}. A source plugin logs with the standard <code>logging</code> module; <code>[snapshot] log_level</code> sets the lowest level that is kept.</p>{% endif %}
+</section>
+{% endblock %}

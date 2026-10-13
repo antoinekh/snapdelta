@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+{% block title %}Take snapshot · snapdelta{% endblock %}
+{% block content %}
+<nav class="crumbs" aria-label="Breadcrumb"><a href="/snapshots">Snapshots</a></nav>
+<div class="title-row"><h1>Take snapshot</h1></div>
+{% if sources or by_platform %}
+<form method="post" action="/take" class="take panel">
+  <label class="field">Source
+    <select name="source" id="take-source"
+            hx-get="/take/targets" hx-include="#take-search, #take-selected" hx-target="#take-matches" hx-trigger="change">{% if by_platform %}<option value="">By platform (inventory)</option>{% endif %}{% for source in sources %}<option value="{{ source }}">{{ source }}</option>{% endfor %}</select>
+  </label>
+  {% if groups %}
+  <fieldset class="group-picks">
+    <legend>Groups</legend>
+    <div class="picks">{% for group in groups %}<label class="group-pick mono"><input type="checkbox" name="group" value="{{ group }}"> {{ group }}</label>{% endfor %}</div>
+  </fieldset>
+  {% endif %}
+  <label class="field">Targets
+    <input type="search" name="q" id="take-search" autocomplete="off" placeholder="Search or type a name"
+           hx-get="/take/targets" hx-include="#take-source, #take-selected" hx-trigger="input changed delay:200ms, focus once, refresh" hx-target="#take-matches" hx-sync="this:replace">
+  </label>
+  <div id="take-matches" class="picks"></div>
+  <div id="take-selected" class="picks selected" data-take-selected></div>
+  <label class="check"><input type="checkbox" name="all_targets" value="true"> All targets</label>
+  <label class="field">Label<input name="label" placeholder="before-change"></label>
+  <button type="submit" class="button primary" data-busy="Fetching…">Take snapshot</button>
+</form>
+{% else %}
+<p class="empty">No installed source fetches its data. Install a plugin with a source that sets <code>fetches = True</code>.</p>
+{% endif %}
+{% endblock %}

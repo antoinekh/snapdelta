@@ -1,0 +1,901 @@
+{
+  "afi-safi": [
+    {
+      "afi-safi-name": "ipv4-unicast",
+      "ipv4-unicast": {
+        "local-rib": {
+          "route": [
+            {
+              "attr-id": "9",
+              "backup-route": false,
+              "best-route": true,
+              "fib-disabled": false,
+              "group-best": true,
+              "last-modified": "2026-10-13T18:22:01.200Z (6 minutes ago)",
+              "neighbor": "10.13.0.1",
+              "neighbor-as": 65001,
+              "origin-protocol": "bgp",
+              "path-id": 0,
+              "pending-delete": false,
+              "prefix": "10.0.0.1/32",
+              "stale-route": false,
+              "tie-break-reason": "none",
+              "unused-weight-only": false,
+              "used-route": true,
+              "valid-route": true
+            },
+            {
+              "attr-id": "7",
+              "backup-route": false,
+              "best-route": false,
+              "fib-disabled": false,
+              "group-best": true,
+              "last-modified": "2026-10-13T18:22:01.200Z (6 minutes ago)",
+              "neighbor": "10.23.0.2",
+              "neighbor-as": 65002,
+              "origin-protocol": "bgp",
+              "path-id": 0,
+              "pending-delete": false,
+              "prefix": "10.0.0.1/32",
+              "stale-route": false,
+              "tie-break-reason": "as-path-length",
+              "unused-weight-only": false,
+              "used-route": false,
+              "valid-route": true
+            },
+            {
+              "attr-id": "10",
+              "backup-route": false,
+              "best-route": false,
+              "fib-disabled": false,
+              "group-best": true,
+              "last-modified": "2026-10-13T18:22:01.200Z (6 minutes ago)",
+              "neighbor": "10.13.0.1",
+              "neighbor-as": 65001,
+              "origin-protocol": "bgp",
+              "path-id": 0,
+              "pending-delete": false,
+              "prefix": "10.0.0.2/32",
+              "stale-route": false,
+              "tie-break-reason": "as-path-length",
+              "unused-weight-only": false,
+              "used-route": false,
+              "valid-route": true
+            },
+            {
+              "attr-id": "8",
+              "backup-route": false,
+              "best-route": true,
+              "fib-disabled": false,
+              "group-best": true,
+              "last-modified": "2026-10-13T18:22:01.200Z (6 minutes ago)",
+              "neighbor": "10.23.0.2",
+              "neighbor-as": 65002,
+              "origin-protocol": "bgp",
+              "path-id": 0,
+              "pending-delete": false,
+              "prefix": "10.0.0.2/32",
+              "stale-route": false,
+              "tie-break-reason": "none",
+              "unused-weight-only": false,
+              "used-route": true,
+              "valid-route": true
+            },
+            {
+              "attr-id": "3",
+              "backup-route": false,
+              "best-route": true,
+              "fib-disabled": false,
+              "group-best": true,
+              "last-modified": "2026-10-13T18:21:27.000Z (7 minutes ago)",
+              "neighbor": "0.0.0.0",
+              "origin-protocol": "local",
+              "path-id": 0,
+              "pending-delete": false,
+              "prefix": "10.0.0.3/32",
+              "stale-route": false,
+              "tie-break-reason": "none",
+              "unused-weight-only": false,
+              "used-route": true,
+              "valid-route": true
+            },
+            {
+              "attr-id": "15",
+              "backup-route": false,
+              "best-route": false,
+              "fib-disabled": false,
+              "group-best": false,
+              "invalid-reason": {
+                "as-loop": true
+              },
+              "last-modified": "2026-10-13T18:22:06.100Z (6 minutes ago)",
+              "neighbor": "10.13.0.1",
+              "neighbor-as": 65001,
+              "origin-protocol": "bgp",
+              "path-id": 0,
+              "pending-delete": false,
+              "prefix": "10.0.0.3/32",
+              "stale-route": false,
+              "tie-break-reason": "none",
+              "unused-weight-only": false,
+              "used-route": false,
+              "valid-route": false
+            },
+            {
+              "attr-id": "14",
+              "backup-route": false,
+              "best-route": false,
+              "fib-disabled": false,
+              "group-best": false,
+              "invalid-reason": {
+                "as-loop": true
+              },
+              "last-modified": "2026-10-13T18:22:06.100Z (6 minutes ago)",
+              "neighbor": "10.23.0.2",
+              "neighbor-as": 65002,
+              "origin-protocol": "bgp",
+              "path-id": 0,
+              "pending-delete": false,
+              "prefix": "10.0.0.3/32",
+              "stale-route": false,
+              "tie-break-reason": "none",
+              "unused-weight-only": false,
+              "used-route": false,
+              "valid-route": false
+            },
+            {
+              "attr-id": "6",
+              "backup-route": false,
+              "best-route": true,
+              "fib-disabled": false,
+              "group-best": true,
+              "last-modified": "2026-10-13T18:21:29.700Z (7 minutes ago)",
+              "neighbor": "0.0.0.0",
+              "origin-protocol": "local",
+              "path-id": 0,
+              "pending-delete": false,
+              "prefix": "10.13.0.0/24",
+              "stale-route": false,
+              "tie-break-reason": "none",
+              "unused-weight-only": false,
+              "used-route": true,
+              "valid-route": true
+            },
+            {
+              "attr-id": "5",
+              "backup-route": false,
+              "best-route": true,
+              "fib-disabled": false,
+              "group-best": true,
+              "last-modified": "2026-10-13T18:21:29.500Z (7 minutes ago)",
+              "neighbor": "0.0.0.0",
+              "origin-protocol": "local",
+              "path-id": 0,
+              "pending-delete": false,
+              "prefix": "10.23.0.0/24",
+              "stale-route": false,
+              "tie-break-reason": "none",
+              "unused-weight-only": false,
+              "used-route": true,
+              "valid-route": true
+            },
+            {
+              "attr-id": "9",
+              "backup-route": false,
+              "best-route": true,
+              "fib-disabled": false,
+              "group-best": true,
+              "last-modified": "2026-10-13T18:22:01.200Z (6 minutes ago)",
+              "neighbor": "10.13.0.1",
+              "neighbor-as": 65001,
+              "origin-protocol": "bgp",
+              "path-id": 0,
+              "pending-delete": false,
+              "prefix": "192.168.1.0/24",
+              "stale-route": false,
+              "tie-break-reason": "none",
+              "unused-weight-only": false,
+              "used-route": true,
+              "valid-route": true
+            },
+            {
+              "attr-id": "7",
+              "backup-route": false,
+              "best-route": false,
+              "fib-disabled": false,
+              "group-best": true,
+              "last-modified": "2026-10-13T18:22:01.200Z (6 minutes ago)",
+              "neighbor": "10.23.0.2",
+              "neighbor-as": 65002,
+              "origin-protocol": "bgp",
+              "path-id": 0,
+              "pending-delete": false,
+              "prefix": "192.168.1.0/24",
+              "stale-route": false,
+              "tie-break-reason": "as-path-length",
+              "unused-weight-only": false,
+              "used-route": false,
+              "valid-route": true
+            },
+            {
+              "attr-id": "10",
+              "backup-route": false,
+              "best-route": false,
+              "fib-disabled": false,
+              "group-best": true,
+              "last-modified": "2026-10-13T18:22:01.200Z (6 minutes ago)",
+              "neighbor": "10.13.0.1",
+              "neighbor-as": 65001,
+              "origin-protocol": "bgp",
+              "path-id": 0,
+              "pending-delete": false,
+              "prefix": "192.168.2.0/24",
+              "stale-route": false,
+              "tie-break-reason": "as-path-length",
+              "unused-weight-only": false,
+              "used-route": false,
+              "valid-route": true
+            },
+            {
+              "attr-id": "8",
+              "backup-route": false,
+              "best-route": true,
+              "fib-disabled": false,
+              "group-best": true,
+              "last-modified": "2026-10-13T18:22:01.200Z (6 minutes ago)",
+              "neighbor": "10.23.0.2",
+              "neighbor-as": 65002,
+              "origin-protocol": "bgp",
+              "path-id": 0,
+              "pending-delete": false,
+              "prefix": "192.168.2.0/24",
+              "stale-route": false,
+              "tie-break-reason": "none",
+              "unused-weight-only": false,
+              "used-route": true,
+              "valid-route": true
+            },
+            {
+              "attr-id": "4",
+              "backup-route": false,
+              "best-route": true,
+              "fib-disabled": false,
+              "group-best": true,
+              "last-modified": "2026-10-13T18:21:27.000Z (7 minutes ago)",
+              "neighbor": "0.0.0.0",
+              "origin-protocol": "local",
+              "path-id": 0,
+              "pending-delete": false,
+              "prefix": "192.168.3.0/24",
+              "stale-route": false,
+              "tie-break-reason": "none",
+              "unused-weight-only": false,
+              "used-route": true,
+              "valid-route": true
+            },
+            {
+              "attr-id": "15",
+              "backup-route": false,
+              "best-route": false,
+              "fib-disabled": false,
+              "group-best": false,
+              "invalid-reason": {
+                "as-loop": true
+              },
+              "last-modified": "2026-10-13T18:22:06.100Z (6 minutes ago)",
+              "neighbor": "10.13.0.1",
+              "neighbor-as": 65001,
+              "origin-protocol": "bgp",
+              "path-id": 0,
+              "pending-delete": false,
+              "prefix": "192.168.3.0/24",
+              "stale-route": false,
+              "tie-break-reason": "none",
+              "unused-weight-only": false,
+              "used-route": false,
+              "valid-route": false
+            },
+            {
+              "attr-id": "14",
+              "backup-route": false,
+              "best-route": false,
+              "fib-disabled": false,
+              "group-best": false,
+              "invalid-reason": {
+                "as-loop": true
+              },
+              "last-modified": "2026-10-13T18:22:06.100Z (6 minutes ago)",
+              "neighbor": "10.23.0.2",
+              "neighbor-as": 65002,
+              "origin-protocol": "bgp",
+              "path-id": 0,
+              "pending-delete": false,
+              "prefix": "192.168.3.0/24",
+              "stale-route": false,
+              "tie-break-reason": "none",
+              "unused-weight-only": false,
+              "used-route": false,
+              "valid-route": false
+            },
+            {
+              "attr-id": "4",
+              "backup-route": false,
+              "best-route": true,
+              "fib-disabled": false,
+              "group-best": true,
+              "last-modified": "2026-10-13T18:21:27.000Z (7 minutes ago)",
+              "neighbor": "0.0.0.0",
+              "origin-protocol": "local",
+              "path-id": 0,
+              "pending-delete": false,
+              "prefix": "192.168.3.1/32",
+              "stale-route": false,
+              "tie-break-reason": "none",
+              "unused-weight-only": false,
+              "used-route": true,
+              "valid-route": true
+            }
+          ]
+        },
+        "rib-in-out": {
+          "rib-in-post": {
+            "route": [
+              {
+                "attr-id": "9",
+                "backup-route": false,
+                "best-route": true,
+                "fib-disabled": false,
+                "group-best": true,
+                "last-modified": "2026-10-13T18:22:01.200Z (6 minutes ago)",
+                "neighbor": "10.13.0.1",
+                "neighbor-as": 65001,
+                "path-id": 0,
+                "pending-delete": false,
+                "prefix": "10.0.0.1/32",
+                "stale-route": false,
+                "tie-break-reason": "none",
+                "unused-weight-only": false,
+                "used-route": true,
+                "valid-route": true
+              },
+              {
+                "attr-id": "7",
+                "backup-route": false,
+                "best-route": false,
+                "fib-disabled": false,
+                "group-best": true,
+                "last-modified": "2026-10-13T18:22:01.200Z (6 minutes ago)",
+                "neighbor": "10.23.0.2",
+                "neighbor-as": 65002,
+                "path-id": 0,
+                "pending-delete": false,
+                "prefix": "10.0.0.1/32",
+                "stale-route": false,
+                "tie-break-reason": "as-path-length",
+                "unused-weight-only": false,
+                "used-route": false,
+                "valid-route": true
+              },
+              {
+                "attr-id": "10",
+                "backup-route": false,
+                "best-route": false,
+                "fib-disabled": false,
+                "group-best": true,
+                "last-modified": "2026-10-13T18:22:01.200Z (6 minutes ago)",
+                "neighbor": "10.13.0.1",
+                "neighbor-as": 65001,
+                "path-id": 0,
+                "pending-delete": false,
+                "prefix": "10.0.0.2/32",
+                "stale-route": false,
+                "tie-break-reason": "as-path-length",
+                "unused-weight-only": false,
+                "used-route": false,
+                "valid-route": true
+              },
+              {
+                "attr-id": "8",
+                "backup-route": false,
+                "best-route": true,
+                "fib-disabled": false,
+                "group-best": true,
+                "last-modified": "2026-10-13T18:22:01.200Z (6 minutes ago)",
+                "neighbor": "10.23.0.2",
+                "neighbor-as": 65002,
+                "path-id": 0,
+                "pending-delete": false,
+                "prefix": "10.0.0.2/32",
+                "stale-route": false,
+                "tie-break-reason": "none",
+                "unused-weight-only": false,
+                "used-route": true,
+                "valid-route": true
+              },
+              {
+                "attr-id": "15",
+                "backup-route": false,
+                "best-route": false,
+                "fib-disabled": false,
+                "group-best": false,
+                "invalid-reason": {
+                  "as-loop": true
+                },
+                "last-modified": "2026-10-13T18:22:06.100Z (6 minutes ago)",
+                "neighbor": "10.13.0.1",
+                "neighbor-as": 65001,
+                "path-id": 0,
+                "pending-delete": false,
+                "prefix": "10.0.0.3/32",
+                "stale-route": false,
+                "tie-break-reason": "none",
+                "unused-weight-only": false,
+                "used-route": false,
+                "valid-route": false
+              },
+              {
+                "attr-id": "14",
+                "backup-route": false,
+                "best-route": false,
+                "fib-disabled": false,
+                "group-best": false,
+                "invalid-reason": {
+                  "as-loop": true
+                },
+                "last-modified": "2026-10-13T18:22:06.100Z (6 minutes ago)",
+                "neighbor": "10.23.0.2",
+                "neighbor-as": 65002,
+                "path-id": 0,
+                "pending-delete": false,
+                "prefix": "10.0.0.3/32",
+                "stale-route": false,
+                "tie-break-reason": "none",
+                "unused-weight-only": false,
+                "used-route": false,
+                "valid-route": false
+              },
+              {
+                "attr-id": "9",
+                "backup-route": false,
+                "best-route": true,
+                "fib-disabled": false,
+                "group-best": true,
+                "last-modified": "2026-10-13T18:22:01.200Z (6 minutes ago)",
+                "neighbor": "10.13.0.1",
+                "neighbor-as": 65001,
+                "path-id": 0,
+                "pending-delete": false,
+                "prefix": "192.168.1.0/24",
+                "stale-route": false,
+                "tie-break-reason": "none",
+                "unused-weight-only": false,
+                "used-route": true,
+                "valid-route": true
+              },
+              {
+                "attr-id": "7",
+                "backup-route": false,
+                "best-route": false,
+                "fib-disabled": false,
+                "group-best": true,
+                "last-modified": "2026-10-13T18:22:01.200Z (6 minutes ago)",
+                "neighbor": "10.23.0.2",
+                "neighbor-as": 65002,
+                "path-id": 0,
+                "pending-delete": false,
+                "prefix": "192.168.1.0/24",
+                "stale-route": false,
+                "tie-break-reason": "as-path-length",
+                "unused-weight-only": false,
+                "used-route": false,
+                "valid-route": true
+              },
+              {
+                "attr-id": "10",
+                "backup-route": false,
+                "best-route": false,
+                "fib-disabled": false,
+                "group-best": true,
+                "last-modified": "2026-10-13T18:22:01.200Z (6 minutes ago)",
+                "neighbor": "10.13.0.1",
+                "neighbor-as": 65001,
+                "path-id": 0,
+                "pending-delete": false,
+                "prefix": "192.168.2.0/24",
+                "stale-route": false,
+                "tie-break-reason": "as-path-length",
+                "unused-weight-only": false,
+                "used-route": false,
+                "valid-route": true
+              },
+              {
+                "attr-id": "8",
+                "backup-route": false,
+                "best-route": true,
+                "fib-disabled": false,
+                "group-best": true,
+                "last-modified": "2026-10-13T18:22:01.200Z (6 minutes ago)",
+                "neighbor": "10.23.0.2",
+                "neighbor-as": 65002,
+                "path-id": 0,
+                "pending-delete": false,
+                "prefix": "192.168.2.0/24",
+                "stale-route": false,
+                "tie-break-reason": "none",
+                "unused-weight-only": false,
+                "used-route": true,
+                "valid-route": true
+              },
+              {
+                "attr-id": "15",
+                "backup-route": false,
+                "best-route": false,
+                "fib-disabled": false,
+                "group-best": false,
+                "invalid-reason": {
+                  "as-loop": true
+                },
+                "last-modified": "2026-10-13T18:22:06.100Z (6 minutes ago)",
+                "neighbor": "10.13.0.1",
+                "neighbor-as": 65001,
+                "path-id": 0,
+                "pending-delete": false,
+                "prefix": "192.168.3.0/24",
+                "stale-route": false,
+                "tie-break-reason": "none",
+                "unused-weight-only": false,
+                "used-route": false,
+                "valid-route": false
+              },
+              {
+                "attr-id": "14",
+                "backup-route": false,
+                "best-route": false,
+                "fib-disabled": false,
+                "group-best": false,
+                "invalid-reason": {
+                  "as-loop": true
+                },
+                "last-modified": "2026-10-13T18:22:06.100Z (6 minutes ago)",
+                "neighbor": "10.23.0.2",
+                "neighbor-as": 65002,
+                "path-id": 0,
+                "pending-delete": false,
+                "prefix": "192.168.3.0/24",
+                "stale-route": false,
+                "tie-break-reason": "none",
+                "unused-weight-only": false,
+                "used-route": false,
+                "valid-route": false
+              }
+            ]
+          },
+          "rib-in-pre": {
+            "route": [
+              {
+                "attr-id": "9",
+                "neighbor": "10.13.0.1",
+                "path-id": 0,
+                "prefix": "10.0.0.1/32"
+              },
+              {
+                "attr-id": "7",
+                "neighbor": "10.23.0.2",
+                "path-id": 0,
+                "prefix": "10.0.0.1/32"
+              },
+              {
+                "attr-id": "10",
+                "neighbor": "10.13.0.1",
+                "path-id": 0,
+                "prefix": "10.0.0.2/32"
+              },
+              {
+                "attr-id": "8",
+                "neighbor": "10.23.0.2",
+                "path-id": 0,
+                "prefix": "10.0.0.2/32"
+              },
+              {
+                "attr-id": "15",
+                "neighbor": "10.13.0.1",
+                "path-id": 0,
+                "prefix": "10.0.0.3/32"
+              },
+              {
+                "attr-id": "14",
+                "neighbor": "10.23.0.2",
+                "path-id": 0,
+                "prefix": "10.0.0.3/32"
+              },
+              {
+                "attr-id": "9",
+                "neighbor": "10.13.0.1",
+                "path-id": 0,
+                "prefix": "192.168.1.0/24"
+              },
+              {
+                "attr-id": "7",
+                "neighbor": "10.23.0.2",
+                "path-id": 0,
+                "prefix": "192.168.1.0/24"
+              },
+              {
+                "attr-id": "10",
+                "neighbor": "10.13.0.1",
+                "path-id": 0,
+                "prefix": "192.168.2.0/24"
+              },
+              {
+                "attr-id": "8",
+                "neighbor": "10.23.0.2",
+                "path-id": 0,
+                "prefix": "192.168.2.0/24"
+              },
+              {
+                "attr-id": "15",
+                "neighbor": "10.13.0.1",
+                "path-id": 0,
+                "prefix": "192.168.3.0/24"
+              },
+              {
+                "attr-id": "14",
+                "neighbor": "10.23.0.2",
+                "path-id": 0,
+                "prefix": "192.168.3.0/24"
+              }
+            ]
+          },
+          "rib-out-post": {
+            "route": [
+              {
+                "attr-id": "13",
+                "neighbor": "10.23.0.2",
+                "path-id": 0,
+                "prefix": "10.0.0.1/32"
+              },
+              {
+                "attr-id": "12",
+                "neighbor": "10.13.0.1",
+                "path-id": 0,
+                "prefix": "10.0.0.2/32"
+              },
+              {
+                "attr-id": "11",
+                "neighbor": "10.13.0.1",
+                "path-id": 0,
+                "prefix": "10.0.0.3/32"
+              },
+              {
+                "attr-id": "11",
+                "neighbor": "10.23.0.2",
+                "path-id": 0,
+                "prefix": "10.0.0.3/32"
+              },
+              {
+                "attr-id": "13",
+                "neighbor": "10.23.0.2",
+                "path-id": 0,
+                "prefix": "192.168.1.0/24"
+              },
+              {
+                "attr-id": "12",
+                "neighbor": "10.13.0.1",
+                "path-id": 0,
+                "prefix": "192.168.2.0/24"
+              },
+              {
+                "attr-id": "11",
+                "neighbor": "10.13.0.1",
+                "path-id": 0,
+                "prefix": "192.168.3.0/24"
+              },
+              {
+                "attr-id": "11",
+                "neighbor": "10.23.0.2",
+                "path-id": 0,
+                "prefix": "192.168.3.0/24"
+              }
+            ]
+          }
+        }
+      }
+    }
+  ],
+  "attr-sets": {
+    "attr-set": [
+      {
+        "atomic-aggregate": false,
+        "index": "2",
+        "med": 0,
+        "next-hop": "0.0.0.0",
+        "origin": "incomplete"
+      },
+      {
+        "atomic-aggregate": false,
+        "index": "3",
+        "next-hop": "0.0.0.0",
+        "origin": "igp"
+      },
+      {
+        "atomic-aggregate": false,
+        "index": "4",
+        "next-hop": "0.0.0.0",
+        "origin": "igp"
+      },
+      {
+        "atomic-aggregate": false,
+        "index": "5",
+        "next-hop": "0.0.0.0",
+        "origin": "igp"
+      },
+      {
+        "atomic-aggregate": false,
+        "index": "6",
+        "next-hop": "0.0.0.0",
+        "origin": "igp"
+      },
+      {
+        "as-path": {
+          "segment": [
+            {
+              "as-path-index": 0,
+              "member": [
+                65002,
+                65001
+              ],
+              "type": "as-sequence"
+            }
+          ]
+        },
+        "atomic-aggregate": false,
+        "index": "7",
+        "next-hop": "10.23.0.2",
+        "origin": "igp"
+      },
+      {
+        "as-path": {
+          "segment": [
+            {
+              "as-path-index": 0,
+              "member": [
+                65002
+              ],
+              "type": "as-sequence"
+            }
+          ]
+        },
+        "atomic-aggregate": false,
+        "index": "8",
+        "med": 0,
+        "next-hop": "10.23.0.2",
+        "origin": "igp"
+      },
+      {
+        "as-path": {
+          "segment": [
+            {
+              "as-path-index": 0,
+              "member": [
+                65001
+              ],
+              "type": "as-sequence"
+            }
+          ]
+        },
+        "atomic-aggregate": false,
+        "index": "9",
+        "med": 0,
+        "next-hop": "10.13.0.1",
+        "origin": "igp"
+      },
+      {
+        "as-path": {
+          "segment": [
+            {
+              "as-path-index": 0,
+              "member": [
+                65001,
+                65002
+              ],
+              "type": "as-sequence"
+            }
+          ]
+        },
+        "atomic-aggregate": false,
+        "index": "10",
+        "next-hop": "10.13.0.1",
+        "origin": "igp"
+      },
+      {
+        "as-path": {
+          "segment": [
+            {
+              "as-path-index": 0,
+              "member": [
+                65003
+              ],
+              "type": "as-sequence"
+            }
+          ]
+        },
+        "atomic-aggregate": false,
+        "index": "11",
+        "next-hop": "0.0.0.0",
+        "origin": "igp"
+      },
+      {
+        "as-path": {
+          "segment": [
+            {
+              "as-path-index": 0,
+              "member": [
+                65003,
+                65002
+              ],
+              "type": "as-sequence"
+            }
+          ]
+        },
+        "atomic-aggregate": false,
+        "index": "12",
+        "next-hop": "0.0.0.0",
+        "origin": "igp"
+      },
+      {
+        "as-path": {
+          "segment": [
+            {
+              "as-path-index": 0,
+              "member": [
+                65003,
+                65001
+              ],
+              "type": "as-sequence"
+            }
+          ]
+        },
+        "atomic-aggregate": false,
+        "index": "13",
+        "next-hop": "0.0.0.0",
+        "origin": "igp"
+      },
+      {
+        "as-path": {
+          "segment": [
+            {
+              "as-path-index": 0,
+              "member": [
+                65002,
+                65003
+              ],
+              "type": "as-sequence"
+            }
+          ]
+        },
+        "atomic-aggregate": false,
+        "index": "14",
+        "next-hop": "10.23.0.2",
+        "origin": "igp"
+      },
+      {
+        "as-path": {
+          "segment": [
+            {
+              "as-path-index": 0,
+              "member": [
+                65001,
+                65003
+              ],
+              "type": "as-sequence"
+            }
+          ]
+        },
+        "atomic-aggregate": false,
+        "index": "15",
+        "next-hop": "10.13.0.1",
+        "origin": "igp"
+      }
+    ]
+  }
+}

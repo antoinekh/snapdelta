@@ -1,0 +1,42 @@
+# Two FRR routers and one Nokia SR Linux in a triangle, eBGP on each link (AS 65001, 65002, 65003); r1-r2 is an 802.1Q trunk.
+name: snapdelta-lab
+
+# Its own management network: the default 172.20.20.0/24 can overlap other Docker networks.
+mgmt:
+  network: snapdelta-lab-mgmt
+  ipv4-subnet: 172.30.30.0/24
+  ipv6-subnet: 3fff:172:30:30::/64
+
+topology:
+  defaults:
+    kind: linux
+    image: quay.io/frrouting/frr:10.7.1
+  nodes:
+    r1:
+      binds:
+        - configs/daemons:/etc/frr/daemons
+        - configs/vtysh.conf:/etc/frr/vtysh.conf
+        - configs/r1/frr.conf:/etc/frr/frr.conf
+      exec:
+        - ip link add link eth1 name eth1.10 type vlan id 10
+        - ip link set eth1.10 up
+        - ip link add lan type dummy
+        - ip link set lan up
+    r2:
+      binds:
+        - configs/daemons:/etc/frr/daemons
+        - configs/vtysh.conf:/etc/frr/vtysh.conf
+        - configs/r2/frr.conf:/etc/frr/frr.conf
+      exec:
+        - ip link add link eth1 name eth1.10 type vlan id 10
+        - ip link set eth1.10 up
+        - ip link add lan type dummy
+        - ip link set lan up
+    r3:
+      kind: nokia_srlinux
+      image: ghcr.io/nokia/srlinux:26.3.2
+      startup-config: configs/r3/config.cli
+  links:
+    - endpoints: ["r1:eth1", "r2:eth1"]
+    - endpoints: ["r1:eth2", "r3:e1-1"]
+    - endpoints: ["r2:eth2", "r3:e1-2"]

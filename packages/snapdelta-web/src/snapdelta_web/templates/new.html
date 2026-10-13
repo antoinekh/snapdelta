@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+{% block title %}New diff · snapdelta{% endblock %}
+{% block content %}
+<div class="title-row"><h1>New diff</h1><button type="button" class="button quiet" data-preset-labels="before after" title="The newest snapshots labelled before and after of the target of the left side">Before → after</button></div>
+{% for message in missing %}<p class="notice warn">{{ message }}: the newest snapshot is selected.</p>{% endfor %}
+<form method="post" action="/diffs" class="new-diff">
+  <button type="button" class="swap-sides" data-swap-sides title="Swap left and right" aria-label="Swap left and right">⇄</button>
+  {% for side in ("left", "right") %}
+  {% set picker = pickers[side] %}
+  <section class="picker {{ side }}-picker">
+    <h2>{{ side | capitalize }}</h2>
+    <div class="target-search">
+      <input type="search" name="q" placeholder="Search a target" aria-label="{{ side | capitalize }} target" autocomplete="off"
+             hx-get="/targets?side={{ side }}" hx-include="next [name=group]" hx-trigger="input changed delay:200ms, search" hx-target="#{{ side }}-targets" hx-sync="this:replace">
+      {% if groups %}<select name="group" aria-label="{{ side | capitalize }} group" hx-get="/targets?side={{ side }}" hx-include="previous [name=q]" hx-trigger="change" hx-target="#{{ side }}-targets"><option value="">All groups</option>{% for group in groups %}<option>{{ group }}</option>{% endfor %}</select>{% endif %}
+    </div>
+    <div id="{{ side }}-targets" class="target-options">
+      {% with targets = picker.targets, more = 0, current = picker.options.target if picker.options else None %}{% include "_target_options.html" %}{% endwith %}
+    </div>
+    <div id="{{ side }}-snapshots" class="snapshot-options">
+      {% if picker.options %}{% set o = picker.options %}{% with target = o.target, side = o.side, offset = o.offset, next_offset = o.next_offset, entries = o.entries, more = o.more, selected = o.selected %}{% include "_snapshot_options.html" %}{% endwith %}{% else %}<p class="muted small">Select a target, then one of its snapshots.</p>{% endif %}
+    </div>
+  </section>
+  {% endfor %}
+  <div id="models" class="models-section" hx-get="/new/models" hx-trigger="load, change[target.type==='radio'] from:closest form, htmx:afterSettle[detail.target.classList.contains('snapshot-options')] from:closest form" hx-include="[name='left'], [name='right']"></div>
+  <div class="describe-new">
+    <label class="field">Title<input name="title" maxlength="120" placeholder="Change 42 on the core" autocomplete="off" value="{{ title }}"></label>
+    <label class="field">Description<input name="description" maxlength="2000" autocomplete="off" value="{{ description }}"></label>
+  </div>
+  <div class="actions">
+    {% if profiles %}<label class="field inline-field">Profile<select name="profile"><option value="">None</option>{% for name, text in profiles %}<option value="{{ name }}"{% if name == profile %} selected{% endif %}>{{ text }}</option>{% endfor %}</select></label>{% endif %}
+    <button type="submit" class="button primary large" data-busy="Comparing…">Compare</button>
+  </div>
+</form>
+{% endblock %}

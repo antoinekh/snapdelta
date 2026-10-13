@@ -1,0 +1,52 @@
+<form class="timeline" method="post" action="/diffs" data-timeline>
+  <div class="timeline-head">
+    <h2>Timeline</h2>
+    <span class="timeline-legend small"><i class="only-left"></i>removed<i class="only-right"></i>added<i class="changed"></i>changed{% if timeline.older %}<span class="muted">{{ timeline.points | length }} newest of {{ timeline.points | length + timeline.older }}</span>{% endif %}</span>
+    <label class="inline-field">Profile
+      <select name="profile" hx-get="/targets/{{ target | urlencode }}/timeline" hx-target="#timeline" hx-trigger="change">
+        <option value="">None</option>
+        {% for name, text in profiles %}<option value="{{ name }}"{% if name == profile %} selected{% endif %}>{{ text }}</option>{% endfor %}
+      </select>
+    </label>
+    <button type="submit" class="button primary" data-timeline-compare disabled>Select two snapshots</button>
+  </div>
+  {% if timeline.points | length < 2 %}
+  <p class="muted">Take a second snapshot of {{ target }} to see how it changes.</p>
+  {% else %}
+  <ol class="timeline-track" data-timeline-track>
+    {% for point in timeline.points %}
+    {% set day = point.captured_at.strftime("%d %b") %}
+    <li class="timeline-slot">
+      {% if not loop.first %}
+      {% set step = timeline.steps[loop.index0 - 1] %}
+      {% if step.delta %}
+      <button type="button" class="timeline-step{{ ' quiet' if not step.changes }}" data-left="{{ step.left }}" data-right="{{ step.right }}"
+              title="−{{ step.delta.only_left }} +{{ step.delta.only_right }} ~{{ step.delta.changed }}"
+              aria-label="Compare with the snapshot before: {{ step.delta.only_left }} removed, {{ step.delta.only_right }} added, {{ step.delta.changed }} changed">
+        {% if step.changes %}
+        <span class="timeline-count mono">{{ step.changes }}</span>
+        <span class="timeline-capsule" style="height: {{ '%.1f'|format(6 + (step.changes / timeline.largest) ** 0.5 * 56) }}px">
+          {% for status, count in [("changed", step.delta.changed), ("only-right", step.delta.only_right), ("only-left", step.delta.only_left)] if count %}<span class="{{ status }}" style="flex-grow: {{ count }}"></span>{% endfor %}
+        </span>
+        {% endif %}
+      </button>
+      {% else %}
+      <button type="button" class="timeline-step failed" data-left="{{ step.left }}" data-right="{{ step.right }}" title="{{ step.error }}" aria-label="Cannot compare with the snapshot before: {{ step.error }}"><span class="timeline-count">!</span></button>
+      {% endif %}
+      {% endif %}
+      <label class="timeline-pick">
+        <input type="checkbox" value="{{ point.reference }}" data-timeline-pick data-caption="{{ (point.label ~ ' ' if point.label else '') ~ point.captured_at.strftime('%H:%M') }}" aria-label="Select the snapshot of {{ point.captured_at | when }}">
+        <span class="timeline-dot" aria-hidden="true"></span>
+      </label>
+      <span class="timeline-caption">
+        <b class="timeline-day">{% if loop.first or day != loop.previtem.captured_at.strftime("%d %b") %}{{ day }}{% endif %}</b>
+        <a class="timeline-time mono" href="/snapshots/{{ point.reference }}" title="Open the snapshot of {{ point.captured_at | when }}">{{ point.captured_at.strftime("%H:%M") }}</a>
+        {% if point.label %}<span class="tag label">{{ point.label }}</span>{% endif %}
+      </span>
+    </li>
+    {% endfor %}
+  </ol>
+  {% endif %}
+  <input type="hidden" name="left">
+  <input type="hidden" name="right">
+</form>

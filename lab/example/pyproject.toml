@@ -1,0 +1,45 @@
+[project]
+name = "snapdelta-lab"
+version = "0.1.0"
+description = "snapdelta lab: two FRR routers and one Nokia SR Linux in containerlab, two sources that fetch interfaces and BGP"
+requires-python = ">=3.13,<3.14"
+license = "Apache-2.0"
+dependencies = ["snapdelta", "snapdelta-web"]
+
+[project.entry-points."snapdelta.sources"]
+frr = "snapdelta_lab:FrrSource"
+srlinux = "snapdelta_lab:SrlinuxSource"
+
+[project.scripts]
+snapdelta-lab-capture = "snapdelta_lab.capture:main"
+
+[dependency-groups]
+dev = ["pytest>=8", "ruff>=0.6", "pyright>=1.1.380"]
+
+[tool.uv.sources]
+snapdelta = { path = "../../packages/snapdelta", editable = true }
+snapdelta-web = { path = "../../packages/snapdelta-web", editable = true }
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/snapdelta_lab"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = ["--import-mode=importlib"]
+
+[tool.ruff]
+line-length = 120
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "B", "UP", "I"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["snapdelta_lab"]
+
+[tool.pyright]
+include = ["src", "tests"]
+typeCheckingMode = "standard"

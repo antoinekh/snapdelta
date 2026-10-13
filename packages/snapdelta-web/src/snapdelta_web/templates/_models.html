@@ -1,0 +1,12 @@
+{% if common %}
+<fieldset class="model-picks">
+  <legend>Models</legend>
+  <input type="hidden" name="pick_models" value="true">
+  <div class="picks">{% for model in common %}<label class="target-pick"><input type="checkbox" name="models" value="{{ model }}" checked> {{ model }}</label>{% endfor %}</div>
+  {% if skipped %}<p class="muted small">Not compared, because only one side loaded them: {{ skipped | join(", ") }}</p>{% endif %}
+</fieldset>
+{% else %}
+<div class="notice warn">
+  <b>No model in common.</b> {{ left.target }} has {{ left.loaded | join(", ") or "no model" }}; {{ right.target }} has {{ right.loaded | join(", ") or "no model" }}. Select snapshots that hold the same models.
+</div>
+{% endif %}

@@ -1,0 +1,40 @@
+# r3: Nokia SR Linux, eBGP AS 65003 to r1 and r2; it announces its loopback and its LAN, and the BGP routes it learns.
+set / system name host-name r3
+set / interface ethernet-1/1 description "to r1"
+set / interface ethernet-1/1 admin-state enable
+set / interface ethernet-1/1 subinterface 0 ipv4 admin-state enable
+set / interface ethernet-1/1 subinterface 0 ipv4 address 10.13.0.3/24
+set / interface ethernet-1/2 description "to r2"
+set / interface ethernet-1/2 admin-state enable
+set / interface ethernet-1/2 subinterface 0 ipv4 admin-state enable
+set / interface ethernet-1/2 subinterface 0 ipv4 address 10.23.0.3/24
+set / interface lo0 admin-state enable
+set / interface lo0 subinterface 0 ipv4 admin-state enable
+set / interface lo0 subinterface 0 ipv4 address 10.0.0.3/32
+set / interface lo1 description "customer lan"
+set / interface lo1 admin-state enable
+set / interface lo1 subinterface 0 ipv4 admin-state enable
+set / interface lo1 subinterface 0 ipv4 address 192.168.3.1/24
+set / network-instance default interface ethernet-1/1.0
+set / network-instance default interface ethernet-1/2.0
+set / network-instance default interface lo0.0
+set / network-instance default interface lo1.0
+set / routing-policy prefix-set own prefix 10.0.0.3/32 mask-length-range exact
+set / routing-policy prefix-set own prefix 192.168.3.0/24 mask-length-range exact
+set / routing-policy policy announce default-action policy-result reject
+set / routing-policy policy announce statement own match prefix prefix-set own
+set / routing-policy policy announce statement own action policy-result accept
+set / routing-policy policy announce statement learned match protocol bgp
+set / routing-policy policy announce statement learned action policy-result accept
+set / routing-policy policy accept-all default-action policy-result accept
+set / network-instance default protocols bgp autonomous-system 65003
+set / network-instance default protocols bgp router-id 10.0.0.3
+set / network-instance default protocols bgp afi-safi ipv4-unicast admin-state enable
+set / network-instance default protocols bgp group ebgp export-policy [announce]
+set / network-instance default protocols bgp group ebgp import-policy [accept-all]
+set / network-instance default protocols bgp neighbor 10.13.0.1 peer-group ebgp
+set / network-instance default protocols bgp neighbor 10.13.0.1 peer-as 65001
+set / network-instance default protocols bgp neighbor 10.13.0.1 description r1
+set / network-instance default protocols bgp neighbor 10.23.0.2 peer-group ebgp
+set / network-instance default protocols bgp neighbor 10.23.0.2 peer-as 65002
+set / network-instance default protocols bgp neighbor 10.23.0.2 description r2

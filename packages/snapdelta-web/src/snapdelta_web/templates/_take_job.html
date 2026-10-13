@@ -1,0 +1,31 @@
+{% set total = job.lines | length %}
+{% set ended = job.count("saved") + job.count("failed") %}
+<section id="take-job"{% if not job.done %} hx-get="/take/jobs/{{ job.id }}" hx-trigger="every 1s" hx-swap="outerHTML"{% endif %} aria-busy="{{ 'false' if job.done else 'true' }}">
+  <div class="title-row">
+    <h1>{{ "Snapshots taken" if job.done else "Taking snapshots" }}</h1>
+    {% if job.label %}<span class="tag label">{{ job.label }}</span>{% endif %}
+    {% if job.done and job.failed %}<form method="post" action="/take/jobs/{{ job.id }}/retry" class="push"><button type="submit" class="button primary">Retry the {{ job.failed | length }} failed</button></form>{% endif %}
+    <a class="button{{ ' push' if not (job.done and job.failed) }}" href="/take">Take more</a>
+  </div>
+  <div class="job-summary">
+    <span class="job-meter" role="progressbar" aria-valuemin="0" aria-valuemax="{{ total }}" aria-valuenow="{{ ended }}" aria-label="Targets done">
+      {%- for status in ("saved", "failed", "running") %}{% if job.count(status) %}<span class="{{ status }}" style="width: {{ '%.2f'|format(job.count(status) * 100 / total) }}%"></span>{% endif %}{% endfor -%}
+    </span>
+    <span class="small"><b>{{ ended }}</b> of <b>{{ total }}</b> done: {{ job.count("saved") }} saved, {{ job.count("failed") }} failed{% if not job.done %}, {{ job.count("running") }} running{% endif %}</span>
+    {% if job.done %}<a class="small" href="/activity?kind=snapshot">See the log in Activity</a>{% endif %}
+  </div>
+  {% if job.error %}<p class="notice warn">{{ job.error }}</p>{% endif %}
+  <table class="list job-table">
+    <thead><tr><th>Target</th><th>Status</th><th class="num-col">Time</th><th>Snapshot or error</th></tr></thead>
+    <tbody>
+      {% for line in job.lines.values() %}
+      <tr class="job-{{ line.status }}">
+        <td class="mono strong">{{ line.name }}</td>
+        <td><span class="job-status {{ line.status }}">{{ {"queued": "Queued", "running": "Running", "saved": "Saved", "failed": "Failed"}[line.status] }}</span></td>
+        <td class="num-col mono muted">{% if line.duration_s is not none %}{{ "%.1f"|format(line.duration_s) }} s{% endif %}</td>
+        <td>{% if line.reference %}<a class="mono" href="/snapshots/{{ line.reference }}">{{ line.reference }}</a>{% elif line.error %}<span class="job-error">{{ line.error }}</span>{% endif %}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</section>

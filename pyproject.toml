@@ -1,0 +1,40 @@
+[project]
+name = "snapdelta-workspace"
+version = "0.0.0"
+requires-python = ">=3.13"
+dependencies = ["snapdelta", "snapdelta-web", "snapdelta-example"]
+
+[tool.uv]
+package = false
+
+[tool.uv.workspace]
+members = ["packages/*", "examples/*"]
+# The lab is its own project with its own environment.
+exclude = ["lab/*"]
+
+[tool.uv.sources]
+snapdelta = { workspace = true }
+snapdelta-web = { workspace = true }
+snapdelta-example = { workspace = true }
+
+[dependency-groups]
+dev = ["pytest>=8", "ruff>=0.6", "pyright>=1.1.380", "httpx2", "types-pyyaml"]
+
+[tool.ruff]
+line-length = 120
+target-version = "py313"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "B", "UP", "I"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["snapdelta", "snapdelta_web", "snapdelta_example"]
+
+[tool.pytest.ini_options]
+testpaths = ["packages", "examples"]
+addopts = "--import-mode=importlib"
+
+[tool.pyright]
+include = ["packages/snapdelta/src", "packages/snapdelta-web/src", "examples/minimal-plugin/src"]
+pythonVersion = "3.13"
+typeCheckingMode = "standard"

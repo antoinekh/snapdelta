@@ -1,0 +1,37 @@
+{% extends "base.html" %}
+{% from "_macros.html" import log_table %}
+{% block title %}{{ adapter.target }} · snapdelta{% endblock %}
+{% block content %}
+<nav class="crumbs" aria-label="Breadcrumb"><a href="/snapshots">Snapshots</a> <span aria-hidden="true">/</span> <a class="mono" href="/snapshots/{{ adapter.target }}">{{ adapter.target }}</a></nav>
+<div class="title-row">
+  <h1>{{ adapter.target }}</h1>
+  <span class="tag">{{ adapter.source }}</span>{% if adapter.label %}<span class="tag label">{{ adapter.label }}</span>{% endif %}
+  <a class="button primary push" href="/new?left={{ reference }}">Compare</a>
+  {% if live %}<form method="post" action="/diffs/live" class="inline-form"><input type="hidden" name="left" value="{{ reference }}">{% if profiles %}<select name="profile" aria-label="Profile"><option value="">No profile</option>{% for name, text in profiles %}<option value="{{ name }}">{{ text }}</option>{% endfor %}</select>{% endif %}<button type="submit" class="button" data-busy="Fetching…">Compare with live</button></form>{% endif %}
+  <form method="post" action="/snapshots/{{ reference }}/delete" data-confirm="Delete this snapshot?"><button type="submit" class="button danger quiet">Delete</button></form>
+</div>
+<dl class="facts">
+  <div><dt>Captured</dt><dd>{{ adapter.captured_at | when }}</dd></div>
+  <div><dt>Models</dt><dd>{{ adapter.loaded | join(", ") }}</dd></div>
+  <div><dt>Unmapped fields</dt><dd class="mono">{{ adapter.unmapped | length }}</dd></div>
+  <div class="wide"><dt>Inputs</dt><dd class="mono">{{ adapter.inputs | map(attribute="name") | join(", ") or "none" }}</dd></div>
+</dl>
+{% if adapter.warnings %}<ul class="notice warn">{% for warning in adapter.warnings %}<li>{{ warning }}</li>{% endfor %}</ul>{% endif %}
+{% if adapter.log %}
+<details class="panel load-log"{% if adapter.log | selectattr("level", "in", ["warning", "error", "critical"]) | list %} open{% endif %}>
+  <summary><h2>Load log <span class="count mono">{{ adapter.log | length }}</span></h2></summary>
+  {{ log_table(adapter.log, with_target=False) }}
+</details>
+{% endif %}
+{% for table in tables %}
+<section class="model-table">
+  <h2>{{ table.model }} <span class="count mono">{{ table.total }}</span></h2>
+  <div class="scroll">
+    <table class="list dense">
+      <thead><tr><th>name</th>{% for column in table.columns %}<th>{{ column }}</th>{% endfor %}{% for column in table.context %}<th class="context" title="Kept in the snapshot, never compared">{{ column }}</th>{% endfor %}</tr></thead>
+      <tbody>{% include "_model_rows.html" %}</tbody>
+    </table>
+  </div>
+</section>
+{% endfor %}
+{% endblock %}

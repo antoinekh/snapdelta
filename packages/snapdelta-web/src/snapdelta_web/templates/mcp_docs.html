@@ -1,0 +1,69 @@
+{% extends "base.html" %}
+{% block title %}MCP server · snapdelta{% endblock %}
+{% block content %}
+<div class="title-row"><h1>MCP server</h1><a class="button quiet push" href="/api/v1/docs">API docs</a></div>
+<dl class="facts">
+  <div class="wide"><dt>Endpoint</dt><dd class="mono">{{ endpoint }}</dd></div>
+  <div><dt>Transport</dt><dd>Streamable HTTP, JSON answers</dd></div>
+  <div><dt>Access</dt><dd>{{ "Bearer token, as the API" if signed_in else "No token" }}</dd></div>
+  <div><dt>Over stdio</dt><dd class="mono">snapdelta-mcp</dd></div>
+  <div><dt>Version</dt><dd class="mono">{{ version }}</dd></div>
+</dl>
+
+<section class="panel">
+  <h2>Connect an agent</h2>
+  <pre class="mono code-block">claude mcp add --transport http snapdelta {{ endpoint }}{% if signed_in %} --header "Authorization: Bearer $SNAPDELTA_TOKEN"{% endif %}
+
+claude mcp add snapdelta -- snapdelta-mcp --settings /path/to/snapdelta.toml</pre>
+</section>
+
+<section class="mcp-section">
+  <h2>Tools <span class="count mono">{{ tools | length }}</span></h2>
+  {% for tool, parameters, example in tools %}
+  {% set hints = tool.annotations %}
+  <article class="panel mcp-tool" id="tool-{{ tool.name }}">
+    <header class="mcp-tool-head">
+      <h3 class="mono">{{ tool.name }}</h3>
+      {% if hints and hints.read_only_hint %}<span class="tag">reads only</span>{% elif hints and hints.open_world_hint %}<span class="tag label">reads the devices</span>{% else %}<span class="tag label">writes the store</span>{% endif %}
+    </header>
+    <p class="mcp-description">{{ tool.description | ticks }}</p>
+    {% if parameters %}
+    <table class="list dense">
+      <thead><tr><th>Parameter</th><th>Type</th><th>Default</th><th>Description</th></tr></thead>
+      <tbody>{% for item in parameters %}<tr><td class="mono strong">{{ item.name }}{% if item.required %} <span class="muted">required</span>{% endif %}</td><td class="mono">{{ item.type }}</td><td class="mono muted">{{ item.default or "" }}</td><td>{{ item.description | ticks if item.description else "" }}</td></tr>{% endfor %}</tbody>
+    </table>
+    {% else %}<p class="muted small">No parameter.</p>{% endif %}
+    <details class="mcp-try">
+      <summary class="button quiet small-button">Try</summary>
+      <form hx-post="/mcp/docs/try/{{ tool.name }}" hx-target="next .mcp-answer" hx-swap="innerHTML" hx-disabled-elt="find button" method="post" action="/mcp/docs/try/{{ tool.name }}">
+        <label class="field">Arguments, as JSON<textarea name="arguments" rows="{{ [example.count('\n') + 2, 4] | max }}" class="mono" spellcheck="false">{{ example }}</textarea></label>
+        <button type="submit" class="button primary">Call {{ tool.name }}</button>
+      </form>
+      <div class="mcp-answer" aria-live="polite"></div>
+    </details>
+  </article>
+  {% endfor %}
+</section>
+
+<section class="mcp-section">
+  <h2>Resources <span class="count mono">{{ resources | length }}</span></h2>
+  {% for resource in resources %}
+  <article class="panel mcp-tool">
+    <header class="mcp-tool-head"><h3 class="mono">{{ resource.uri }}</h3><span class="tag">{{ resource.mime_type or "text" }}</span></header>
+    <p class="mcp-description">{{ resource.description or resource.title or resource.name }}</p>
+    {% if resource.uri | string == "snapdelta://guide" %}<details><summary class="button quiet small-button">Read</summary><pre class="mono code-block">{{ guide }}</pre></details>{% endif %}
+  </article>
+  {% endfor %}
+</section>
+
+<section class="mcp-section">
+  <h2>Prompts <span class="count mono">{{ prompts | length }}</span></h2>
+  {% for prompt in prompts %}
+  <article class="panel mcp-tool">
+    <header class="mcp-tool-head"><h3 class="mono">{{ prompt.name }}</h3>{% if prompt.title %}<span class="muted">{{ prompt.title }}</span>{% endif %}</header>
+    <p class="mcp-description">{{ prompt.description | ticks }}</p>
+    {% if prompt.arguments %}<p class="small">Arguments: {% for argument in prompt.arguments %}<code>{{ argument.name }}</code>{% if argument.required %} (required){% endif %}{{ ", " if not loop.last }}{% endfor %}</p>{% endif %}
+  </article>
+  {% endfor %}
+</section>
+{% endblock %}

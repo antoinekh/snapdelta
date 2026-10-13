@@ -1,0 +1,1 @@
+{"device": "R2", "interfaces": [{"name": "eth0", "description": "uplink to R1", "mtu": 9000}], "vlans": [{"id": 10, "name": "users"}], "state": {"eth0": "up"}}

@@ -1,0 +1,8 @@
+{% if offset == 0 %}
+<p class="picked mono">{{ target }}</p>
+<label class="choice"><input type="radio" name="{{ side }}" value="{{ target }}@latest" {{ "checked" if selected == target ~ "@latest" }} required> <span>Latest</span></label>
+{% endif %}
+{% for entry in entries %}
+<label class="choice"><input type="radio" name="{{ side }}" value="{{ entry.reference }}" {{ "checked" if entry.reference == selected }}> <span>{{ entry.captured_at | when }}</span>{% if entry.label %} <span class="tag label">{{ entry.label }}</span>{% endif %}</label>
+{% endfor %}
+{% if more %}<button type="button" class="button quiet more" hx-get="/targets/{{ target }}/snapshots?side={{ side }}&offset={{ next_offset }}" hx-swap="outerHTML">Show older</button>{% endif %}

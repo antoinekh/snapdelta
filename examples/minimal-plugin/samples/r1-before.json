@@ -1,0 +1,10 @@
+{
+  "device": "R1",
+  "interfaces": [
+    {"name": "eth0", "ifindex": 1, "description": "uplink", "mtu": 1500, "addresses": [{"prefix": "10.0.0.1/30", "primary": true}]},
+    {"name": "eth1", "ifindex": 2, "description": "servers", "mtu": 1500, "addresses": [{"prefix": "192.168.1.1/24", "primary": true}]},
+    {"name": "eth2", "ifindex": 3, "description": "spare", "enabled": false}
+  ],
+  "vlans": [{"id": 10, "name": "users"}, {"id": 20, "name": "voice"}],
+  "state": {"eth0": "up", "eth1": "up", "eth2": "down"}
+}

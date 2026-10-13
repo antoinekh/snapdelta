@@ -1,0 +1,5 @@
+.venv/
+.store/
+__pycache__/
+clab-snapdelta-lab/
+.store-saved/

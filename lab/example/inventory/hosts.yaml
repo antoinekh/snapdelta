@@ -1,0 +1,20 @@
+# The routers of the lab; hostname is the containerlab container that the source runs its commands in.
+r1:
+  hostname: clab-snapdelta-lab-r1
+  groups: [trunk]
+  data:
+    asn: 65001
+    loopback: 10.0.0.1
+r2:
+  hostname: clab-snapdelta-lab-r2
+  groups: [trunk]
+  data:
+    asn: 65002
+    loopback: 10.0.0.2
+r3:
+  hostname: clab-snapdelta-lab-r3
+  platform: srlinux
+  groups: [lab]
+  data:
+    asn: 65003
+    loopback: 10.0.0.3

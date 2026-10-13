@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+{% from "_macros.html" import run_status %}
+{% block title %}Activity · snapdelta{% endblock %}
+{% block content %}
+<div class="title-row">
+  <h1>Activity</h1>
+  <nav class="subnav" aria-label="Kind">
+    {% for value, text in [("", "All"), ("snapshot", "Snapshots"), ("diff", "Diffs")] %}<a href="/activity{{ '?kind=' ~ value if value }}" {{ 'aria-current=page' if kind == value }}>{{ text }}</a>{% endfor %}
+  </nav>
+</div>
+{% if runs %}
+<table class="list activity">
+  <thead><tr><th>Started</th><th>Kind</th><th>From</th><th>Targets</th><th>Result</th><th class="num-col">Log</th></tr></thead>
+  <tbody>
+    {% for run in runs %}
+    {% set problems = run.log | selectattr("level", "in", ["warning", "error", "critical"]) | list %}
+    <tr>
+      <td><a class="row-link" href="/activity/{{ run.id }}">{{ run.started_at | when }}</a><div class="muted small">{{ "%.1f"|format(run.duration_s) }} s</div></td>
+      <td><span class="tag">{{ run.kind }}</span></td>
+      <td class="muted">{{ run.origin }}{% if run.user %} · {{ run.user }}{% endif %}</td>
+      <td class="mono">{{ run.targets | join(", ") }}</td>
+      <td>{{ run_status(run.status) }}{% set parts = (["diff saved"] if run.output else ([run.saved | length ~ " saved"] if run.saved else [])) + ([run.errors | length ~ " failed"] if run.errors else []) %}<span class="muted small run-result">{{ parts | join(", ") }}</span></td>
+      <td class="num-col mono {{ 'warn-text' if problems }}">{{ run.log | length }}{% if problems %} ({{ problems | length }}!){% endif %}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+<nav class="pager" aria-label="Pages">
+  {% if page > 1 %}<a class="button quiet" href="/activity?{{ 'kind=' ~ kind ~ '&' if kind }}page={{ page - 1 }}">Newer</a>{% endif %}
+  {% if more %}<a class="button quiet" href="/activity?{{ 'kind=' ~ kind ~ '&' if kind }}page={{ page + 1 }}">Older</a>{% endif %}
+</nav>
+{% else %}
+<div class="empty-state"><p>No run yet: take a snapshot or compare two, from here, the CLI or the API.</p><a class="button primary" href="/take">Take snapshot</a></div>
+{% endif %}
+{% endblock %}

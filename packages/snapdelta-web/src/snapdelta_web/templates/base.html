@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}snapdelta{% endblock %}</title>
+  <script>
+    document.documentElement.dataset.theme = localStorage.getItem("theme")
+      || (matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light");
+  </script>
+  <link rel="icon" href="{{ asset('favicon.svg') }}" type="image/svg+xml">
+  <link rel="preload" href="/static/vendor/fonts/bricolage-grotesque-latin-opsz-normal.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="stylesheet" href="{{ asset('vendor/fonts.css') }}">
+  <link rel="stylesheet" href="{{ asset('app.css') }}">
+  <script src="{{ asset('vendor/htmx.min.js') }}" defer></script>
+  <script src="{{ asset('app.js') }}" defer></script>
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="/diffs" aria-label="snapdelta home"><svg class="brand-mark" viewBox="0 0 64 64" aria-hidden="true"><rect x="6" y="9" width="34" height="34" rx="6" fill="#d1495b"/><rect x="24" y="21" width="34" height="34" rx="6" fill="#12876f"/><path d="M24 27a6 6 0 0 1 6-6h10v16a6 6 0 0 1-6 6H24z" fill="#c98a04"/></svg>snapdelta</a>
+    <nav class="tabs" aria-label="Main">
+      <a href="/diffs" {{ 'aria-current=page' if tab == 'diffs' }}>Diffs</a>
+      <a href="/snapshots" {{ 'aria-current=page' if tab == 'snapshots' }}>Snapshots</a>
+      <a href="/new" {{ 'aria-current=page' if tab == 'new' }}>New diff</a>
+      <a href="/activity" {{ 'aria-current=page' if tab == 'activity' }}>Activity</a>
+      <a href="/admin" {{ 'aria-current=page' if tab == 'admin' }}>Admin</a>
+    </nav>
+    {% if signed_in %}<form method="post" action="/logout" class="logout"><button type="submit" class="button quiet">Log out</button></form>{% endif %}
+    <button class="palette-open" type="button" data-palette-open aria-keyshortcuts="Control+K">Go to <kbd>Ctrl K</kbd></button>
+    <button class="theme-toggle" type="button" data-theme-toggle aria-label="Switch the theme"><span aria-hidden="true">◐</span></button>
+  </header>
+  <dialog id="palette" class="palette" aria-label="Go to">
+    <input type="search" name="q" class="palette-input" placeholder="A target, a diff or a page" autocomplete="off" aria-controls="palette-results"
+           hx-get="/palette" hx-trigger="input changed delay:120ms, palette-open" hx-target="#palette-results">
+    <div id="palette-results" class="palette-results" role="listbox"></div>
+  </dialog>
+  <dialog id="shortcuts" class="shortcuts" aria-labelledby="shortcuts-title">
+    <div class="shortcuts-head"><h2 id="shortcuts-title">Keyboard shortcuts</h2><form method="dialog"><button type="submit" class="button quiet">Close</button></form></div>
+    <table>
+      <tbody><tr><th colspan="2">Everywhere</th></tr>
+        <tr><td><kbd>Ctrl K</kbd></td><td>Go to a target, a diff or a page</td></tr>
+        <tr><td><kbd>?</kbd></td><td>Show these shortcuts</td></tr>
+        <tr><td><kbd>/</kbd></td><td>Go to the search of the page</td></tr>
+        <tr><td><kbd>Esc</kbd></td><td>Close a window</td></tr>
+      </tbody>
+      <tbody><tr><th colspan="2">Diff page</th></tr>
+        <tr><td><kbd>j</kbd></td><td>Next object</td></tr>
+        <tr><td><kbd>k</kbd></td><td>Previous object</td></tr>
+        <tr><td><kbd>a</kbd></td><td>Accept the object, or undo</td></tr>
+        <tr><td><kbd>c</kbd></td><td>Copy a link to the object</td></tr>
+        <tr><td><kbd>o</kbd></td><td>Only changed attributes, on or off</td></tr>
+        <tr><td><kbd>h</kbd></td><td>Hide accepted, on or off</td></tr>
+      </tbody>
+      <tbody><tr><th colspan="2">Settings and profiles</th></tr>
+        <tr><td><kbd>Ctrl S</kbd></td><td>Save</td></tr>
+      </tbody>
+    </table>
+  </dialog>
+  <main class="page">{% block content %}{% endblock %}</main>
+  <footer class="site-footer">
+    <a href="/admin/about">snapdelta {{ snapdelta_version }}</a>
+    <a href="{{ links.project }}">GitHub</a>
+    <a href="{{ links.docs }}">Documentation</a>
+    <a href="{{ links.changelog }}">Changelog</a>
+    <button type="button" class="footer-button" data-shortcuts-open aria-keyshortcuts="?">Shortcuts <kbd>?</kbd></button>
+  </footer>
+</body>
+</html>

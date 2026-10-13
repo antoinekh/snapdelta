@@ -1,0 +1,78 @@
+{% extends "base.html" %}
+{% from "_macros.html" import side_label, strip, counts, review_count %}
+{% block title %}{{ output.title or output.left.target ~ " vs " ~ output.right.target }} · snapdelta{% endblock %}
+{% block content %}
+<section class="diff-head">
+  <div class="diff-about">
+    {% if output.title %}<h1 class="diff-title">{{ output.title }}</h1>{% endif %}
+    {% if output.description %}<p class="diff-description">{{ output.description }}</p>{% endif %}
+    <details class="describe">
+      <summary class="button quiet small-button">{{ "Edit title" if output.title or output.description else "Add a title" }}</summary>
+      <form method="post" action="/diffs/{{ name }}/describe" class="describe-form">
+        <label class="field">Title<input name="title" value="{{ output.title or '' }}" maxlength="120" autocomplete="off"></label>
+        <label class="field">Description<textarea name="description" rows="3" maxlength="2000">{{ output.description or "" }}</textarea></label>
+        <button type="submit" class="button primary">Save</button>
+      </form>
+    </details>
+  </div>
+  <div class="versus">
+    <div class="side left-side">
+      {{ side_label(output.left) }}
+      <span class="muted small">{{ output.left.captured_at | when }}</span>
+    </div>
+    <div class="side right-side">
+      {{ side_label(output.right) }}
+      <span class="muted small">{{ output.right.captured_at | when }}</span>
+    </div>
+    <div class="head-action">
+      <details class="menu">
+        <summary class="button quiet">Export</summary>
+        <div class="menu-items">{% for output_format in formats %}<a href="/diffs/{{ name }}/export/{{ output_format }}" download>{{ output_format }}</a>{% endfor %}<button type="button" class="menu-button" data-copy-api="/api/v1/diffs/{{ name }}?format=json" data-token="{{ 'true' if signed_in }}" title="Copy a curl command that reads this diff through the API">API call</button></div>
+      </details>
+      <form method="post" action="/diffs/{{ name }}/delete" data-confirm="Delete this diff?"><button type="submit" class="button danger quiet">Delete</button></form>
+    </div>
+  </div>
+  {{ strip(delta, "large") }}
+  <p class="whole-diff small"><span class="muted">All models</span> {{ counts(delta) }} <span class="mono muted">{{ delta.unchanged }} unchanged</span></p>
+  {% if reviewed[1] %}
+  <div class="review-line small">
+    {{ review_count(reviewed[0], reviewed[1]) }}
+    <label class="inline-field">Your name<input id="reviewer" name="by" maxlength="80" autocomplete="name" data-reviewer></label>
+    <label class="switch"><input type="checkbox" data-hide-accepted> Hide accepted</label>
+  </div>
+  {% endif %}
+  <form id="filters" class="legend" method="get" action="/diffs/{{ name }}"
+        hx-get="/diffs/{{ name }}" hx-target="#cards" hx-push-url="true"
+        hx-trigger="submit, change[target.name==='status'], input changed delay:300ms from:find [name=q], search from:find [name=q]">
+    <input type="hidden" name="model" value="{{ model }}">
+    <input type="hidden" name="filtered" value="true">
+    {% for status, count, text in [("only-left", model_delta.only_left, "only left"), ("only-right", model_delta.only_right, "only right"), ("changed", model_delta.changed, "changed")] %}
+    <label class="chip {{ status }}"><input type="checkbox" name="status" value="{{ status }}" {{ "checked" if status in filters.statuses }}><b class="num" id="chip-{{ status }}">{{ count }}</b> {{ text }}</label>
+    {% endfor %}
+    <div class="legend-tools">
+      <input type="search" name="q" value="{{ filters.query }}" class="search" placeholder="Search names and values" aria-label="Search names and values">
+      <label class="switch"><input type="checkbox" data-only-changed> Only changed attributes</label>
+    </div>
+  </form>
+  {% if output.skipped %}<p class="muted small">Not compared, because only one side loaded them: {{ output.skipped | join(", ") }}</p>{% endif %}
+  {% if output.not_selected %}<p class="muted small">Not selected: {{ output.not_selected | join(", ") }}</p>{% endif %}
+  {% if output.profile %}
+  <div class="profile-line small"><span class="tag label">profile {{ output.profile.name or "unnamed" }}</span>{% if output.profile.rules.description %}<span class="muted">{{ output.profile.rules.description }}</span>{% endif %}
+    {% for check in output.profile.counts %}<span class="count-check {{ 'within' if check.within else 'over' }} mono">{{ check.model }} {{ check.left }} → {{ check.right }}, limit {{ check.limit }}{% if check.hidden %}, {{ check.hidden }} hidden{% endif %}</span>{% endfor %}
+  </div>
+  {% endif %}
+</section>
+<div class="diff-body">
+  <nav class="models" aria-label="Models">
+    {% for model_name, model_delta in deltas %}
+    <a class="model {{ 'active' if model_name == model }}" data-model-link="{{ model_name }}"
+       href="/diffs/{{ name }}?{{ filters.query_string(model=model_name) }}">
+      <span class="model-name">{{ model_name }}</span><span class="count mono">{{ model_delta.total }}</span>
+      {{ strip(model_delta, "tiny") }}
+    </a>
+    {% endfor %}
+  </nav>
+  <section id="cards" class="cards" aria-keyshortcuts="j k">{% include "_cards.html" %}</section>
+</div>
+<div id="change-map" class="change-map" aria-hidden="true" hidden></div>
+{% endblock %}

@@ -1,0 +1,2 @@
+{% for target in targets %}<button type="button" class="target-option mono {{ 'active' if target == current }}" data-target-option hx-get="/targets/{{ target }}/snapshots?side={{ side }}" hx-target="#{{ side }}-snapshots">{{ target }}</button>{% else %}<p class="muted small">No target matches.</p>{% endfor %}
+{% if more %}<p class="muted small">{{ more }} more: type more of the name.</p>{% endif %}

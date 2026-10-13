@@ -1,0 +1,45 @@
+# Settings of the lab: snapdelta reads this file when you run it from lab/example.
+# `uv run snapdelta settings` shows the values in use; the web UI edits them in Admin > Settings.
+# A commented key shows its default. Paths are relative to this file.
+
+[store]
+# Where the snapshots and the diffs go. A directory gives the file store (one JSON file each).
+location = ".store"
+# The SQLite store instead (one file); see docs/stores.md:
+# location = "sqlite://.store/snapdelta.db"
+# Without Docker: use this store instead, with `outputs` below, so the two kinds of snapshots never mix:
+# location = ".store-saved"
+
+# [stores.sqlite]
+# How long a writer of the SQLite store waits for the lock, in seconds.
+# busy_timeout_s = 30
+
+[snapshot]
+# Routers fetched at the same time by --all-targets: the three routers of the lab at once.
+jobs = 3
+
+[web]
+# port = 8765
+
+[inventory]
+# The routers, their platform (frr or srlinux, the name of the source), groups and containers: `uv run snapdelta inventory`.
+# Without it, each source lists the running containers of its kind itself.
+location = "inventory"
+
+[sources.frr]
+# Each vtysh command of the lab answers in well under a second.
+timeout_s = 10
+# Without Docker: read the saved outputs instead of the live lab (with `location = ".store-saved"` above):
+# outputs = "tests/outputs"
+
+[sources.srlinux]
+# sr_cli starts in about a second.
+timeout_s = 20
+# Without Docker, as for frr:
+# outputs = "tests/outputs"
+
+[profiles.change-window]
+# A compare profile (docs/profiles.md): `uv run snapdelta diff ... --profile change-window`.
+description = "Change window, descriptions ignored, MTU within 10%"
+ignore = ["interface.description"]
+tolerance = { "interface.mtu" = "10%" }

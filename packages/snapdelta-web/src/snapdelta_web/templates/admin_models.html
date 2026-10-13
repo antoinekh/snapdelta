@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+{% block title %}Models · snapdelta{% endblock %}
+{% block content %}
+<div class="title-row"><h1>Admin</h1></div>
+{% include "_admin_nav.html" %}
+{% for name, error in broken | dictsort %}<p class="notice warn">The plugin of the source <b class="mono">{{ name }}</b> cannot load: <span class="mono">{{ error }}</span></p>{% endfor %}
+{% for found in sets %}
+<section class="panel model-set" id="models-{{ found.names[0] }}">
+  <h2 class="source-names">{% for item in found.sources %}<span class="source-name" id="source-{{ item.source }}"><b class="mono">{{ item.source }}</b> <span class="tag">{{ "fetches" if item.fetches else "files" }}</span></span>{% endfor %}</h2>
+  {% if found.compares_with %}<p class="muted small">Compares with {{ found.compares_with | join(", ") }}.</p>{% endif %}
+  {% for conflict in found.conflicts %}<p class="notice warn small">{{ conflict }}</p>{% endfor %}
+  <div class="scroll">
+    <table class="list dense model-list">
+      <thead><tr><th>Model</th><th>Identifiers</th><th>Attributes</th><th title="Kept in the snapshot, never compared">Not compared</th><th>Children</th></tr></thead>
+      <tbody>
+        {% for model in found.models %}
+        <tr id="model-{{ found.names[0] }}-{{ model.name }}" class="{{ 'child-model' if model.parent }}">
+          <td>
+            <span class="mono strong">{% if model.parent %}<span class="muted" aria-label="child of {{ model.parent }}">{{ model.parent }} › </span>{% endif %}{{ model.name }}</span>
+            {% if model.doc %}<div class="muted small">{{ model.doc | ticks }}</div>{% endif %}
+          </td>
+          <td>{% for item in model.identifiers %}<div class="field-line"><span class="mono">{{ item.name }}</span> <span class="field-type mono">{{ item.type }}</span></div>{% endfor %}</td>
+          <td>{% for item in model.attributes %}<div class="field-line"><span class="mono">{{ item.name }}</span> <span class="field-type mono">{{ item.type }}</span></div>{% else %}<span class="muted">none</span>{% endfor %}</td>
+          <td>{% for item in model.context %}<div class="field-line"><span class="mono">{{ item.name }}</span> <span class="field-type mono">{{ item.type }}</span></div>{% endfor %}</td>
+          <td><span class="mono">{{ model.children | join(", ") }}</span></td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+{% else %}
+<p class="empty">No source is installed. Install a plugin package, then run <code>snapdelta sources</code>.</p>
+{% endfor %}
+{% endblock %}

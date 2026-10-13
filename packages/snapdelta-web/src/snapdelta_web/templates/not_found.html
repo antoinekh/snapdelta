@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+{% block title %}Not found · snapdelta{% endblock %}
+{% block content %}
+<section class="not-found">
+  <p class="code-404" aria-label="404">4<svg viewBox="0 0 64 64" aria-hidden="true"><rect class="frame-left" x="6" y="9" width="34" height="34" rx="6" fill="#d1495b"/><rect class="frame-right" x="24" y="21" width="34" height="34" rx="6" fill="#12876f"/><path class="frame-overlap" d="M24 27a6 6 0 0 1 6-6h10v16a6 6 0 0 1-6 6H24z" fill="#c98a04"/></svg>4</p>
+  {% if message %}
+  <h1>Nothing to compare here</h1>
+  <p class="lead">{{ message }}</p>
+  {% else %}
+  <h1>This page is only on one side</h1>
+  <p class="lead">Your address bar has it. snapdelta does not.</p>
+  {% endif %}
+  <div class="mini-diff" aria-hidden="true">
+    <div class="card only-left"><header class="card-head"><span class="mark">−</span><span class="card-name mono">{{ path }}</span><span class="badge">only in your address bar</span></header></div>
+    <div class="card only-right"><header class="card-head"><span class="mark">+</span><span class="card-name mono">/diffs, /snapshots, /new</span><span class="badge">only here</span></header></div>
+  </div>
+  <div class="actions-row">
+    <a class="button primary" href="/diffs">Go to Diffs</a>
+    <a class="button" href="/snapshots">Go to Snapshots</a>
+  </div>
+</section>
+{% endblock %}

@@ -1,0 +1,4 @@
+{% for target in targets %}<label class="target-pick mono"><input type="checkbox" name="target" value="{{ target }}"> {{ target }}</label>
+{% endfor %}{% if typed %}<label class="target-pick mono"><input type="checkbox" name="target" value="{{ typed }}"> <span class="hint">Use</span> {{ typed }}</label>
+{% endif %}{% if more %}<p class="muted small">{{ more }} more: type more of the name</p>
+{% endif %}{% if not targets and not typed and not more %}<p class="muted small">No match</p>{% endif %}

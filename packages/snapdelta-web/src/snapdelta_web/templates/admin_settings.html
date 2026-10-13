@@ -1,0 +1,69 @@
+{% extends "base.html" %}
+{% block title %}{{ section | capitalize }} · snapdelta{% endblock %}
+{% block content %}
+<div class="title-row"><h1>Admin</h1></div>
+{% include "_admin_nav.html" %}
+{% if saved %}<p class="notice">Saved to <code>{{ saved }}</code>.{% if restart %} The address, the port and the access change at the next start of <code>snapdelta-web</code>.{% endif %}</p>{% endif %}
+{% if failure %}<p class="notice warn">Not saved: {{ failure }}</p>{% endif %}
+{% if errors %}<p class="notice warn">Not saved: correct the values in red.</p>{% endif %}
+{% for warning in warnings %}<p class="notice warn">{{ warning }}</p>{% endfor %}
+<p class="muted">
+  {% if file %}Settings file in use: <code>{{ file }}</code>.{% else %}No settings file: the defaults apply. A save creates <code>{{ target_file }}</code>.{% endif %}
+  An empty field takes its default.{% if section == "profiles" %} The names of the models and attributes are in <a href="/admin/models">Models</a>.{% endif %}
+</p>
+<form method="post" action="/admin/{{ section }}" class="settings-form" data-track-changes>
+  {% for group in groups %}
+  {% set new_profile = group.table == "profiles.+" %}
+  <fieldset class="settings-group" {% if group.table.startswith("profiles.") %}id="{{ 'new-profile' if new_profile else 'profile-' ~ group.table.removeprefix('profiles.') }}"{% endif %}>
+    <legend>{{ group.title }}</legend>
+    {% if group.removable %}<label class="check remove-group"><input type="checkbox" name="{{ group.table }}.remove" value="true"> Remove profile</label>{% endif %}
+    {% if new_profile %}
+    <div class="setting-row {{ 'has-error' if 'new_profile' in errors }}">
+      <label for="f-new-profile" class="setting-name mono">name</label>
+      <div class="setting-input">
+        <input id="f-new-profile" name="new_profile" value="{{ posted.new_profile if posted else '' }}" placeholder="change-window" autocomplete="off">
+        {% if 'new_profile' in errors %}<p class="field-error">{{ errors['new_profile'] }}</p>{% endif %}
+      </div>
+      <span></span>
+    </div>
+    {% endif %}
+    {% for field in group.fields %}
+    {% set value = posted[field.key] if posted is not none and field.key in posted else field.value %}
+    <div class="setting-row {{ 'has-error' if field.key in errors }}">
+      <div class="setting-name">
+        <label for="f-{{ field.key }}" class="mono">{{ field.name }}</label>
+        {% if field.help %}<span class="hint" tabindex="0" role="note" aria-label="{{ field.help }}" data-hint="{{ field.help }}">?</span>{% endif %}
+      </div>
+      <div class="setting-input">
+        {% if field.kind == "bool" %}
+        <input type="checkbox" id="f-{{ field.key }}" name="{{ field.key }}" value="true" {{ "checked" if value == "true" }}>
+        {% elif field.kind == "secret" %}
+        <div class="secret-inputs">
+          <input id="f-{{ field.key }}" name="{{ field.key }}.env" placeholder="environment variable" autocomplete="off">
+          <input type="password" name="{{ field.key }}.plain" placeholder="or a new value" autocomplete="new-password">
+          {% if field.secret %}<label class="check"><input type="checkbox" name="{{ field.key }}.clear" value="true"> Remove</label>{% endif %}
+        </div>
+        <span class="muted small">Now: {{ field.secret.describe() if field.secret else "not set" }}. Both empty keeps it.</span>
+        {% elif field.kind == "list" %}
+        <textarea id="f-{{ field.key }}" name="{{ field.key }}" rows="{{ [value.count("\n") + 2, 3] | max }}" placeholder="{{ field.example or 'one per line' }}" class="mono">{{ value }}</textarea>
+        {% elif field.kind == "table" %}
+        <textarea id="f-{{ field.key }}" name="{{ field.key }}" rows="{{ [value.count("\n") + 2, 3] | max }}" placeholder="{{ field.example or 'KEY = VALUE, one per line' }}" class="mono">{{ value }}</textarea>
+        {% else %}
+        <input id="f-{{ field.key }}" name="{{ field.key }}" value="{{ value }}" placeholder="{{ field.default }}"
+               {% if field.kind == "number" %}inputmode="decimal"{% endif %} autocomplete="off">
+        {% endif %}
+        {% if field.note %}<span class="small warn-text">In use: {{ field.in_use }}, from {{ field.note }}, which wins over this file.</span>{% endif %}
+        {% if field.key in errors %}<p class="field-error">{{ errors[field.key] }}</p>{% endif %}
+      </div>
+      {% if new_profile %}<span></span>{% else %}<span class="tag origin-{{ field.origin }}">{{ field.origin }}</span>{% endif %}
+    </div>
+    {% endfor %}
+  </fieldset>
+  {% endfor %}
+  <div class="save-bar">
+    <span class="dirty-status" data-dirty-status hidden>Unsaved changes</span>
+    <span class="muted small">Saves to <code>{{ target_file }}</code></span>
+    <button type="submit" class="button primary" aria-keyshortcuts="Control+S Meta+S">Save {{ section }}</button>
+  </div>
+</form>
+{% endblock %}

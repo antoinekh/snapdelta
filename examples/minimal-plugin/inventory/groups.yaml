@@ -1,0 +1,11 @@
+lab:
+  data:
+    owner: network team
+core:
+  groups: [lab]
+  data:
+    role: core
+edge:
+  groups: [lab]
+  data:
+    role: edge

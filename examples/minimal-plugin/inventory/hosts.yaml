@@ -1,0 +1,15 @@
+# Nornir SimpleInventory: one entry per host; a value missing here comes from its groups, then from defaults.yaml.
+R1:
+  hostname: 192.0.2.1
+  groups: [core]
+  data:
+    site: paris
+R2:
+  hostname: 192.0.2.2
+  groups: [core]
+  data:
+    site: lyon
+EDGE1:
+  hostname: 192.0.2.10
+  port: 2222
+  groups: [edge]

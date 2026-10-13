@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+{% block title %}Error · snapdelta{% endblock %}
+{% block content %}
+<section class="error-page">
+  {% if message %}
+  <h1>Something does not match</h1>
+  <div class="mini-diff">
+    <div class="card changed">
+      <header class="card-head"><span class="mark" aria-hidden="true">~</span><span class="card-name">What went wrong</span></header>
+      <p class="error-message mono">{{ message }}</p>
+    </div>
+  </div>
+  {% else %}
+  <h1>Something broke on this side</h1>
+  <p class="lead">snapdelta hit an unexpected error. The terminal that runs <code>snapdelta-web</code> shows the details.</p>
+  {% endif %}
+  <div class="actions-row">
+    {% if message %}<button type="button" class="button primary" data-back>Go back</button>{% endif %}
+    <a class="button {{ 'primary' if not message }}" href="/diffs">Go to Diffs</a>
+    <a class="button" href="/snapshots">Go to Snapshots</a>
+  </div>
+</section>
+{% endblock %}
