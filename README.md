@@ -90,7 +90,7 @@ uv run snapdelta --store /tmp/snapdelta-demo diff R1@demo R2@demo
 | Command | What it does |
 |---|---|
 | `snapshot` | Load input files (`FILES --source S`), or fetch targets (`--target`, `--group`, `--all-targets`, `--jobs N`); `--label`, `--captured-at` |
-| `diff LEFT RIGHT` | Compare two snapshots, or a snapshot and its target now (`--live`); `--model`, `--profile`, `--title`, `--description`, `--format`, `--no-save` |
+| `diff LEFT RIGHT` | Compare two snapshots, or a snapshot and its target now (`--live`); or many targets at once, `diff --group core @before @after` (`--target`, `--all-targets`), one diff per target; `--model`, `--profile`, `--title`, `--description`, `--format`, `--no-save` |
 | `output NAME`, `describe NAME` | Print a saved output again (`--format text`, `json`, `markdown`, `csv`); give it a title and a description |
 | `accept NAME KEY...` | Accept changes after a review (`--all`, `--comment`, `--undo`); the Markdown report lists them |
 | `list`, `show REF` | List the snapshots and outputs; print the data of a snapshot |
@@ -100,7 +100,7 @@ uv run snapdelta --store /tmp/snapdelta-demo diff R1@demo R2@demo
 | `plugins`, `plugins new NAME`, `doctor` | The plugins of every extension point; a new plugin package to start from (`--kind source`, `store`, `format`, `inventory`, `secret`, `notifier`, `rule`, `runner`, `auth`); a check of each plugin against its interface, then of the settings, the store and the inventory (exit code 1 on an error) |
 | `settings` | The settings in use and where each value comes from |
 
-`diff` and `output` exit with `0` (no difference), `1` (differences) or `2` (error), so a script can check a change. Run `uv run snapdelta COMMAND --help` for every option.
+`diff` and `output` exit with `0` (no difference), `1` (differences) or `2` (error, or a target of a diff of many targets that failed), so a script can check a change. Run `uv run snapdelta COMMAND --help` for every option.
 
 ## Access to the web UI
 

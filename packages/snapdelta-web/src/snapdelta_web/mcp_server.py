@@ -23,9 +23,20 @@ from snapdelta.render import change_rows
 from snapdelta.settings import Profile, load_settings
 from snapdelta.source import SOURCES, source_classes
 from snapdelta.store import open_store_from
-from snapdelta.take import diff_snapshots, snapshot_targets
+from snapdelta.take import diff_snapshots, diff_targets, snapshot_targets
 
-from .api import MAX_LIMIT, DiffItem, ReviewState, RunItem, SnapshotInfo, SnapshotResult, SourceInfo, review_state
+from .api import (
+    MAX_LIMIT,
+    DiffItem,
+    ReviewState,
+    RunItem,
+    SnapshotInfo,
+    SnapshotResult,
+    SourceInfo,
+    TargetsDiffResult,
+    review_state,
+    targets_result,
+)
 from .state import AppState
 
 GUIDE = (Path(__file__).parent / "mcp_guide.md").read_text(encoding="utf-8")
@@ -209,6 +220,36 @@ def create_mcp(state: AppState) -> MCPServer:
             origin="mcp",
         )
         return _page(done.name or "not saved", done.output, None, 0, PAGE)
+
+    @tool(FETCHES)
+    def compare_targets(
+        left: Annotated[str, Field(description="The label of the left snapshot of each target, or latest: before.")],
+        right: Annotated[str | None, Field(description="The label of the right snapshot; none with live.")] = None,
+        targets: Annotated[list[str] | None, Field(description="Target names.")] = None,
+        groups: Annotated[list[str] | None, Field(description="Every host of these inventory groups.")] = None,
+        all_targets: Annotated[bool, Field(description="Every target that has a left snapshot.")] = False,
+        live: Annotated[bool, Field(description="Fetch each target now as the right side, at the same time.")] = False,
+        profile: Annotated[str | None, Field(description="A profile of the settings, see list_profiles.")] = None,
+        title: Annotated[str | None, Field(description="What the change is: CHG-1042: VLAN 20 on core.")] = None,
+    ) -> TargetsDiffResult:
+        """For each target, compare TARGET@left with TARGET@right, or with the target now: a change on many devices.
+
+        The result lists the targets that changed, did not change or failed; read each diff with read_diff.
+        """
+        results = diff_targets(
+            state.store,
+            state.settings,
+            left,
+            right,
+            targets=targets or [],
+            groups=groups or [],
+            all_targets=all_targets,
+            live=live,
+            profile=profile,
+            title=title,
+            origin="mcp",
+        )
+        return targets_result(results)
 
     @tool(READ_ONLY)
     def read_diff(

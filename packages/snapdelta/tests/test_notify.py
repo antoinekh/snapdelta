@@ -52,7 +52,7 @@ def run(status: RunStatus = RunStatus.OK, kind: str = "diff", differences: bool 
             "ended_at": "2026-10-14T08:00:01Z",
             "status": status,
             "targets": ["R1"],
-            "output": "20261014T080000Z-R1-vs-R1" if kind == "diff" else None,
+            "outputs": ["20261014T080000Z-R1-vs-R1"] if kind == "diff" else [],
             "has_differences": differences,
         }
     )
@@ -83,7 +83,7 @@ def test_a_snapshot_and_a_diff_record_what_each_notifier_did(tmp_path, collected
     diff_run = store.runs(kind="diff")[0]
     assert done.output.has_differences() and diff_run.has_differences is True
     assert diff_run.notified == {"chat": "sent"}
-    assert collected[-1].payload()["run"]["output"] == done.name
+    assert collected[-1].payload()["run"]["outputs"] == [done.name]
     assert "notified" not in collected[-1].payload()["run"] and "log" not in collected[-1].payload()["run"]
 
 

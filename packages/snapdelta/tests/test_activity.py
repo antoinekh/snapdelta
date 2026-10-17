@@ -59,7 +59,7 @@ def test_a_saved_diff_is_a_run_and_a_diff_that_saves_nothing_is_not(store, make_
     right = store.save_snapshot(make_adapter(label="after", description="new"))
     done = diff_snapshots(store, Settings(), left, right, title="Change 1", origin="api")
     [run] = store.runs(kind="diff")
-    assert (run.origin, run.status, run.output, run.targets) == ("api", "ok", done.name, ["R1"])
+    assert (run.origin, run.status, run.outputs, run.targets) == ("api", "ok", [done.name], ["R1"])
     diff_snapshots(store, Settings(), left, right, save=False)
     assert len(store.runs()) == 1
     with pytest.raises(SnapdeltaError):

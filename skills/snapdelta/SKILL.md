@@ -31,11 +31,11 @@ snapdelta takes snapshots of targets (routers, services) through source plugins,
 1. Snapshot before: `snapdelta snapshot --group GROUP --label before` (or `--target T` several times, or `--all-targets`). With no inventory, add `--source SOURCE`. Exit code 2 when a target fails: read its error, then `snapdelta activity` for the log.
 2. Let the change happen. Do not apply a change yourself unless the user asked for it.
 3. Snapshot after: the same command with `--label after`.
-4. Compare each target: `snapdelta diff T@before T@after --title "CHG-1042: VLAN 20, T"`; add `--profile NAME` when a profile of the settings fits the change (`snapdelta settings` lists them). Exit code 0: no difference; 1: differences; 2: error.
+4. Compare every target at once: `snapdelta diff --group GROUP @before @after --title "CHG-1042: VLAN 20"` (or `--target T` several times, or `--all-targets`); add `--profile NAME` when a profile of the settings fits the change (`snapdelta settings` lists them). It prints one diff per target, then the targets that changed, did not change or failed. Exit code 0: no difference; 1: differences; 2: a target failed. One target: `snapdelta diff T@before T@after`.
 5. Read the differences: the text output, or `snapdelta output NAME --format json` for the full document (`diff`: `-` is the left value, `+` the right value; keys `MODEL:UNIQUE_ID`).
 6. Accept each change that the intent of the change explains: `snapdelta accept NAME KEY... --comment "planned in CHG-1042"`. Report every other change to the user, with its target and its values.
 
-To compare a snapshot with the device now: `snapdelta diff T@before --live`.
+To compare a snapshot with the device now: `snapdelta diff T@before --live`, or for a group, `snapdelta diff --group GROUP @before --live`.
 
 ## Show a diff to the person
 

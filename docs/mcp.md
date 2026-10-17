@@ -41,6 +41,7 @@ claude mcp add --transport http snapdelta https://snapdelta.example.net/mcp --he
 | Tool | `list_sources`, `list_targets`, `list_snapshots` | The sources, the targets (with platform and groups), the snapshots of a target |
 | Tool | `take_snapshots` | Fetch targets, groups or every target at the same time, with a label |
 | Tool | `compare` | Two snapshots, or a snapshot and its target now (`live`), with a profile and a title; the first page of changes |
+| Tool | `compare_targets` | For each target or each host of groups, `TARGET@left` with `TARGET@right` or the target now: the targets that changed, did not change or failed, and the name of each diff |
 | Tool | `read_diff`, `list_diffs` | The changes of a saved diff by pages, each with its key; the newest diffs |
 | Tool | `accept_changes`, `describe_diff` | Accept changes after a review, with a comment; give a title |
 | Tool | `list_profiles`, `list_models` | The profiles of the settings; the models, their attributes and the fields never compared |
@@ -48,7 +49,7 @@ claude mcp add --transport http snapdelta https://snapdelta.example.net/mcp --he
 | Prompt | `check_change` | Before, change, after, compare, then accept what the change explains |
 | Prompt | `review_diff` | Read every change of a saved diff and sort them |
 
-A tool that fails returns the message of snapdelta (a wrong reference, a target that does not answer) as a tool error, so the agent can correct its call. The tools that only read say so to the client (`read_only_hint`); `take_snapshots` and a live `compare` read the devices and change nothing on them.
+A tool that fails returns the message of snapdelta (a wrong reference, a target that does not answer) as a tool error, so the agent can correct its call. The tools that only read say so to the client (`read_only_hint`); `take_snapshots`, a live `compare` and a live `compare_targets` read the devices and change nothing on them.
 
 ## Install the skill
 

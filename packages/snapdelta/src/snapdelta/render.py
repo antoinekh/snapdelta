@@ -25,6 +25,13 @@ class Renderer:
     media_type: str
     suffix: str
     render: Callable[[Output], str]
+    # The outputs of several targets in one text, such as one JSON list; None: each output, one after the other.
+    render_many: Callable[[list[Output]], str] | None = None
+
+    def many(self, outputs: list[Output]) -> str:
+        if self.render_many is not None:
+            return self.render_many(outputs)
+        return "\n".join(self.render(output).rstrip("\n") + "\n" for output in outputs)
 
 
 @dataclass(frozen=True)
@@ -233,7 +240,13 @@ def _cell(text: str) -> str:
 
 
 TEXT = Renderer("text/plain", "txt", render_output)
-JSON = Renderer("application/json", "json", render_json)
+
+
+def render_json_many(outputs: list[Output]) -> str:
+    return json.dumps([output.model_dump(mode="json", by_alias=True) for output in outputs], indent=2)
+
+
+JSON = Renderer("application/json", "json", render_json, render_json_many)
 MARKDOWN = Renderer("text/markdown", "md", render_markdown)
 CSV = Renderer("text/csv", "csv", render_csv)
 

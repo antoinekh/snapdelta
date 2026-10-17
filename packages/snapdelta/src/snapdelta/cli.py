@@ -24,7 +24,7 @@ from .scaffold import KINDS, new_plugin
 from .settings import Settings, load_settings, setting_rows
 from .source import SOURCES, Source, broken_sources, require_source, source_classes
 from .store import Store, age_cutoff, open_store_from
-from .take import diff_snapshots, load_source, platform_source, snapshot_targets, target_names
+from .take import TargetDiff, diff_snapshots, diff_targets, load_source, platform_source, snapshot_targets, target_names
 
 app = typer.Typer(
     no_args_is_help=True,
@@ -361,10 +361,20 @@ def show(
 @handle_errors
 def diff(
     ctx: typer.Context,
-    left: Annotated[str, typer.Argument(help="Left snapshot (before).")],
-    right: Annotated[str | None, typer.Argument(help="Right snapshot (after).")] = None,
-    target: Annotated[
-        str | None, typer.Option(help="With --live: fetch this target in place of the target of LEFT.")
+    left: Annotated[str, typer.Argument(help="Left snapshot (before); with targets, its label: @before.")],
+    right: Annotated[
+        str | None, typer.Argument(help="Right snapshot (after); with targets, its label: @after.")
+    ] = None,
+    targets: Annotated[
+        list[str] | None,
+        typer.Option("--target", help="Compare TARGET@LEFT with TARGET@RIGHT for this target; repeat it for several."),
+    ] = None,
+    groups: Annotated[
+        list[str] | None, typer.Option("--group", help="Each host of this inventory group; repeat it for several.")
+    ] = None,
+    all_targets: Annotated[bool, typer.Option(help="Each target of the store that has a LEFT snapshot.")] = False,
+    jobs: Annotated[
+        int | None, typer.Option(min=1, help="With targets and --live: targets fetched at the same time.")
     ] = None,
     label: Label = None,
     models: Annotated[
@@ -385,35 +395,61 @@ def diff(
 ) -> None:
     """Compare a snapshot with another, or with its target now (--live); exit code 1 on a difference.
 
-    To compare with input files, take a snapshot of them first: `snapdelta snapshot FILES --source S --label after`.
+    With --target, --group or --all-targets, compare TARGET@LEFT with TARGET@RIGHT (or the target now) for each
+    target: `snapdelta diff --group core @before @after`; exit code 2 when a target fails. To compare with input
+    files, take a snapshot of them first: `snapdelta snapshot FILES --source S --label after`.
     """
     store = ctx.obj.store
     chosen = renderer(output_format)
     if (right is not None) == live:
         raise SnapdeltaError("give one right side: a RIGHT snapshot, or --live")
-    if target is not None and not live:
-        raise SnapdeltaError("--target goes with --live: a RIGHT snapshot names its target")
     settings: Settings = ctx.obj.settings
+    common = {"models": models, "profile": profile, "title": title, "description": description, "origin": "cli"}
+    if targets or groups or all_targets:
+        if not left.startswith("@") or (right is not None and not right.startswith("@")):
+            raise SnapdeltaError("with targets, LEFT and RIGHT are labels: @before @after, or @latest")
+        results = diff_targets(
+            store,
+            settings,
+            left,
+            right,
+            targets=targets or [],
+            groups=groups or [],
+            all_targets=all_targets,
+            live=live,
+            live_label=label or "live",
+            save=not no_save,
+            jobs=jobs,
+            **common,
+        )
+        _print_target_diffs(results, chosen)
+        return
     done = diff_snapshots(
-        store,
-        settings,
-        left,
-        right,
-        live=live,
-        target=target,
-        live_label=label or "live",
-        models=models,
-        profile=profile,
-        title=title,
-        description=description,
-        save=not no_save,
-        origin="cli",
+        store, settings, left, right, live=live, live_label=label or "live", save=not no_save, **common
     )
     for saved in (done.live, done.name):
         if saved:
             typer.echo(f"saved {saved}", err=True)
-    output = done.output
-    _print_output(output, chosen)
+    _print_output(done.output, chosen)
+
+
+def _print_target_diffs(results: dict[str, TargetDiff], chosen: Renderer) -> None:
+    """The outputs in the chosen format, then a summary on stderr; exit code 2 on a failure, 1 on a difference."""
+    outputs = [item.output for item in results.values() if item.output is not None]
+    if outputs:
+        typer.echo(chosen.many(outputs).rstrip("\n"))
+    for item in results.values():
+        for saved in (item.live, item.name):
+            if saved:
+                typer.echo(f"saved {saved}", err=True)
+    changed = [item.target for item in results.values() if item.changed]
+    same = [item.target for item in results.values() if item.output is not None and not item.changed]
+    failed = {item.target: item.error for item in results.values() if item.error}
+    typer.echo(f"changed: {', '.join(changed) or 'none'}", err=True)
+    typer.echo(f"unchanged: {', '.join(same) or 'none'}", err=True)
+    for message in failed.values():
+        typer.echo(f"error: {message}", err=True)
+    raise typer.Exit(2 if failed else 1 if changed else 0)
 
 
 @app.command("output")
@@ -449,8 +485,8 @@ def show_activity(
         typer.echo(f"targets: {', '.join(run.targets) or 'none'}")
         for reference in run.saved:
             typer.echo(f"saved: {reference}")
-        if run.output:
-            typer.echo(f"diff: {run.output}")
+        for name in run.outputs:
+            typer.echo(f"diff: {name}")
         for name, result in sorted(run.notified.items()):
             typer.echo(f"notifier {name}: {result}")
         for target, error in sorted(run.errors.items()):
@@ -463,7 +499,7 @@ def show_activity(
         typer.echo(json.dumps([run.model_dump(mode="json", exclude={"log"}) for run in runs], indent=2))
         return
     for run in runs:
-        result = f"{len(run.saved)} saved" + (f", diff {run.output}" if run.output else "")
+        result = f"{len(run.saved)} saved" + (f", diffs {', '.join(run.outputs)}" if run.outputs else "")
         typer.echo(f"{run.id}  {run.origin:<4} {run.status:<8} {', '.join(run.targets)}  {result}")
 
 

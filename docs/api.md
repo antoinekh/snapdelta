@@ -101,6 +101,7 @@ allowed_hosts = ["10.0.0.5", "snapdelta.lab"]   # required on the network; "*" a
 | `GET /api/v1/snapshots/{target}/{name}` | One snapshot: metadata and data |
 | `POST /api/v1/snapshots` | Fetch targets and save a snapshot of each: `source`, `targets`, `groups`, `all_targets`, `label` |
 | `POST /api/v1/diffs` | Compare: `left`, then `right` or `live`, with `models`, `profile`, `title`, `description`, `save`; `?include_output=true` returns the whole output |
+| `POST /api/v1/diffs/targets` | For each target: `targets`, `groups` or `all_targets`, with the labels `left`, then `right` or `live`; one diff per target, and the targets that `changed`, are `unchanged` or `failed` |
 | `GET /api/v1/diffs?q=R1&limit=50` | The newest saved diffs |
 | `GET /api/v1/diffs/{name}?format=json` | One saved diff: `json`, `text`, `markdown` or `csv` |
 | `PATCH /api/v1/diffs/{name}` | Change its `title` or `description` |
@@ -124,14 +125,14 @@ curl -sf -H "$AUTH" -X POST $API/snapshots -d '{"groups": ["core"], "label": "be
 
 # ... apply the change ...
 
-# After the change, then one compare per device
+# After the change, then one diff per host of the group
 curl -sf -H "$AUTH" -X POST $API/snapshots -d '{"groups": ["core"], "label": "after"}' -H 'Content-Type: application/json'
-curl -sf -H "$AUTH" -X POST $API/diffs -H 'Content-Type: application/json' \
-  -d '{"left": "R1@before", "right": "R1@after", "profile": "change-window", "title": "CHG-1234 on R1"}' \
-  | jq -e '.has_differences == false'      # fails the step when R1 changed
+curl -sf -H "$AUTH" -X POST $API/diffs/targets -H 'Content-Type: application/json' \
+  -d '{"groups": ["core"], "left": "before", "right": "after", "profile": "change-window", "title": "CHG-1234"}' \
+  | jq -e '.has_differences == false and .failed == {}'      # fails the step when a host changed or failed
 ```
 
-`has_differences` is the result to check; `url` opens the diff in the web UI, and `GET /api/v1/diffs/{name}?format=markdown` gives a report to attach to the change ticket.
+`has_differences` is the result to check, and `changed` names the hosts that changed; the `url` of each diff opens it in the web UI, and `GET /api/v1/diffs/{name}?format=markdown` gives a report to attach to the change ticket. `{"groups": ["core"], "left": "before", "live": true}` takes the after snapshots and compares them in one call.
 
 ## An AI agent
 

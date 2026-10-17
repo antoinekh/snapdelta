@@ -260,6 +260,148 @@ def diff_snapshots(
         if record is not None:
             record.targets = list(dict.fromkeys([output.left.target, output.right.target]))
             record.saved = [live_reference] if live_reference else []
-            record.output = name
+            record.outputs = [name] if name else []
             record.has_differences = output.has_differences()
     return Compared(output, name, live_reference)
+
+
+@dataclass(frozen=True)
+class TargetDiff:
+    """The diff of one target of diff_targets(), or the reason why it has none."""
+
+    target: str
+    output: Output | None = None
+    # The name of the saved output, and the reference of the snapshot that a live diff took.
+    name: str | None = None
+    live: str | None = None
+    error: str | None = None
+
+    @property
+    def changed(self) -> bool:
+        return self.output is not None and self.output.has_differences()
+
+
+def diff_targets(
+    store: Store,
+    settings: Settings,
+    left: str,
+    right: str | None = None,
+    *,
+    targets: Iterable[str] = (),
+    groups: Iterable[str] = (),
+    all_targets: bool = False,
+    live: bool = False,
+    live_label: str = "live",
+    models: Sequence[str] | None = None,
+    profile: str | None = None,
+    title: str | None = None,
+    description: str | None = None,
+    save: bool = True,
+    origin: str = "python",
+    jobs: int | None = None,
+) -> dict[str, TargetDiff]:
+    """For each target, compare TARGET@LEFT with TARGET@RIGHT, or with the target now (`live`); by target.
+
+    `left` and `right` are labels, or `latest`. A target that fails does not stop the others. With `live`, the
+    runner takes the snapshots of every target at the same time, in one snapshot run; the compares are one diff run.
+    """
+    left, right = left.removeprefix("@"), right.removeprefix("@") if right is not None else None
+    if (right is None) == (not live):
+        raise SnapdeltaError("give the label of the right side, or live, not both")
+    if live and not save:
+        raise SnapdeltaError("a live diff of many targets saves the snapshots that it takes")
+    chosen_profile = settings.profile(profile)
+    names = _diff_names(store, settings, left, targets, groups, all_targets)
+    results: dict[str, TargetDiff] = {}
+    lefts: dict[str, str] = {}
+    for name in names:
+        try:
+            lefts[name] = store.resolve_snapshot(f"{name}@{left}")
+        except SnapdeltaError as error:
+            results[name] = TargetDiff(name, error=str(error))
+    rights = _live_rights(store, settings, lefts, live_label, jobs, origin, results) if live else {}
+    if not live:
+        for name in lefts:
+            try:
+                rights[name] = store.resolve_snapshot(f"{name}@{right}")
+            except SnapdeltaError as error:
+                results[name] = TargetDiff(name, error=str(error))
+    run = recorded(store, "diff", origin, names, settings) if save else contextlib.nullcontext()
+    with run as record:
+        for name in names:
+            if name not in rights:
+                continue
+            try:
+                output = compare(
+                    store.load_snapshot(lefts[name]), store.load_snapshot(rights[name]), models, chosen_profile, profile
+                )
+                if title or description:
+                    output = described(output, title, description)
+                saved = store.save_output(output) if save else None
+            except SnapdeltaError as error:
+                results[name] = TargetDiff(name, error=str(error))
+                continue
+            results[name] = TargetDiff(name, output, saved, rights[name] if live else None)
+        if record is not None:
+            done = [results[name] for name in names]
+            record.outputs = [item.name for item in done if item.name]
+            record.saved = [item.live for item in done if item.live]
+            record.errors = {item.target: item.error for item in done if item.error}
+            record.has_differences = any(item.changed for item in done)
+    return {name: results[name] for name in names}
+
+
+def _diff_names(
+    store: Store, settings: Settings, left: str, targets: Iterable[str], groups: Iterable[str], all_targets: bool
+) -> list[str]:
+    """The targets of diff_targets(): the names, the hosts of `groups`, and with `all_targets` each target with LEFT."""
+    names = list(dict.fromkeys(name.strip() for name in targets if name.strip()))
+    wanted_groups = list(groups)
+    if wanted_groups:
+        inventory = settings.hosts()
+        if inventory is None:
+            raise SnapdeltaError("a group needs an inventory: set [inventory] location in the settings")
+        names = inventory.select(names, wanted_groups)
+    if all_targets:
+        with_left = [name for name in store.targets() if _has(store, f"{name}@{left}")]
+        names = list(dict.fromkeys([*names, *with_left]))
+    if not names:
+        raise SnapdeltaError("give targets, groups or all_targets")
+    return names
+
+
+def _has(store: Store, reference: str) -> bool:
+    try:
+        store.resolve_snapshot(reference)
+    except SnapdeltaError:
+        return False
+    return True
+
+
+def _live_rights(
+    store: Store,
+    settings: Settings,
+    lefts: Mapping[str, str],
+    label: str,
+    jobs: int | None,
+    origin: str,
+    results: dict[str, TargetDiff],
+) -> dict[str, str]:
+    """Take a snapshot of each target now, with the source of its left snapshot; the references by target."""
+    plan: dict[str, type[Source]] = {}
+    for name, reference in lefts.items():
+        cls = require_source(store.read_snapshot(reference).source)
+        if cls.fetches:
+            plan[name] = cls
+        else:
+            results[name] = TargetDiff(
+                name, error=f"{name}: the source {cls.source!r} reads input files, so it cannot fetch"
+            )
+    if not plan:
+        return {}
+    taken, failures = take_snapshots(
+        store, plan, label, jobs=jobs or settings.snapshot.jobs, settings=settings, origin=origin
+    )
+    for name, message in failures.items():
+        results[name] = TargetDiff(name, error=message)
+    return {name: item.reference for name, item in taken.items()}

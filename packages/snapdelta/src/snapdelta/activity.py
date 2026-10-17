@@ -14,9 +14,9 @@ from contextlib import contextmanager
 from contextvars import ContextVar
 from datetime import UTC, datetime
 from enum import StrEnum
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 from .errors import SnapdeltaError
 
@@ -60,11 +60,21 @@ class Run(BaseModel):
     status: RunStatus
     targets: list[str] = []
     saved: list[str] = Field(default=[], description="The references of the saved snapshots.")
-    output: str | None = Field(default=None, description="The name of the saved diff.")
+    outputs: list[str] = Field(default=[], description="The names of the saved diffs, one per target.")
     errors: dict[str, str] = Field(default={}, description="The error of each failed target, or of the run under `*`.")
     has_differences: bool | None = Field(default=None, description="For a diff: whether it found a difference.")
     notified: dict[str, str] = Field(default={}, description="`sent`, or the error, by the name of each notifier.")
     log: list[LogLine] = []
+
+    @model_validator(mode="before")
+    @classmethod
+    def _one_output(cls, value: Any) -> Any:
+        # A run saved by snapdelta 0.1 names its one diff in `output`.
+        if isinstance(value, dict) and "output" in value:
+            old = value["output"]
+            value = {key: item for key, item in value.items() if key != "output"}
+            value.setdefault("outputs", [old] if old else [])
+        return value
 
     @property
     def duration_s(self) -> float:
@@ -127,7 +137,7 @@ def collecting(target: str | None = None, loading: bool = True) -> Iterator[list
 
 
 class RunRecord:
-    """A run while it goes on; the caller fills `saved`, `output` and `errors`."""
+    """A run while it goes on; the caller fills `saved`, `outputs` and `errors`."""
 
     def __init__(self, kind: str, origin: str, targets: list[str]) -> None:
         self.kind = kind
@@ -136,13 +146,13 @@ class RunRecord:
         self.targets = targets
         self.started_at = datetime.now(UTC)
         self.saved: list[str] = []
-        self.output: str | None = None
+        self.outputs: list[str] = []
         self.errors: dict[str, str] = {}
         self.has_differences: bool | None = None
         self.log: list[LogLine] = []
 
     def finished(self) -> Run:
-        done = len(self.saved) + (1 if self.output else 0)
+        done = len(self.saved) + len(self.outputs)
         status = RunStatus.OK if not self.errors else RunStatus.PARTIAL if done else RunStatus.FAILED
         # Microseconds, so that the ids of two runs of the same second sort in their order.
         stamp = self.started_at.strftime("%Y%m%dT%H%M%S%fZ")
@@ -156,7 +166,7 @@ class RunRecord:
             status=status,
             targets=self.targets,
             saved=self.saved,
-            output=self.output,
+            outputs=self.outputs,
             errors=self.errors,
             has_differences=self.has_differences,
             # The loads add their lines when they end: the time gives back the order of the events.

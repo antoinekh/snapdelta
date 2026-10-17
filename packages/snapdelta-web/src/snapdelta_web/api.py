@@ -1,5 +1,6 @@
 """The JSON API, for a pipeline or an AI agent: take snapshots, compare them, read and describe the diffs."""
 
+from collections.abc import Mapping
 from datetime import datetime
 from typing import Annotated, Any, Literal, Self
 
@@ -17,7 +18,7 @@ from snapdelta.plugins import package_of
 from snapdelta.render import renderer
 from snapdelta.snapshot import SnapshotFile
 from snapdelta.source import SOURCES, source_classes
-from snapdelta.take import diff_snapshots, snapshot_targets
+from snapdelta.take import TargetDiff, diff_snapshots, diff_targets, snapshot_targets
 
 from .access import LruCache
 from .state import AppState
@@ -92,6 +93,20 @@ class DiffRequest(BaseModel):
     save: bool = Field(default=True, description="Save the output, and with live the new snapshot.")
 
 
+class TargetsDiffRequest(BaseModel):
+    targets: list[str] = Field(default=[], description="Target names.")
+    groups: list[str] = Field(default=[], description="Every host of these inventory groups.")
+    all_targets: bool = Field(default=False, description="Every target of the store that has a left snapshot.")
+    left: str = Field(description="The label of the left snapshot of each target, or latest: before.")
+    right: str | None = Field(default=None, description="The label of the right snapshot; none with live.")
+    live: bool = Field(default=False, description="Fetch each target now as the right side, at the same time.")
+    models: list[str] = Field(default=[], description="Only these models; none: every model of both sides.")
+    profile: str | None = Field(default=None, description="A compare profile of the settings.")
+    title: str | None = None
+    description: str | None = None
+    save: bool = Field(default=True, description="Save the outputs; a live diff of many targets always saves.")
+
+
 class DiffResult(BaseModel):
     name: str | None = Field(description="The name of the saved output; none with save false.")
     url: str | None = Field(description="The page of the diff in the web UI.")
@@ -102,6 +117,52 @@ class DiffResult(BaseModel):
     title: str | None
     description: str | None
     output: Output | None = Field(default=None, description="The whole output, with include_output.")
+
+
+class TargetDiffResult(BaseModel):
+    target: str
+    error: str | None = Field(description="Why the target has no diff: no left snapshot, a failed fetch.")
+    diff: DiffResult | None
+
+
+class TargetsDiffResult(BaseModel):
+    has_differences: bool = Field(description="True when the diff of one target or more found a difference.")
+    changed: list[str]
+    unchanged: list[str]
+    failed: dict[str, str] = Field(description="The error of each target that has no diff.")
+    diffs: list[TargetDiffResult]
+
+
+def diff_result(output: Output, name: str | None, include_output: bool) -> DiffResult:
+    return DiffResult(
+        name=name,
+        url=f"/diffs/{name}" if name else None,
+        has_differences=output.has_differences(),
+        summary=output.summary,
+        left=output.left,
+        right=output.right,
+        title=output.title,
+        description=output.description,
+        output=output if include_output else None,
+    )
+
+
+def targets_result(results: Mapping[str, TargetDiff], include_output: bool = False) -> TargetsDiffResult:
+    items = list(results.values())
+    return TargetsDiffResult(
+        has_differences=any(item.changed for item in items),
+        changed=[item.target for item in items if item.changed],
+        unchanged=[item.target for item in items if item.output is not None and not item.changed],
+        failed={item.target: item.error for item in items if item.error},
+        diffs=[
+            TargetDiffResult(
+                target=item.target,
+                error=item.error,
+                diff=diff_result(item.output, item.name, include_output) if item.output else None,
+            )
+            for item in items
+        ],
+    )
 
 
 class DiffItem(BaseModel):
@@ -143,7 +204,7 @@ class RunItem(BaseModel):
     status: RunStatus
     targets: list[str]
     saved: list[str]
-    output: str | None
+    outputs: list[str]
     errors: dict[str, str]
     has_differences: bool | None
     notified: dict[str, str]
@@ -290,18 +351,28 @@ def create_api(state: AppState, row_cache: LruCache[Any, Any]) -> FastAPI:
             save=request.save,
             origin="api",
         )
-        output, name = done.output, done.name
-        return DiffResult(
-            name=name,
-            url=f"/diffs/{name}" if name else None,
-            has_differences=output.has_differences(),
-            summary=output.summary,
-            left=output.left,
-            right=output.right,
-            title=output.title,
-            description=output.description,
-            output=output if include_output else None,
+        return diff_result(done.output, done.name, include_output)
+
+    @api.post("/diffs/targets")
+    def run_target_diffs(request: TargetsDiffRequest, include_output: bool = False) -> TargetsDiffResult:
+        """For each target, compare TARGET@left with TARGET@right, or with the target now; one diff per target."""
+        results = diff_targets(
+            state.store,
+            state.settings,
+            request.left,
+            request.right,
+            targets=request.targets,
+            groups=request.groups,
+            all_targets=request.all_targets,
+            live=request.live,
+            models=request.models,
+            profile=request.profile,
+            title=request.title,
+            description=request.description,
+            save=request.save,
+            origin="api",
         )
+        return targets_result(results, include_output)
 
     @api.get("/diffs")
     def diffs(q: str = "", limit: Annotated[int, Query(ge=1, le=MAX_LIMIT)] = 50) -> list[DiffItem]:

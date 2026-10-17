@@ -10,7 +10,7 @@
   <div><dt>From</dt><dd>{{ run.origin }}{% if run.user %}, {{ run.user }}{% endif %}</dd></div>
   <div><dt>Targets</dt><dd class="mono">{{ run.targets | join(", ") or "none" }}</dd></div>
   {% if run.saved %}<div class="wide"><dt>Saved snapshots</dt><dd class="mono">{% for reference in run.saved %}<a href="/snapshots/{{ reference }}">{{ reference }}</a>{{ ", " if not loop.last }}{% endfor %}</dd></div>{% endif %}
-  {% if run.output %}<div class="wide"><dt>Diff</dt><dd class="mono"><a href="/diffs/{{ run.output }}">{{ run.output }}</a></dd></div>{% endif %}
+  {% if run.outputs %}<div class="wide"><dt>{{ "Diffs" if run.outputs | length > 1 else "Diff" }}</dt><dd class="mono">{% for name in run.outputs %}<a href="/diffs/{{ name }}">{{ name }}</a>{{ ", " if not loop.last }}{% endfor %}</dd></div>{% endif %}
   {% if run.notified %}<div class="wide"><dt>Notifiers</dt><dd>{% for name, result in run.notified | dictsort %}<div><b class="mono">{{ name }}</b>: {% if result == "sent" %}sent{% else %}<span class="error">{{ result }}</span>{% endif %}</div>{% endfor %}</dd></div>{% endif %}
 </dl>
 {% if run.errors %}<ul class="notice warn">{% for target, error in run.errors | dictsort %}<li><b class="mono">{{ "the run" if target == "*" else target }}</b>: {{ error }}</li>{% endfor %}</ul>{% endif %}

@@ -116,3 +116,15 @@ def test_a_browser_gets_a_page_of_the_server_and_can_try_a_tool(store, make_app)
     failed = client.post("/mcp/docs/try/read_diff", data={"arguments": '{"name": "nope"}'}).text
     assert "Tool error" in failed and "nope" in failed
     assert "not JSON" in client.post("/mcp/docs/try/read_diff", data={"arguments": "{"}).text
+
+
+def test_an_agent_compares_many_targets_at_once(store) -> None:
+    async def steps(client: Client) -> Any:
+        compared = await client.call_tool(
+            "compare_targets", {"left": "before", "right": "after", "targets": ["R1", "R9"]}
+        )
+        return compared.structured_content
+
+    result = call(store, steps)
+    assert result["changed"] == ["R1"] and list(result["failed"]) == ["R9"]
+    assert result["diffs"][0]["diff"]["url"].startswith("/diffs/")

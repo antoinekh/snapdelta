@@ -191,11 +191,11 @@ def describe_run(run: Run) -> str:
 
 
 def run_url(run: Run, settings: Settings) -> str | None:
-    """The page of the diff of a run, else the page of the run, when `[web] public_url` is set."""
+    """The page of the one diff of a run, else the page of the run, when `[web] public_url` is set."""
     base = (settings.web.public_url or "").rstrip("/")
     if not base:
         return None
-    return f"{base}/diffs/{run.output}" if run.output else f"{base}/activity/{run.id}"
+    return f"{base}/diffs/{run.outputs[0]}" if len(run.outputs) == 1 else f"{base}/activity/{run.id}"
 
 
 def notify(run: Run, settings: Settings) -> dict[str, str]:

@@ -135,3 +135,13 @@ def test_a_pipeline_reads_and_accepts_the_changes(api, names) -> None:
     assert undone["accepted"] == 0
     wrong = api.post(f"/api/v1/diffs/{names.same}/reviews", json={"key": "interface:nope"})
     assert wrong.status_code == 400 and "no change 'interface:nope'" in wrong.json()["error"]
+
+
+def test_a_pipeline_compares_many_targets_at_once(api, store) -> None:
+    body = {"targets": ["R1", "R9"], "left": "before", "right": "after", "title": "CHG-8"}
+    result = api.post("/api/v1/diffs/targets", json=body).json()
+    assert result["has_differences"] is True and result["changed"] == ["R1"] and result["unchanged"] == []
+    assert result["failed"] == {"R9": f"no snapshot labelled 'before' of R9 in {store.location}"}
+    [first, second] = result["diffs"]
+    assert first["diff"]["title"] == "CHG-8" and first["diff"]["output"] is None and second["diff"] is None
+    assert api.post("/api/v1/diffs/targets", json={"targets": ["R1"], "left": "before"}).status_code == 400

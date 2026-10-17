@@ -64,7 +64,7 @@ def test_right_needs_a_snapshot_or_files(make_adapter, location) -> None:
     assert result.exit_code == 2
     assert "give one right side: a RIGHT snapshot, or --live" in result.output
     both = runner.invoke(app, ["--store", location, "diff", "R1@latest", "R1@latest", "--target", "R2"])
-    assert both.exit_code == 2 and "--target goes with --live" in both.output
+    assert both.exit_code == 2 and "with targets, LEFT and RIGHT are labels" in both.output
 
 
 def test_show_and_list(make_adapter, location) -> None:

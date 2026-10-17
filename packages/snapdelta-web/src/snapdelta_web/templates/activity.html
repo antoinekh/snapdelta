@@ -19,7 +19,7 @@
       <td><span class="tag">{{ run.kind }}</span></td>
       <td class="muted">{{ run.origin }}{% if run.user %} · {{ run.user }}{% endif %}</td>
       <td class="mono">{{ run.targets | join(", ") }}</td>
-      <td>{{ run_status(run.status) }}{% set parts = (["diff saved"] if run.output else ([run.saved | length ~ " saved"] if run.saved else [])) + ([run.errors | length ~ " failed"] if run.errors else []) %}<span class="muted small run-result">{{ parts | join(", ") }}</span></td>
+      <td>{{ run_status(run.status) }}{% set parts = ([run.outputs | length ~ (" diffs saved" if run.outputs | length > 1 else " diff saved")] if run.outputs else ([run.saved | length ~ " saved"] if run.saved else [])) + ([run.errors | length ~ " failed"] if run.errors else []) %}<span class="muted small run-result">{{ parts | join(", ") }}</span></td>
       <td class="num-col mono {{ 'warn-text' if problems }}">{{ run.log | length }}{% if problems %} ({{ problems | length }}!){% endif %}</td>
     </tr>
     {% endfor %}
