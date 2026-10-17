@@ -22,6 +22,8 @@ class Kind:
     group: str
     attribute: str
     words: str
+    # The packages that its plugin needs besides snapdelta, at the same version range.
+    requires: tuple[str, ...] = ()
 
 
 KINDS = {
@@ -33,6 +35,7 @@ KINDS = {
     "notifier": Kind("notify", "snapdelta.notifiers", "{Class}Notifier", "a notifier"),
     "rule": Kind("rules", "snapdelta.rules", "{Class}Rule", "a compare rule"),
     "runner": Kind("runner", "snapdelta.runners", "{Class}Runner", "a runner"),
+    "auth": Kind("auth", "snapdelta.auth", "{Class}Auth", "an auth backend of the web UI", ("snapdelta-web",)),
 }
 
 
@@ -80,6 +83,10 @@ def new_plugin(name: str, kinds: list[str], path: Path) -> list[Path]:
         "Class": names.cls,
         "CONSTANT": names.constant,
         "snapdelta_range": snapdelta_range(),
+        "dependencies": ", ".join(
+            f'"{package}{snapdelta_range()}"'
+            for package in dict.fromkeys(["snapdelta", *(name for kind in chosen for name in kind.requires)])
+        ),
         "kinds": ", ".join(kind.words for kind in chosen),
         "entry_points": _entry_points(names, chosen),
     }

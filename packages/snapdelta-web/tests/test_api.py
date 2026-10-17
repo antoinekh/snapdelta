@@ -74,7 +74,7 @@ def test_with_a_token_the_pages_need_a_login(guarded) -> None:
     assert redirect.status_code == 303 and redirect.headers["location"] == "/login?next=%2Fdiffs%3Fq%3DR1"
     assert guarded.get("/static/app.css").status_code == 200
     wrong = guarded.post("/login", data={"token": "nope", "next": "/diffs"})
-    assert wrong.status_code == 401 and "not the token of this server" in wrong.text
+    assert wrong.status_code == 401 and "The login was refused" in wrong.text
     login = guarded.post("/login", data={"token": TOKEN, "next": "//evil.example/x"}, follow_redirects=False)
     assert login.headers["location"] == "/diffs" and "httponly" in login.headers["set-cookie"].lower()
     page = guarded.get("/diffs")

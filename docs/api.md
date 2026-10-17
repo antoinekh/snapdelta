@@ -10,7 +10,9 @@ The OpenAPI description is at `/api/v1/openapi.json`, and an interactive page at
 |---|---|---|
 | `127.0.0.1` (default), no token | programs on the same machine | no header |
 | any address, with `[web] token` | anyone who has the token | `Authorization: Bearer TOKEN` |
+| any address, with `[web] auth = "header"` | the users that a trusted reverse proxy lets in (SSO) | the proxy adds a header with the user name |
 | any address, with `[web] auth = "none"` | anyone who reaches the server | no header, no login |
+| any address, with the auth backend of a plugin | as the plugin decides: LDAP, OIDC | its login page, or what the plugin reads |
 
 ```toml
 [web]
@@ -27,9 +29,50 @@ snapdelta-web                                 # or --host 0.0.0.0 --tls-cert ...
 ```
 
 - `snapdelta-web` refuses to start on another address than `127.0.0.1` without a token, and warns when it runs there without TLS: the token would travel in clear.
-- With a token, the web pages ask for it once (**Log in**) and keep a signed session cookie for 12 hours; **Log out** ends it. Changing the token ends every session.
+- With a token, the web pages ask for it once (**Log in**) and keep a signed session cookie for 12 hours; **Log out** ends it. Changing the token ends every session. The login page also asks for your name, which is not checked: Activity and the accepted changes show it.
 - The API accepts the Bearer token, or the session cookie of a browser that logged in (so `/api/v1/docs` works in the browser).
 - The access settings take effect at the next start of `snapdelta-web`: a save in **Admin > Settings** cannot open a running server.
+
+### Users of a reverse proxy (SSO)
+
+Behind a reverse proxy that does the login (oauth2-proxy, Authelia, Keycloak, a proxy with client certificates), `auth = "header"` takes the user from a header that the proxy adds:
+
+```toml
+[web]
+host = "0.0.0.0"
+auth = "header"
+
+[auth.header]
+header = "X-Forwarded-User"                   # the default
+trusted_proxies = ["10.0.0.5", "10.0.1.0/24"]  # only these addresses may give the header; default: this machine
+```
+
+- A request needs the header and must come from an address of `trusted_proxies`: anyone can send the header, so a request from any other address is refused (`401`), for the pages, the API and MCP alike. The proxy must remove a header of the same name that a client sends.
+- The server has no login page and no **Log out**: the proxy has them. The pages show the user name.
+
+### Who did what
+
+When the backend knows the user (a header of the proxy, the login of a plugin, the name given with the token), each run in Activity records it, and an accepted change takes it as its `by`, in place of a name that the form or the API request gives. The CLI records the login name of the system.
+
+### Add an auth backend
+
+The web UI declares its own extension point, `snapdelta.auth`, in the group `snapdelta.extension_points`, so `snapdelta plugins` and `snapdelta doctor` list its backends. A plugin adds a backend, such as LDAP or OIDC, with a subclass of `snapdelta_web.auth.AuthBackend`:
+
+| Member | What it gives |
+|---|---|
+| `login_fields` | The fields of the login page (`LoginField(name, label, secret, required)`); none: no login page |
+| `login(form)` | The `User` of a login form, or `None` when it proves none; the server then keeps a signed session cookie with the user name |
+| `from_request(headers, client)` | The `User` that a request itself proves, such as a Bearer token or a header, or `None` |
+| `access` | `Access.LOGIN` (default): every request needs a user; `LOCAL`: no user, this machine only; `OPEN`: no user, any address |
+| `describe()` | One line for **Admin > About** |
+| `settings_class` | Its `[auth.NAME]` table, a subclass of `snapdelta_web.auth.AuthSettings` |
+
+```toml
+[project.entry-points."snapdelta.auth"]
+ldap = "my_plugin.auth:LdapAuth"
+```
+
+`snapdelta plugins new NAME --kind auth` writes a backend with a user name and a password, to start from.
 
 ### No login, on an isolated network
 

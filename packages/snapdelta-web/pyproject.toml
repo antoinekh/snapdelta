@@ -41,6 +41,15 @@ Changelog = "https://github.com/antoinekh/snapdelta/blob/main/CHANGELOG.md"
 snapdelta-web = "snapdelta_web.cli:app"
 snapdelta-mcp = "snapdelta_web.mcp_server:app"
 
+# The web UI declares its own extension point, which `snapdelta plugins` and `snapdelta doctor` then show.
+[project.entry-points."snapdelta.extension_points"]
+auth = "snapdelta_web.auth:AUTH"
+
+[project.entry-points."snapdelta.auth"]
+token = "snapdelta_web.auth:TokenAuth"
+header = "snapdelta_web.auth:HeaderAuth"
+none = "snapdelta_web.auth:NoAuth"
+
 [tool.uv.sources]
 snapdelta = { workspace = true }
 

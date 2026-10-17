@@ -30,6 +30,8 @@ _lines: ContextVar[list[LogLine] | None] = ContextVar("snapdelta_log_lines", def
 _target: ContextVar[str | None] = ContextVar("snapdelta_log_target", default=None)
 # Only a load collects: the compare of a run logs too (diffsync), and that says nothing about the targets.
 _loading: ContextVar[bool] = ContextVar("snapdelta_loading", default=False)
+# The user who asks for the run, when a server knows it: the login of a web request.
+acting_user: ContextVar[str | None] = ContextVar("snapdelta_acting_user", default=None)
 
 
 class LogLine(BaseModel):
@@ -130,6 +132,7 @@ class RunRecord:
     def __init__(self, kind: str, origin: str, targets: list[str]) -> None:
         self.kind = kind
         self.origin = origin
+        self.user = acting_user.get() or (_user() if origin == "cli" else None)
         self.targets = targets
         self.started_at = datetime.now(UTC)
         self.saved: list[str] = []
@@ -147,7 +150,7 @@ class RunRecord:
             id=f"{stamp}-{self.kind}-{secrets.token_hex(2)}",
             kind=self.kind,
             origin=self.origin,
-            user=_user() if self.origin == "cli" else None,
+            user=self.user,
             started_at=self.started_at,
             ended_at=datetime.now(UTC),
             status=status,

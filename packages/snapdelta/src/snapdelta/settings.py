@@ -167,13 +167,6 @@ class Secret(BaseModel):
         return self.plain if self.plain is not None else {self.backend or "": self.reference or ""}
 
 
-class Auth(StrEnum):
-    """The access to the web UI and its API."""
-
-    TOKEN = "token"
-    NONE = "none"
-
-
 class WebSettings(Section):
     host: str = Field(
         default="127.0.0.1",
@@ -186,12 +179,13 @@ class WebSettings(Section):
     )
     tls_cert: Path | None = Field(default=None, description="The certificate file for HTTPS, with tls_key.")
     tls_key: Path | None = Field(default=None, description="The private key file for HTTPS, with tls_cert.")
-    auth: Auth = Field(
-        default=Auth.TOKEN,
+    auth: str = Field(
+        default="token",
         description=(
             "token: a login when a token is set, and a token on the network. "
-            "none: no login for the pages and the API, on any address; the token is ignored. "
-            "For an isolated network only."
+            "header: the user that a trusted reverse proxy gives in a header (SSO). "
+            "none: no login for the pages and the API, on any address, for an isolated network only. "
+            "Or the backend of a plugin, such as LDAP or OIDC."
         ),
     )
     public_url: str | None = Field(
@@ -318,6 +312,7 @@ class FileSettings(Section):
     secrets: dict[str, dict[str, Any]] = {}
     notifiers: dict[str, dict[str, Any]] = {}
     runners: dict[str, dict[str, Any]] = {}
+    auth: dict[str, dict[str, Any]] = {}
     profiles: dict[ProfileName, Profile] = {}
 
 
@@ -338,6 +333,7 @@ class Settings:
     secrets: dict[str, dict[str, Any]] = field(default_factory=dict)
     notifiers: dict[str, dict[str, Any]] = field(default_factory=dict)
     runners: dict[str, dict[str, Any]] = field(default_factory=dict)
+    auth: dict[str, dict[str, Any]] = field(default_factory=dict)
     _plugin_cache: dict[tuple[str, str], Section] = field(default_factory=dict, repr=False)
     _inventory_cache: list[Inventory | None] = field(default_factory=list, repr=False)
 
@@ -424,6 +420,7 @@ def load_settings(
     settings.secrets = parsed.secrets
     settings.notifiers = parsed.notifiers
     settings.runners = parsed.runners
+    settings.auth = parsed.auth
     for section in CORE_SECTIONS:
         model = getattr(settings, section)
         written = raw.get(section, {})

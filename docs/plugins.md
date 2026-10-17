@@ -1,6 +1,6 @@
 # Plugins
 
-snapdelta is a plug-in architecture, also called a microkernel: a small core, and extension points that plugins fill. The core snapshots, compares, saves and shows. Everything that depends on your data or on your place goes in a plugin: the models and the source of the data, the store, the formats, the inventory, the secrets, the messages after a run, the rules of a compare, and how the loads run. The built-in parts are plugins too, so a plugin of another package gets the same means as a built-in one.
+snapdelta is a plug-in architecture, also called a microkernel: a small core, and extension points that plugins fill. The core snapshots, compares, saves and shows. Everything that depends on your data or on your place goes in a plugin: the models and the source of the data, the store, the formats, the inventory, the secrets, the messages after a run, the rules of a compare, how the loads run, and who may use the web UI. The built-in parts are plugins too, so a plugin of another package gets the same means as a built-in one.
 
 ## The extension points
 
@@ -16,6 +16,8 @@ Each extension point is a Python [entry point group](https://packaging.python.or
 | `snapdelta.notifiers` | notifier | `snapdelta.notify.Notifier` | `webhook`, `command` | every `[notifiers.X]` table whose `type` is the name and whose filter matches the run | `[notifiers.X]`, one table per notifier |
 | `snapdelta.rules` | compare rule | `snapdelta.rules.Rule` | `case-insensitive`, `whitespace`, `unordered`, `ip-address` | `rules` of a profile, `"MODEL.ATTRIBUTE" = "NAME"` | none |
 | `snapdelta.runners` | runner | `snapdelta.runners.Runner` | `threads`, `processes` | `[snapshot] runner` | `[runners.NAME]` |
+| `snapdelta.auth` (of `snapdelta-web`) | auth backend | `snapdelta_web.auth.AuthBackend` | `token`, `header`, `none` | `[web] auth` | `[auth.NAME]` |
+| `snapdelta.extension_points` | extension point | `snapdelta.plugins.ExtensionPoint` | `auth` (of `snapdelta-web`) | every one: a package declares its own extension points | none |
 
 The guide of each kind:
 
@@ -29,6 +31,7 @@ The guide of each kind:
 | Notifier | [settings.md](settings.md#add-a-notifier) |
 | Compare rule | [profiles.md](profiles.md#add-a-rule) |
 | Runner | [parallel.md](parallel.md#add-a-runner) |
+| Auth backend | [api.md](api.md#add-an-auth-backend) |
 
 ## Write a plugin
 
@@ -42,7 +45,7 @@ uv run snapdelta doctor    # the source acme and the store acme:// pass the chec
 uv run pytest              # the contract tests pass
 ```
 
-`--kind` takes `source`, `store`, `format`, `inventory`, `secret`, `notifier`, `rule` and `runner`, and can be given several times. Each kind writes one module with a plugin that works, its entry point in `pyproject.toml`, and its tests. The store is an in-memory backend: replace each of its dicts with your database, and keep its tests green.
+`--kind` takes `source`, `store`, `format`, `inventory`, `secret`, `notifier`, `rule`, `runner` and `auth`, and can be given several times. Each kind writes one module with a plugin that works, its entry point in `pyproject.toml`, and its tests. The store is an in-memory backend: replace each of its dicts with your database, and keep its tests green.
 
 A plugin package has three parts:
 
@@ -129,7 +132,7 @@ This part is for the developers of snapdelta. An extension point is a promise to
 
 1. **The interface**, in the module of its feature: an abstract class whose methods have no code (`abc.abstractmethod`), and a `settings_class` when its plugins have settings.
 2. **The extension point**, next to the interface: an `ExtensionPoint` with the group `snapdelta.NAME`, the word for one plugin (`kind`), the interface, the settings table or `None`, a `check` (the kind of the object, with `subclass_check()` for a class) and an `inspect` (the deeper checks of `snapdelta doctor`: `abstract_problems()`, `settings_problems()`, a call on a sample).
-3. **The list**: add it to `extension_points()` in `snapdelta/plugins.py`. `snapdelta plugins`, `snapdelta doctor`, **Admin > Plugins** and the API then show it.
+3. **The list**: add it to `_core_points()` in `snapdelta/plugins.py`. An extension point of another package, such as `snapdelta.auth` of `snapdelta-web`, is an entry point of the group `snapdelta.extension_points` of that package instead. `snapdelta plugins`, `snapdelta doctor`, **Admin > Plugins** and the API then show it.
 4. **The built-ins**, as entry points in `packages/snapdelta/pyproject.toml`, never as a special case in the code.
 5. **The settings**: when its plugins have one table each, add the table to `FileSettings` and `Settings` in `snapdelta/settings.py`, so that `snapdelta settings` and **Admin > Settings** show their keys.
 6. **The scaffold**: a template of a working plugin and of its tests in `snapdelta/scaffold/kinds/`, and its kind in `KINDS`.

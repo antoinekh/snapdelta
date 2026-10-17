@@ -1,0 +1,35 @@
+"""The auth backend {{name}}: `[web] auth = "{{name}}"` lets in the users of the web UI, the API and MCP."""
+
+import hmac
+from collections.abc import Mapping
+
+from pydantic import Field
+from snapdelta.settings import Secret, WebSettings
+from snapdelta_web.auth import AuthBackend, AuthSettings, LoginField, User
+
+
+class {{Class}}AuthSettings(AuthSettings):
+    """The table [auth.{{name}}] of snapdelta.toml; replace the users with the URL of your directory."""
+
+    users: dict[str, Secret] = Field(default={}, description="The password of each user: one user = secret per line.")
+
+
+class {{Class}}Auth(AuthBackend):
+    """A login with a user name and a password, checked against the users of the settings."""
+
+    settings_class = {{Class}}AuthSettings
+    login_fields = (LoginField("username", "User name"), LoginField("password", "Password", secret=True))
+
+    def __init__(self, web: WebSettings, settings: AuthSettings) -> None:
+        super().__init__(web, settings)
+        self.users = settings.users if isinstance(settings, {{Class}}AuthSettings) else {}
+
+    def describe(self) -> str:
+        return f"Login of {len(self.users)} users"
+
+    def login(self, form: Mapping[str, str]) -> User | None:
+        name = form.get("username", "").strip()
+        secret = self.users.get(name)
+        if secret is None or not hmac.compare_digest(secret.value().encode(), form.get("password", "").encode()):
+            return None
+        return User(name)

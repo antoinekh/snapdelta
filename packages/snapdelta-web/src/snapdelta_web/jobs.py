@@ -1,5 +1,6 @@
 """Snapshots that run in the background of the web server, so that a page can follow each target live."""
 
+import contextvars
 import secrets
 import threading
 from dataclasses import dataclass, field
@@ -77,7 +78,12 @@ class TakeJobs:
             self._jobs[job.id] = job
             for old in list(self._jobs)[:-JOBS_KEPT]:
                 del self._jobs[old]
-        threading.Thread(target=self._run, args=(job, state, plan), name=f"take-{job.id}", daemon=True).start()
+        # The context of the request goes with the thread, so that the run records its user.
+        context = contextvars.copy_context()
+        thread = threading.Thread(
+            target=context.run, args=(self._run, job, state, plan), name=f"take-{job.id}", daemon=True
+        )
+        thread.start()
         return job
 
     def get(self, job_id: str) -> TakeJob:

@@ -24,7 +24,7 @@
 
 Take a snapshot of anything, then compare two snapshots. A plugin brings the [diffsync](https://github.com/networktocode/diffsync) models and a source: the way to get the data of one target, from input files, an API, NETCONF or SSH. snapdelta saves each load as a snapshot, compares two snapshots on their models, not on text, and shows the diff in a web UI, a CLI and an API.
 
-snapdelta is a plug-in architecture from end to end: the sources, the stores, the output formats, the inventories, the secret backends, the notifiers, the compare rules and the runners are all plugins, the built-in ones included. `snapdelta plugins new` writes a plugin package that works, and `snapdelta doctor` checks it. See [docs/plugins.md](docs/plugins.md).
+snapdelta is a plug-in architecture from end to end: the sources, the stores, the output formats, the inventories, the secret backends, the notifiers, the compare rules, the runners and the logins of the web UI are all plugins, the built-in ones included. `snapdelta plugins new` writes a plugin package that works, and `snapdelta doctor` checks it. See [docs/plugins.md](docs/plugins.md).
 
 - **Before and after a change:** snapshot a device, apply the change, snapshot it again, and see exactly what changed.
 - **Before and after a migration:** two vendors fill the same models, so the diff shows what the new device does differently, not how each vendor writes it.
@@ -97,14 +97,14 @@ uv run snapdelta --store /tmp/snapdelta-demo diff R1@demo R2@demo
 | `delete`, `prune`, `info` | Delete snapshots or outputs; keep the N newest or the last days; show the store |
 | `activity [RUN]` | The runs: each snapshot and saved diff, from the CLI, the web UI, the API or MCP, with the log of its loads |
 | `sources`, `models`, `inventory` | The installed sources; their models and attributes; the hosts of the inventory |
-| `plugins`, `plugins new NAME`, `doctor` | The plugins of every extension point; a new plugin package to start from (`--kind source`, `store`, `format`, `inventory`, `secret`, `notifier`, `rule`, `runner`); a check of each plugin against its interface, then of the settings, the store and the inventory (exit code 1 on an error) |
+| `plugins`, `plugins new NAME`, `doctor` | The plugins of every extension point; a new plugin package to start from (`--kind source`, `store`, `format`, `inventory`, `secret`, `notifier`, `rule`, `runner`, `auth`); a check of each plugin against its interface, then of the settings, the store and the inventory (exit code 1 on an error) |
 | `settings` | The settings in use and where each value comes from |
 
 `diff` and `output` exit with `0` (no difference), `1` (differences) or `2` (error), so a script can check a change. Run `uv run snapdelta COMMAND --help` for every option.
 
 ## Access to the web UI
 
-By default, `snapdelta-web` listens on 127.0.0.1 only, refuses other host names and refuses a POST from another site. With `[web] token`, it can listen on the network: the pages then ask for the token once, and the API needs it. On an isolated network, `[web] auth = "none"` removes the login. It serves htmx, its fonts and the API docs page itself, so it works with no internet access. See [docs/api.md](docs/api.md#access).
+By default, `snapdelta-web` listens on 127.0.0.1 only, refuses other host names and refuses a POST from another site. With `[web] token`, it can listen on the network: the pages then ask for the token once, and the API needs it. Behind a reverse proxy that does the login (SSO), `[web] auth = "header"` takes the user from the proxy, and the runs and the accepted changes record who did them; a plugin can add another login, such as LDAP. On an isolated network, `[web] auth = "none"` removes the login. It serves htmx, its fonts and the API docs page itself, so it works with no internet access. See [docs/api.md](docs/api.md#access).
 
 ## API
 
@@ -159,6 +159,7 @@ Every extension point of snapdelta is an entry point group. A plugin package dec
 | `snapdelta.notifiers` | a message after each run | `webhook`, `command` |
 | `snapdelta.rules` | a compare rule: two values written in two ways that mean the same | `case-insensitive`, `whitespace`, `unordered`, `ip-address` |
 | `snapdelta.runners` | how the loads of a snapshot run | `threads`, `processes` |
+| `snapdelta.auth` | a login of the web UI, the API and MCP | `token`, `header` (a trusted proxy, for SSO), `none` |
 
 ```bash
 snapdelta plugins new acme --kind source --kind store   # a package with a working plugin of each kind, and its tests

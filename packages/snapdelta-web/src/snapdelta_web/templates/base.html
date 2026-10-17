@@ -25,7 +25,7 @@
       <a href="/activity" {{ 'aria-current=page' if tab == 'activity' }}>Activity</a>
       <a href="/admin" {{ 'aria-current=page' if tab == 'admin' }}>Admin</a>
     </nav>
-    {% if signed_in %}<form method="post" action="/logout" class="logout"><button type="submit" class="button quiet">Log out</button></form>{% endif %}
+    {% if signed_in %}<form method="post" action="/logout" class="logout">{% if user_name %}<span class="muted small">{{ user_name }}</span> {% endif %}<button type="submit" class="button quiet">Log out</button></form>{% elif user_name %}<span class="muted small">{{ user_name }}</span>{% endif %}
     <button class="palette-open" type="button" data-palette-open aria-keyshortcuts="Control+K">Go to <kbd>Ctrl K</kbd></button>
     <button class="theme-toggle" type="button" data-theme-toggle aria-label="Switch the theme"><span aria-hidden="true">◐</span></button>
   </header>

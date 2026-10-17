@@ -22,7 +22,7 @@ def test_serves_on_localhost(served, tmp_path) -> None:
 
 def test_the_network_needs_a_token(served, tmp_path, monkeypatch) -> None:
     refused = CliRunner().invoke(cli.app, ["--store", str(tmp_path), "--host", "0.0.0.0"])
-    assert refused.exit_code == 2 and "set [web] token in the settings to listen on 0.0.0.0" in refused.output
+    assert refused.exit_code == 2 and "set [web] token, or another [web] auth, to listen on 0.0.0.0" in refused.output
     assert served == {}
     settings = tmp_path / "snapdelta.toml"
     settings.write_text('[web]\ntoken = { env = "SNAPDELTA_TOKEN" }\n')
@@ -30,7 +30,7 @@ def test_the_network_needs_a_token(served, tmp_path, monkeypatch) -> None:
     args = ["--settings", str(settings), "--store", str(tmp_path / "store"), "--host", "0.0.0.0"]
     allowed = CliRunner().invoke(cli.app, args)
     assert allowed.exit_code == 0, allowed.output
-    assert served["host"] == "0.0.0.0" and "no TLS: the token travels in clear" in allowed.output
+    assert served["host"] == "0.0.0.0" and "no TLS: the login travels in clear" in allowed.output
 
 
 def test_tls_needs_the_certificate_and_its_key(served, tmp_path) -> None:

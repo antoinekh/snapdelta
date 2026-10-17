@@ -26,7 +26,7 @@ def test_a_plugin_of_every_kind_passes_its_own_tests(tmp_path) -> None:
     root = tmp_path / "snapdelta-acme-net"
     new_plugin("acme-net", list(KINDS), root)
     pyproject = (root / "pyproject.toml").read_text()
-    assert f'dependencies = ["snapdelta{snapdelta_range()}"]' in pyproject
+    assert f'dependencies = ["snapdelta{snapdelta_range()}", "snapdelta-web{snapdelta_range()}"]' in pyproject
     assert '[project.entry-points."snapdelta.stores"]\nacme-net = "snapdelta_acme_net.store:AcmeNetStore"' in pyproject
     done = subprocess.run(
         [sys.executable, "-m", "pytest", "-q", "-p", "no:cacheprovider", "--rootdir", str(root), str(root)],

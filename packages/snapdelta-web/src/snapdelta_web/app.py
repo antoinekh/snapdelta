@@ -19,7 +19,7 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 from starlette.middleware.trustedhost import TrustedHostMiddleware
 
 from snapdelta.about import CHANGELOG_URL, DOCS_URL, ISSUES_URL, PROJECT_URL, components, package_version, plugins
-from snapdelta.activity import configure_logging
+from snapdelta.activity import acting_user, configure_logging
 from snapdelta.catalog import catalog
 from snapdelta.doctor import plugin_reports
 from snapdelta.errors import NotFoundError, SnapdeltaError
@@ -27,7 +27,7 @@ from snapdelta.output import Output, common_models, new_review, skipped_models
 from snapdelta.plugins import discover, extension_points
 from snapdelta.render import renderer, renderers
 from snapdelta.secrets import SECRETS
-from snapdelta.settings import Auth, Settings, SettingsError, save_settings, user_settings_path
+from snapdelta.settings import Settings, SettingsError, save_settings, user_settings_path
 from snapdelta.snapshot import top_level_models
 from snapdelta.source import Source, broken_sources, source_classes
 from snapdelta.store import LATEST, PrunePlan, Store, age_cutoff
@@ -41,13 +41,13 @@ from .auth import (
     OPEN_PATHS,
     SESSION_COOKIE,
     SESSION_TTL_S,
-    access_text,
+    Access,
+    AuthBackend,
+    User,
+    auth_backend,
     safe_next,
+    session_user,
     session_value,
-    token_of,
-    valid_bearer,
-    valid_session,
-    valid_token,
 )
 from .jobs import TakeJobs
 from .mcp_server import GUIDE as MCP_GUIDE
@@ -104,10 +104,11 @@ def create_app(state: AppState) -> FastAPI:
 
     app = FastAPI(title="snapdelta", docs_url=None, redoc_url=None, openapi_url=None, lifespan=lifespan)
     app.router.routes.extend(mcp_routes)
-    app.add_middleware(TrustedHostMiddleware, allowed_hosts=_allowed_hosts(state.settings))
     # Fixed at the start: a save of the settings must not open a server that runs on the network.
-    server_token = token_of(state.settings)
-    access = access_text(state.settings)
+    backend = auth_backend(state.settings)
+    session_key = backend.session_key()
+    access = backend.describe()
+    app.add_middleware(TrustedHostMiddleware, allowed_hosts=_allowed_hosts(state.settings, backend))
 
     @app.middleware("http")
     async def same_site_only(request: Request, call_next: Any) -> Response:
@@ -122,24 +123,27 @@ def create_app(state: AppState) -> FastAPI:
         return await call_next(request)
 
     @app.middleware("http")
-    async def require_token(request: Request, call_next: Any) -> Response:
-        """With a token, a page needs a login, and the API needs the token or a login."""
+    async def require_user(request: Request, call_next: Any) -> Response:
+        """When the backend asks for a user, a page needs a login, and the API needs what the backend reads."""
         path = request.url.path
-        if (
-            server_token is None
-            or path.startswith(OPEN_PATHS)
-            or valid_session(server_token, request.cookies.get(SESSION_COOKIE))
-        ):
+        user = session_user(session_key, request.cookies.get(SESSION_COOKIE)) if backend.login_fields else None
+        if user is None:
+            user = backend.from_request(request.headers, request.client.host if request.client else None)
+        if user is None and backend.access == Access.LOGIN and not path.startswith(OPEN_PATHS):
+            if path.startswith("/api/") or path == MCP_PATH:
+                message = {"error": backend.api_hint}
+                return JSONResponse(message, status_code=401, headers={"WWW-Authenticate": "Bearer"})
+            if request.method in SAFE_METHODS and backend.login_fields:
+                wanted = f"{path}?{request.url.query}" if request.url.query else path
+                return RedirectResponse(f"/login?{urlencode({'next': wanted})}", status_code=303)
+            return PlainTextResponse("log in first" if backend.login_fields else backend.api_hint, status_code=401)
+        request.state.user = user
+        # The runs of this request record the user, from the threads of the request too.
+        acting = acting_user.set(user.name if user else None)
+        try:
             return await call_next(request)
-        if path.startswith("/api/") or path == MCP_PATH:
-            if valid_bearer(server_token, request.headers.get("authorization")):
-                return await call_next(request)
-            message = {"error": "give the token: Authorization: Bearer TOKEN"}
-            return JSONResponse(message, status_code=401, headers={"WWW-Authenticate": "Bearer"})
-        if request.method in SAFE_METHODS:
-            wanted = f"{path}?{request.url.query}" if request.url.query else path
-            return RedirectResponse(f"/login?{urlencode({'next': wanted})}", status_code=303)
-        return PlainTextResponse("log in first", status_code=401)
+        finally:
+            acting_user.reset(acting)
 
     @app.middleware("http")
     async def mcp_page_for_browsers(request: Request, call_next: Any) -> Response:
@@ -165,35 +169,45 @@ def create_app(state: AppState) -> FastAPI:
     app.mount("/static", StaticFiles(directory=HERE / "static"), name="static")
 
     def render(request: Request, template: str, context: dict[str, Any], status_code: int = 200) -> HTMLResponse:
-        context = {"signed_in": server_token is not None} | context
+        user: User | None = getattr(request.state, "user", None)
+        signed_in = bool(backend.login_fields) and backend.access == Access.LOGIN
+        context = {"signed_in": signed_in, "user_name": user.name if user else None} | context
         return templates.TemplateResponse(request, template, context, status_code=status_code)
+
+    def login_context(next: str, failed: bool) -> dict[str, Any]:
+        return {
+            "tab": None,
+            "next": safe_next(next),
+            "failed": failed,
+            "signed_in": False,
+            "fields": backend.login_fields,
+        }
 
     @app.get("/login", response_model=None)
     def login_page(request: Request, next: str = "") -> HTMLResponse | RedirectResponse:
-        if server_token is None:
+        if not backend.login_fields or backend.access != Access.LOGIN:
             return RedirectResponse(safe_next(next), status_code=303)
-        return render(
-            request, "login.html", {"tab": None, "next": safe_next(next), "failed": False, "signed_in": False}
-        )
+        return render(request, "login.html", login_context(next, failed=False))
 
     @app.post("/login", response_model=None)
-    def login(
-        request: Request, token: Annotated[str, Form()] = "", next: Annotated[str, Form()] = ""
-    ) -> HTMLResponse | RedirectResponse:
-        if server_token is None or valid_token(server_token, token):
-            response = RedirectResponse(safe_next(next), status_code=303)
-            if server_token is not None:
-                response.set_cookie(
-                    SESSION_COOKIE,
-                    session_value(server_token),
-                    max_age=SESSION_TTL_S,
-                    httponly=True,
-                    samesite="strict",
-                    secure=request.url.scheme == "https",
-                )
-            return response
-        context = {"tab": None, "next": safe_next(next), "failed": True, "signed_in": False}
-        return render(request, "login.html", context, 401)
+    async def login(request: Request) -> HTMLResponse | RedirectResponse:
+        form = {key: str(value) for key, value in (await request.form()).items()}
+        next_path = form.get("next", "")
+        if backend.access != Access.LOGIN:
+            return RedirectResponse(safe_next(next_path), status_code=303)
+        user = backend.login(form) if backend.login_fields else None
+        if user is None:
+            return render(request, "login.html", login_context(next_path, failed=True), 401)
+        response = RedirectResponse(safe_next(next_path), status_code=303)
+        response.set_cookie(
+            SESSION_COOKIE,
+            session_value(session_key, user),
+            max_age=SESSION_TTL_S,
+            httponly=True,
+            samesite="strict",
+            secure=request.url.scheme == "https",
+        )
+        return response
 
     @app.post("/logout")
     def logout() -> RedirectResponse:
@@ -789,11 +803,11 @@ def create_app(state: AppState) -> FastAPI:
     return app
 
 
-def _allowed_hosts(settings: Settings) -> list[str]:
-    """The Host headers to accept; without a token, any other name means a DNS rebinding page reads the store."""
-    if settings.web.auth == Auth.NONE:
+def _allowed_hosts(settings: Settings, backend: AuthBackend) -> list[str]:
+    """The Host headers to accept; without a login, any other name means a DNS rebinding page reads the store."""
+    if backend.access == Access.OPEN:
         return [*LOCAL_HOSTS, *settings.web.allowed_hosts]
-    if settings.web.token is None:
+    if backend.access == Access.LOCAL:
         return LOCAL_HOSTS
     return [*LOCAL_HOSTS, *settings.web.allowed_hosts] if settings.web.allowed_hosts else ["*"]
 

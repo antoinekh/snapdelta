@@ -24,7 +24,7 @@ port = 8765
 # token = { env = "SNAPDELTA_TOKEN" }   # login of the web pages, Bearer token of the API
 # tls_cert = "tls/cert.pem"             # HTTPS, with tls_key
 # tls_key = "tls/key.pem"
-# auth = "token"                        # "none": no login at all, on an isolated network only
+# auth = "token"                        # "header": the user of a trusted proxy; "none": no login; or a plugin backend
 # allowed_hosts = []                    # the host names of the server; with a token, empty: any
 # public_url = "https://snapdelta.example.net"   # the address that a person opens, for the links of the notifiers
 
@@ -40,6 +40,9 @@ token = { env = "NETBOX_TOKEN" }
 
 [secrets.vault]                         # one table per secret backend that has settings, typed by its plugin
 token = { env = "VAULT_TOKEN" }
+
+[auth.header]                           # one table per auth backend that has settings, see api.md
+trusted_proxies = ["10.0.0.5"]
 
 [notifiers.ops-chat]                    # one table per notifier, named as you like; none by default
 type = "webhook"                        # the notifier plugin: webhook, command, or one of a plugin

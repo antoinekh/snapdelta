@@ -1,0 +1,17 @@
+from snapdelta.settings import Secret, WebSettings
+from snapdelta_web.auth import AUTH, Access
+
+from {{package}}.auth import {{Class}}Auth, {{Class}}AuthSettings
+
+
+def test_the_backend_passes_the_doctor() -> None:
+    assert AUTH.check("{{name}}", {{Class}}Auth) is None
+    assert AUTH.inspect("{{name}}", {{Class}}Auth) == []
+
+
+def test_a_user_logs_in_with_the_password() -> None:
+    backend = {{Class}}Auth(WebSettings(), {{Class}}AuthSettings(users={"alice": Secret(plain="s3cret")}))
+    assert backend.access == Access.LOGIN
+    assert backend.login({"username": "alice", "password": "s3cret"}).name == "alice"
+    assert backend.login({"username": "alice", "password": "nope"}) is None
+    assert backend.login({"username": "bob", "password": "s3cret"}) is None

@@ -1,10 +1,10 @@
 # Architecture
 
-snapdelta is a small core with eight extension points. A plugin brings what depends on the data: the diffsync models and the source that fills them. It can also bring a store backend, an output format, an inventory format, a secret backend, a notifier, a compare rule or a runner. The core does the rest: snapshots, compares, stores, formats, the CLI and the web UI.
+snapdelta is a small core with eight extension points, and the web UI adds a ninth, for its logins. A plugin brings what depends on the data: the diffsync models and the source that fills them. It can also bring a store backend, an output format, an inventory format, a secret backend, a notifier, a compare rule or a runner. The core does the rest: snapshots, compares, stores, formats, the CLI and the web UI.
 
 ## Plugin architecture
 
-snapdelta is a plug-in architecture, by design: a small core, and eight entry point groups that plugins fill. [plugins.md](plugins.md) has the whole guide: each group, how to write and check a plugin, and how to add a group. The rules:
+snapdelta is a plug-in architecture, by design: a small core, and entry point groups that plugins fill: eight of the core, one of the web UI, and one in which a package declares its own extension points. [plugins.md](plugins.md) has the whole guide: each group, how to write and check a plugin, and how to add a group. The rules:
 
 - **The built-ins are plugins too.** The `snapdelta` package declares its stores, formats, inventory format, secret backends, notifiers, compare rules and runners as entry points in its own `pyproject.toml`, and the core finds them through the same registry as an installed plugin, never as a special case.
 - **One registry.** `snapdelta.plugins` reads each group once per process. A plugin that cannot load, that is not of the kind of its group, or whose name another package also gives is left out as broken, with its error: the other plugins and the commands that do not need it go on.
@@ -106,6 +106,7 @@ sequenceDiagram
 | Another place for secrets (a vault, a keyring) | a `SecretBackend` subclass whose `read()` returns the secret | `snapdelta.secrets` |
 | A message after each run (mail, chat, ticket) | a `Notifier` subclass whose `send()` gets the run | `snapdelta.notifiers` |
 | Rules for a compare | no code: a `[profiles.NAME]` table | none |
+| A login of the web UI and the API: LDAP, OIDC | an `AuthBackend` subclass of `snapdelta_web.auth` | `snapdelta.auth` |
 | Loads that run elsewhere: processes, a queue and its workers | a `Runner` subclass whose `run()` gives the outcome of each `LoadTask` | `snapdelta.runners` |
 | A value written in two ways that means the same | a `Rule` subclass whose `same()` says so, named in `rules` of a profile | `snapdelta.rules` |
 

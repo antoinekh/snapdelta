@@ -197,8 +197,34 @@ def abstract_problems(value: type) -> list[Problem]:
     return [Problem(Severity.ERROR, f"these methods of the interface have no code: {missing}")]
 
 
+def _check_point(name: str, value: Any) -> str | None:
+    if not isinstance(value, ExtensionPoint):
+        return f"not a snapdelta.plugins.ExtensionPoint: {value!r}"
+    if value.group in {point.group for point in _core_points()}:
+        return f"the group {value.group} is an extension point of the core already"
+    return None
+
+
+EXTENSION_POINTS: ExtensionPoint[ExtensionPoint[Any]] = ExtensionPoint(
+    group="snapdelta.extension_points",
+    kind="extension point",
+    interface="snapdelta.plugins.ExtensionPoint",
+    table=None,
+    check=_check_point,
+)
+
+
 def extension_points() -> list[ExtensionPoint[Any]]:
-    """Every extension point of snapdelta, in the order of the docs."""
+    """Every extension point: the ones of the core in the order of the docs, then the ones that packages declare.
+
+    A package such as snapdelta-web declares its own extension points in the group `snapdelta.extension_points`,
+    which is itself listed last, so that `snapdelta plugins` and `snapdelta doctor` show them all.
+    """
+    declared = [point for _, point in sorted(plugins(EXTENSION_POINTS).items())]
+    return [*_core_points(), *declared, EXTENSION_POINTS]
+
+
+def _core_points() -> list[ExtensionPoint[Any]]:
     from .inventory import INVENTORIES
     from .notify import NOTIFIERS
     from .render import RENDERERS

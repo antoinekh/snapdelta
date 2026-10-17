@@ -12,6 +12,7 @@ from diffsync.diff import Diff
 from diffsync.enum import DiffSyncFlags
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
+from .activity import acting_user
 from .errors import NoCommonModelError, SnapdeltaError
 from .jsonfile import read_json, write_json
 from .profile import AppliedProfile, flags, paired, refine
@@ -98,8 +99,10 @@ def reviewed(output: Output, key: str, review: Review | None) -> Output:
 
 
 def new_review(by: str | None, comment: str | None) -> Review:
+    """A review by `by`; the user that a server knows from its login wins, so a user cannot write another name."""
+    who = acting_user.get() or by
     try:
-        return Review(by=(by or "").strip() or None, at=datetime.now(UTC), comment=(comment or "").strip() or None)
+        return Review(by=(who or "").strip() or None, at=datetime.now(UTC), comment=(comment or "").strip() or None)
     except ValidationError as error:
         problems = "; ".join(f"{item['loc'][0]}: {item['msg']}" for item in error.errors())
         raise SnapdeltaError(f"not a valid review ({problems})") from error
