@@ -8,6 +8,7 @@ from pathlib import Path
 
 from .activity import collecting, recorded
 from .errors import LoadError, SnapdeltaError
+from .expected import ExpectedChange, check_expected
 from .inventory import Host
 from .output import Output, compare, described
 from .plugins import require
@@ -233,12 +234,14 @@ def diff_snapshots(
     profile: str | None = None,
     title: str | None = None,
     description: str | None = None,
+    expected: Sequence[ExpectedChange] | None = None,
     save: bool = True,
     origin: str = "python",
 ) -> Compared:
     """Compare the snapshot `left` with `right` (a snapshot or a loaded source) or with its target now (`live`).
 
-    With `save`, the output and the live snapshot are saved, and the store records the command as a run.
+    With `expected`, the output also holds its check against these expected changes. With `save`, the output and
+    the live snapshot are saved, and the store records the command as a run.
     """
     if (right is None) == (not live):
         raise SnapdeltaError("give right, or live, not both")
@@ -256,6 +259,8 @@ def diff_snapshots(
         output = compare(left_adapter, right_adapter, models or None, settings.profile(profile), profile)
         if title or description:
             output = described(output, title, description)
+        if expected is not None:
+            output = output.model_copy(update={"expectations": check_expected(output, expected)})
         name = store.save_output(output) if save else None
         if record is not None:
             record.targets = list(dict.fromkeys([output.left.target, output.right.target]))
@@ -280,6 +285,13 @@ class TargetDiff:
     def changed(self) -> bool:
         return self.output is not None and self.output.has_differences()
 
+    @property
+    def as_expected(self) -> bool | None:
+        """Whether the diff holds the expected changes and no other; None without expected changes."""
+        if self.output is None or self.output.expectations is None:
+            return None
+        return self.output.expectations.as_expected
+
 
 def diff_targets(
     store: Store,
@@ -296,6 +308,7 @@ def diff_targets(
     profile: str | None = None,
     title: str | None = None,
     description: str | None = None,
+    expected: Sequence[ExpectedChange] | None = None,
     save: bool = True,
     origin: str = "python",
     jobs: int | None = None,
@@ -337,6 +350,8 @@ def diff_targets(
                 )
                 if title or description:
                     output = described(output, title, description)
+                if expected is not None:
+                    output = output.model_copy(update={"expectations": check_expected(output, expected)})
                 saved = store.save_output(output) if save else None
             except SnapdeltaError as error:
                 results[name] = TargetDiff(name, error=str(error))

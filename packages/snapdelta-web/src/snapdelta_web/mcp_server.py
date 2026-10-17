@@ -17,6 +17,7 @@ from snapdelta.activity import Run, configure_logging
 from snapdelta.catalog import catalog
 from snapdelta.cli import SettingsOption, StoreOption
 from snapdelta.errors import SnapdeltaError
+from snapdelta.expected import ExpectationCheck, ExpectedChange
 from snapdelta.output import change_key, new_review
 from snapdelta.plugins import package_of
 from snapdelta.render import change_rows
@@ -83,6 +84,9 @@ class ChangePage(BaseModel):
     changes: list[Change]
     total: int = Field(description="Every change of the diff, or of the model asked for.")
     next_offset: int | None = Field(description="The offset of the next page; none on the last page.")
+    expectations: ExpectationCheck | None = Field(
+        default=None, description="With expected changes: the ones done, the missing ones, and the unexpected changes."
+    )
 
 
 class ModelItem(BaseModel):
@@ -199,6 +203,12 @@ def create_mcp(state: AppState) -> MCPServer:
         profile: Annotated[str | None, Field(description="A profile of the settings, see list_profiles.")] = None,
         title: Annotated[str | None, Field(description="What the diff is about: CHG-1042: VLAN 20, r1.")] = None,
         description: Annotated[str | None, Field(description="More words about the change.")] = None,
+        expected: Annotated[
+            list[ExpectedChange] | None,
+            Field(
+                description="The changes that the change must make; the page says what is done, missing, unexpected."
+            ),
+        ] = None,
         save: Annotated[bool, Field(description="Save the diff, and with live the new snapshot.")] = True,
     ) -> ChangePage:
         """Compare the snapshot `left` with `right`, or with its target now (`live`); the first page of changes.
@@ -216,6 +226,7 @@ def create_mcp(state: AppState) -> MCPServer:
             profile=profile,
             title=title,
             description=description,
+            expected=expected,
             save=save,
             origin="mcp",
         )
@@ -231,6 +242,10 @@ def create_mcp(state: AppState) -> MCPServer:
         live: Annotated[bool, Field(description="Fetch each target now as the right side, at the same time.")] = False,
         profile: Annotated[str | None, Field(description="A profile of the settings, see list_profiles.")] = None,
         title: Annotated[str | None, Field(description="What the change is: CHG-1042: VLAN 20 on core.")] = None,
+        expected: Annotated[
+            list[ExpectedChange] | None,
+            Field(description="The changes that must happen, on each target or on the one that each names."),
+        ] = None,
     ) -> TargetsDiffResult:
         """For each target, compare TARGET@left with TARGET@right, or with the target now: a change on many devices.
 
@@ -247,6 +262,7 @@ def create_mcp(state: AppState) -> MCPServer:
             live=live,
             profile=profile,
             title=title,
+            expected=expected,
             origin="mcp",
         )
         return targets_result(results)
@@ -374,6 +390,7 @@ def _page(name: str, output: Any, model: str | None, offset: int, limit: int) ->
         changes=[_change(row, output.reviews) for row in window],
         total=len(rows),
         next_offset=end if end < len(rows) else None,
+        expectations=output.expectations,
     )
 
 

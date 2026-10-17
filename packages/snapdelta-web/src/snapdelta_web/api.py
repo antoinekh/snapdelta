@@ -13,6 +13,7 @@ from snapdelta.about import components, package_version, plugins
 from snapdelta.activity import Run, RunStatus
 from snapdelta.doctor import plugin_reports
 from snapdelta.errors import NotFoundError, SnapdeltaError
+from snapdelta.expected import ExpectationCheck, ExpectedChange
 from snapdelta.output import Output, Review, Side, new_review
 from snapdelta.plugins import package_of
 from snapdelta.render import renderer
@@ -90,6 +91,9 @@ class DiffRequest(BaseModel):
     profile: str | None = Field(default=None, description="A compare profile of the settings.")
     title: str | None = None
     description: str | None = None
+    expected: list[ExpectedChange] | None = Field(
+        default=None, description="The changes that must happen; the result says whether the diff is them and no other."
+    )
     save: bool = Field(default=True, description="Save the output, and with live the new snapshot.")
 
 
@@ -104,6 +108,9 @@ class TargetsDiffRequest(BaseModel):
     profile: str | None = Field(default=None, description="A compare profile of the settings.")
     title: str | None = None
     description: str | None = None
+    expected: list[ExpectedChange] | None = Field(
+        default=None, description="The changes that must happen, on each target or on the one that each names."
+    )
     save: bool = Field(default=True, description="Save the outputs; a live diff of many targets always saves.")
 
 
@@ -116,6 +123,10 @@ class DiffResult(BaseModel):
     right: Side
     title: str | None
     description: str | None
+    as_expected: bool | None = Field(
+        default=None, description="With expected changes: the diff holds them and no other change."
+    )
+    expectations: ExpectationCheck | None = Field(default=None, description="The done, missing and unexpected changes.")
     output: Output | None = Field(default=None, description="The whole output, with include_output.")
 
 
@@ -127,6 +138,9 @@ class TargetDiffResult(BaseModel):
 
 class TargetsDiffResult(BaseModel):
     has_differences: bool = Field(description="True when the diff of one target or more found a difference.")
+    as_expected: bool | None = Field(
+        default=None, description="With expected changes: every diff holds its expected changes and no other."
+    )
     changed: list[str]
     unchanged: list[str]
     failed: dict[str, str] = Field(description="The error of each target that has no diff.")
@@ -143,14 +157,18 @@ def diff_result(output: Output, name: str | None, include_output: bool) -> DiffR
         right=output.right,
         title=output.title,
         description=output.description,
+        as_expected=output.expectations.as_expected if output.expectations else None,
+        expectations=output.expectations,
         output=output if include_output else None,
     )
 
 
 def targets_result(results: Mapping[str, TargetDiff], include_output: bool = False) -> TargetsDiffResult:
     items = list(results.values())
+    checked = [item.as_expected for item in items if item.as_expected is not None]
     return TargetsDiffResult(
         has_differences=any(item.changed for item in items),
+        as_expected=all(checked) if checked else None,
         changed=[item.target for item in items if item.changed],
         unchanged=[item.target for item in items if item.output is not None and not item.changed],
         failed={item.target: item.error for item in items if item.error},
@@ -348,6 +366,7 @@ def create_api(state: AppState, row_cache: LruCache[Any, Any]) -> FastAPI:
             profile=request.profile,
             title=request.title,
             description=request.description,
+            expected=request.expected,
             save=request.save,
             origin="api",
         )
@@ -369,6 +388,7 @@ def create_api(state: AppState, row_cache: LruCache[Any, Any]) -> FastAPI:
             profile=request.profile,
             title=request.title,
             description=request.description,
+            expected=request.expected,
             save=request.save,
             origin="api",
         )

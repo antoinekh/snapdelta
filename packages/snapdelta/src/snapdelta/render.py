@@ -89,7 +89,22 @@ def render_output(output: Output) -> str:
         lines.append(f"not selected: {', '.join(output.not_selected)}")
     lines += profile_lines(output)
     lines += review_lines(output)
+    lines += expectation_lines(output)
     return "\n".join(lines)
+
+
+def expectation_lines(output: Output) -> list[str]:
+    """The check against the expected changes: one line for the counts, then one per missing or unexpected change."""
+    check = output.expectations
+    if check is None:
+        return []
+    verdict = "as expected" if check.as_expected else "not as expected"
+    lines = [
+        f"expected: {len(check.done)} done, {len(check.missing)} missing, {len(check.unexpected)} unexpected: {verdict}"
+    ]
+    lines += [f"  missing: {item.describe()}" for item in check.missing]
+    lines += [f"  unexpected: {item.describe()}" for item in check.unexpected]
+    return lines
 
 
 def review_lines(output: Output) -> list[str]:
@@ -211,6 +226,14 @@ def render_markdown(output: Output) -> str:
         lines += ["", f"Not selected: {', '.join(output.not_selected)}."]
     if output.profile is not None:
         lines += ["", *(f"- {line[0].upper()}{line[1:]}" for line in profile_lines(output))]
+    check = output.expectations
+    if check is not None:
+        counts = expectation_lines(output)[0]
+        lines += ["", "## Expected changes", "", f"{counts[0].upper()}{counts[1:]}."]
+        lines += [""] if check.done or check.missing or check.unexpected else []
+        lines += [f"- Done: {_cell(item.describe())}" for item in check.done]
+        lines += [f"- Missing: {_cell(item.describe())}" for item in check.missing]
+        lines += [f"- Unexpected: {_cell(item.describe())}" for item in check.unexpected]
     reviews = review_lines(output)
     if reviews:
         lines += ["", "## Review", "", f"{reviews[0][0].upper()}{reviews[0][1:]}.", ""]

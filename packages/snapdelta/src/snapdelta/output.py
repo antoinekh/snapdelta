@@ -14,6 +14,7 @@ from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
 from .activity import acting_user
 from .errors import NoCommonModelError, SnapdeltaError
+from .expected import ExpectationCheck
 from .jsonfile import read_json, write_json
 from .profile import AppliedProfile, flags, paired, refine
 from .settings import Profile
@@ -62,6 +63,8 @@ class Output(BaseModel):
     description: str | None = Field(default=None, max_length=2000)
     # By the key of a changed object, `MODEL:UNIQUE_ID`: the changes that a person accepted.
     reviews: dict[str, Review] = {}
+    # The check against the changes that the compare was given as expected, when it was given some.
+    expectations: ExpectationCheck | None = None
 
     def has_differences(self) -> bool:
         return any(self.summary.get(action, 0) for action in CHANGES)

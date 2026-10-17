@@ -2,6 +2,18 @@
 
 A compare gives an output: a JSON document (schema 2) that the store keeps and that every format reads.
 
+## Expected changes
+
+Before a change, write what it must do in a YAML or JSON file, and give it to `snapdelta diff --expect FILE` (or `expected` in `POST /api/v1/diffs`, `POST /api/v1/diffs/targets` and the MCP tools `compare` and `compare_targets`):
+
+```yaml
+- {model: vlan, object: "100", change: added}
+- {model: interface, object: eth1, change: changed, attribute: mtu, left: 1500, right: 9000}
+- {model: interface, object: "eth*", change: removed, target: R2}   # * matches any part; target: only this diff
+```
+
+The output then keeps `expectations`: the expected changes `done`, the `missing` ones, and the `unexpected` changes of the diff, after its profile. With `--expect`, the exit code is `0` when the diff holds the expected changes and no other, else `1`. `left` and `right` are optional: a side not given takes any value.
+
 ## The document
 
 ```json

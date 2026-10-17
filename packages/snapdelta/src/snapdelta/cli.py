@@ -17,6 +17,7 @@ from .activity import configure_logging
 from .catalog import catalog
 from .doctor import PluginReport, diagnose, plugin_reports
 from .errors import SnapdeltaError
+from .expected import read_expected
 from .output import Output, new_review
 from .plugins import Problem, Severity, package_of
 from .render import Renderer, render_snapshot, renderer
@@ -391,6 +392,14 @@ def diff(
     ] = False,
     title: Annotated[str | None, typer.Option(help="A short title of the diff, shown in the lists.")] = None,
     description: Annotated[str | None, typer.Option(help="What the diff is about: the change, the ticket.")] = None,
+    expect: Annotated[
+        Path | None,
+        typer.Option(
+            exists=True,
+            dir_okay=False,
+            help="The expected changes (YAML or JSON); exit code 1 when the diff is not them.",
+        ),
+    ] = None,
     output_format: Format = "text",
 ) -> None:
     """Compare a snapshot with another, or with its target now (--live); exit code 1 on a difference.
@@ -404,7 +413,15 @@ def diff(
     if (right is not None) == live:
         raise SnapdeltaError("give one right side: a RIGHT snapshot, or --live")
     settings: Settings = ctx.obj.settings
-    common = {"models": models, "profile": profile, "title": title, "description": description, "origin": "cli"}
+    expected = read_expected(expect) if expect else None
+    common = {
+        "models": models,
+        "profile": profile,
+        "title": title,
+        "description": description,
+        "expected": expected,
+        "origin": "cli",
+    }
     if targets or groups or all_targets:
         if not left.startswith("@") or (right is not None and not right.startswith("@")):
             raise SnapdeltaError("with targets, LEFT and RIGHT are labels: @before @after, or @latest")
@@ -447,9 +464,14 @@ def _print_target_diffs(results: dict[str, TargetDiff], chosen: Renderer) -> Non
     failed = {item.target: item.error for item in results.values() if item.error}
     typer.echo(f"changed: {', '.join(changed) or 'none'}", err=True)
     typer.echo(f"unchanged: {', '.join(same) or 'none'}", err=True)
+    checked = [item for item in results.values() if item.as_expected is not None]
+    if checked:
+        off = [item.target for item in checked if not item.as_expected]
+        typer.echo(f"not as expected: {', '.join(off) or 'none'}", err=True)
     for message in failed.values():
         typer.echo(f"error: {message}", err=True)
-    raise typer.Exit(2 if failed else 1 if changed else 0)
+    wrong = any(not item.as_expected for item in checked) if checked else bool(changed)
+    raise typer.Exit(2 if failed else 1 if wrong else 0)
 
 
 @app.command("output")
@@ -619,7 +641,10 @@ def prune(
 
 
 def _print_output(output: Output, chosen: Renderer) -> None:
+    """With expected changes, exit code 1 when the diff is not them; else exit code 1 on a difference."""
     typer.echo(chosen.render(output).rstrip("\n"))
+    if output.expectations is not None:
+        raise typer.Exit(0 if output.expectations.as_expected else 1)
     raise typer.Exit(1 if output.has_differences() else 0)
 
 
