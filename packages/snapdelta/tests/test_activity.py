@@ -3,9 +3,8 @@ from pathlib import Path
 
 import pytest
 
-from snapdelta import store as store_module
-from snapdelta.activity import Run, collecting, configure_logging
-from snapdelta.errors import NotFoundError, SnapdeltaError
+from snapdelta.activity import collecting, configure_logging
+from snapdelta.errors import SnapdeltaError
 from snapdelta.parallel import fetch_parallel
 from snapdelta.settings import Settings
 from snapdelta.take import diff_snapshots, load_source, take_snapshots
@@ -67,29 +66,6 @@ def test_a_saved_diff_is_a_run_and_a_diff_that_saves_nothing_is_not(store, make_
         diff_snapshots(store, Settings(), left, "R1/nope")
     failed = store.runs(kind="diff")[0]
     assert failed.status == "failed" and "nope" in failed.errors["*"]
-
-
-def test_the_store_keeps_the_newest_runs_only(store, monkeypatch) -> None:
-    monkeypatch.setattr(store_module, "RUNS_KEPT", 2)
-    for second in range(3):
-        run = Run.model_validate(
-            {
-                "id": f"20261014T08000{second}000000Z-snapshot-abcd",
-                "kind": "snapshot",
-                "origin": "python",
-                "started_at": "2026-10-14T08:00:00Z",
-                "ended_at": "2026-10-14T08:00:01Z",
-                "status": "ok",
-            }
-        )
-        store.save_run(run)
-    assert [run.id for run in store.runs()] == [
-        "20261014T080002000000Z-snapshot-abcd",
-        "20261014T080001000000Z-snapshot-abcd",
-    ]
-    assert store.info().runs == 2
-    with pytest.raises(NotFoundError):
-        store.load_run("../../etc/passwd")
 
 
 def test_take_snapshots_reports_each_target_as_it_starts_and_ends(store) -> None:

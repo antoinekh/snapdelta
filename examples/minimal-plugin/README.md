@@ -11,6 +11,7 @@ The smallest complete snapdelta plugin. Read it to see how a plugin works, then 
 | `src/snapdelta_example/source.py` | `ExampleSource`, the source `example`: reads JSON files, fills the models, then calls `finish_load()` |
 | `src/snapdelta_example/live.py` | `ExampleLiveSource`, the source `example-live`: fetches the same data from a target (`fetches = True`), lists its targets, and reads its settings (`ExampleLiveSettings`) |
 | `pyproject.toml` | The entry points `example` and `example-live` in the group `snapdelta.sources`: how snapdelta finds the sources |
+| `tests/test_example.py` | `SourceContract` of `snapdelta.testing`: the tests that every source must pass, for one fixture each |
 
 ## The data
 

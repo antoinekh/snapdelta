@@ -126,7 +126,7 @@ A plugin package can add a backend, for example an object store or a database se
 - `open(address, settings)`, a class method: the store at `address`, the part of the location after `SCHEME://`; `settings` is its `[stores.SCHEME]` table, typed by `settings_class`;
 - `location`: the location that opens the store again, with its scheme;
 - `targets()`, `snapshot_entries()`, `output_entries()`, `info()`;
-- the private primitives `_has_snapshot`, `_write_snapshot`, `_read_snapshot`, `_delete_snapshot`, `_has_output`, `_write_output`, `_read_output`, `_delete_output`.
+- the private primitives of the snapshots, `_has_snapshot`, `_write_snapshot`, `_read_snapshot`, `_delete_snapshot`; of the outputs, `_has_output`, `_write_output`, `_read_output`, `_replace_output`, `_delete_output`; and of Activity, `_write_run`, `_read_run`, `_run_ids` (newest first), `_delete_run`.
 
 The base class gives the naming, the resolution of `TARGET@latest`, the checks of names, and pruning. Declare the backend under its scheme in the `pyproject.toml` of the plugin:
 
@@ -168,5 +168,26 @@ location = "s3://bucket/snapdelta"
 [stores.s3]
 access_key = { env = "S3_ACCESS_KEY" }
 ```
+
+### Test a backend
+
+`snapdelta.testing.StoreContract` holds the behaviour that every backend must have: names, `TARGET@label`, the refusal of unsafe names, outputs and reviews, pruning, Activity, and a location that opens the same store again. The file and SQLite stores pass it in the tests of snapdelta. Subclass it in the tests of the plugin, with a `store` fixture that gives a new, empty store (`pip install "snapdelta[testing]"`):
+
+```python
+import pytest
+from snapdelta.testing import StoreContract
+
+from my_plugin.store import S3Store, S3Settings
+
+
+class TestS3Store(StoreContract):
+    @pytest.fixture
+    def store(self, bucket):
+        return S3Store.open(f"{bucket}/snapdelta", S3Settings())
+```
+
+`snapdelta doctor` also checks a backend: no method of the interface left abstract, `backend` set to its scheme, and settings of the right class.
+
+### Settings and local paths
 
 The SQLite backend has one setting, `busy_timeout_s` in `[stores.sqlite]`: how long a writer waits for the lock of the database (default 30 seconds). The scheme alone picks the backend: the built-in schemes are `file` and `sqlite`, and a location without a scheme is a directory of the file store. When the address of a backend is a path on the machine, set `local_path = True` on its class, as `FileStore` and `SqliteStore` do: the settings file then resolves a relative address against its directory. The address of another backend stays as written.

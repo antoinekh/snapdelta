@@ -4,15 +4,42 @@ import pytest
 
 from snapdelta.errors import LoadError
 from snapdelta.output import compare
-from snapdelta_example import ExampleSource
+from snapdelta.testing import SourceContract
+from snapdelta_example import ExampleLiveSource, ExampleSource
 
 SAMPLES = Path(__file__).resolve().parents[1] / "samples"
+DEVICES = Path(__file__).resolve().parents[1] / "devices"
 
 
 def loaded(*names: str, **kwargs) -> ExampleSource:
     adapter = ExampleSource(files=[SAMPLES / name for name in names], **kwargs)
     adapter.load()
     return adapter
+
+
+class TestExampleSource(SourceContract):
+    """The tests that every source must pass, from snapdelta: this fixture gives one load of one target.
+
+    They check what a reader of the code could miss: two loads of the same file must compare equal (sort the lists,
+    no value that depends on the run), and a saved snapshot must read back with no difference.
+    """
+
+    @pytest.fixture
+    def load(self):
+        return lambda: loaded("r1-before.json")
+
+
+class TestExampleLiveSource(SourceContract):
+    @pytest.fixture
+    def load(self):
+        from snapdelta_example.live import ExampleLiveSettings
+
+        def fetch() -> ExampleLiveSource:
+            adapter = ExampleLiveSource(target="R1", settings=ExampleLiveSettings(data_dir=DEVICES))
+            adapter.load()
+            return adapter
+
+        return fetch
 
 
 def test_a_sample_fills_every_model() -> None:

@@ -319,7 +319,30 @@ uv run snapdelta-web            # http://127.0.0.1:8765
 
 - Replace `fetch()` with the real access of your devices; `self.host` gives the address, the port and the login from the inventory, and `fetch_parallel()` runs several requests of one device at the same time ([parallel.md](parallel.md)).
 - Log what your source does with the standard `logging` module (`log = logging.getLogger(__name__)`, then `log.info(...)`): snapdelta saves the messages of each load with its snapshot, from every thread of `fetch_parallel()`, and shows them in **Activity** and on the snapshot page. `[snapshot] log_level` sets the lowest level that it keeps (`info` by default).
-- Add tests on real exports of your devices: load an export with your source and check the models.
+- Add tests on real exports of your devices: load an export with your source and check the models. `snapdelta.testing.SourceContract` adds the tests that every source must pass: two loads of the same data compare equal, a snapshot reads back with no difference, and `snapdelta doctor` finds no error. Give it one fixture (`uv add --dev "snapdelta[testing]"`):
+
+  ```python
+  # tests/test_sources.py
+  from pathlib import Path
+
+  import pytest
+  from snapdelta.testing import SourceContract
+
+  from my_snapdelta.sources import AcmeSource, DeviceSettings
+
+
+  class TestAcmeSource(SourceContract):
+      @pytest.fixture
+      def load(self):
+          def fetch():
+              source = AcmeSource(target="sw1", settings=DeviceSettings(data_dir=Path("devices")))
+              source.load()
+              return source
+
+          return fetch
+  ```
+
+- Run `uv run snapdelta doctor` after each change of the plugin: it checks each source against the interface, then the settings, the inventory and the store.
 - Add rules for your change windows: ignore, tolerance, counts ([profiles.md](profiles.md)).
 - Call snapdelta from a pipeline or an AI agent: the JSON API of `snapdelta-web` takes snapshots and runs diffs ([api.md](api.md)).
 - Add `.store/` to `.gitignore`: a store holds the data of your devices.

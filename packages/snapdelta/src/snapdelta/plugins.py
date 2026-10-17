@@ -121,6 +121,13 @@ def register_plugin[T](point: ExtensionPoint[T], name: str, value: T) -> None:
         _cache.pop(point.group, None)
 
 
+def unregister_plugin(point: ExtensionPoint[Any], name: str) -> None:
+    """Take back a plugin of register_plugin(); the installed plugin of that name, if any, comes back."""
+    with _lock:
+        _registered.get(point.group, {}).pop(name, None)
+        _cache.pop(point.group, None)
+
+
 def reset_plugins() -> None:
     """Forget the plugins read and the plugins registered, so that the next read sees the installed ones again."""
     with _lock:
