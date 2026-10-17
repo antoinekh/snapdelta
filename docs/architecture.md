@@ -1,12 +1,12 @@
 # Architecture
 
-snapdelta is a small core with six extension points. A plugin brings what depends on the data: the diffsync models and the source that fills them. It can also bring a store backend, an output format, an inventory format, a secret backend or a notifier. The core does the rest: snapshots, compares, stores, formats, the CLI and the web UI.
+snapdelta is a small core with seven extension points. A plugin brings what depends on the data: the diffsync models and the source that fills them. It can also bring a store backend, an output format, an inventory format, a secret backend, a notifier or a compare rule. The core does the rest: snapshots, compares, stores, formats, the CLI and the web UI.
 
 ## Plugin architecture
 
-snapdelta is a plugin architecture, by design. The entry point groups (`snapdelta.sources`, `snapdelta.stores`, `snapdelta.renderers`, `snapdelta.inventories`, `snapdelta.secrets`, `snapdelta.notifiers`) are part of the product, not options to remove when only the built-in implementations use them.
+snapdelta is a plugin architecture, by design. The entry point groups (`snapdelta.sources`, `snapdelta.stores`, `snapdelta.renderers`, `snapdelta.inventories`, `snapdelta.secrets`, `snapdelta.notifiers`, `snapdelta.rules`) are part of the product, not options to remove when only the built-in implementations use them.
 
-- **The built-ins are plugins too.** The `snapdelta` package declares `FileStore`, `SqliteStore`, the four formats, the Nornir inventory the `env` and `file` secret backends and the `webhook` and `command` notifiers as entry points in its own `pyproject.toml`, and the core finds them through the same registry as an installed plugin, never as a special case.
+- **The built-ins are plugins too.** The `snapdelta` package declares `FileStore`, `SqliteStore`, the four formats, the Nornir inventory the `env` and `file` secret backends the `webhook` and `command` notifiers and the four compare rules as entry points in its own `pyproject.toml`, and the core finds them through the same registry as an installed plugin, never as a special case.
 - **One registry.** `snapdelta.plugins` reads each entry point group once per process. A plugin that cannot load, that is not of the kind of its group, or whose name another package also gives is left out as broken, with its error: the other plugins and the commands that do not need it go on. A source whose `source` attribute is not its entry point name is broken too, because its snapshots could not be read again.
 - **The store stays pluggable.** Users can write their own store backend, and the project will add new ones later. The `Store` class is a public interface: the core, the CLI and the web UI use only its methods, never a backend class or a file on disk.
 - **A plugin gets what a built-in gets.** Each extension point gives its plugins the same means as the built-ins: a registry entry, its own settings, and its place in the CLI, the web UI and the docs.
@@ -97,5 +97,6 @@ sequenceDiagram
 | Another place for secrets (a vault, a keyring) | a `SecretBackend` subclass whose `read()` returns the secret | `snapdelta.secrets` |
 | A message after each run (mail, chat, ticket) | a `Notifier` subclass whose `send()` gets the run | `snapdelta.notifiers` |
 | Rules for a compare | no code: a `[profiles.NAME]` table | none |
+| A value written in two ways that means the same | a `Rule` subclass whose `same()` says so, named in `rules` of a profile | `snapdelta.rules` |
 
 `snapdelta models` (and the web tab Admin > Models) lists the models of the installed sources, grouped by sources with the same models. It names the sources that compare with each group, and warns when two sources use the same model name with other fields: such a compare shows false differences.

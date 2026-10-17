@@ -4,7 +4,7 @@ from typer.testing import CliRunner
 
 from snapdelta.cli import app
 from snapdelta.doctor import diagnose, plugin_reports
-from snapdelta.plugins import Severity, register_plugin
+from snapdelta.plugins import Severity, extension_points, register_plugin
 from snapdelta.render import RENDERERS, Renderer
 from snapdelta.source import SOURCES, Source, register_source
 from snapdelta.store import STORES, Store
@@ -29,14 +29,7 @@ def problems(name: str) -> list[str]:
 
 def test_the_installed_plugins_are_healthy() -> None:
     reports = plugin_reports()
-    assert {report.group for report in reports} == {
-        "snapdelta.sources",
-        "snapdelta.stores",
-        "snapdelta.renderers",
-        "snapdelta.inventories",
-        "snapdelta.secrets",
-        "snapdelta.notifiers",
-    }
+    assert {report.group for report in reports} == {point.group for point in extension_points()}
     assert all(report.severity == Severity.OK for report in reports), [r for r in reports if r.problems]
 
 

@@ -228,6 +228,16 @@ def _attribute_pattern(value: str) -> str:
     return value
 
 
+def _rule_name(value: str) -> str:
+    from .plugins import discover
+    from .rules import RULES
+
+    found = discover(RULES).plugins
+    if value not in found:
+        raise ValueError(f"no compare rule {value!r} is installed (installed: {', '.join(sorted(found)) or 'none'})")
+    return value
+
+
 def _profile_name(value: str) -> str:
     if not PROFILE_NAME_RE.match(value):
         raise ValueError(f"{value!r}: a profile name holds letters, digits, _ and - only")
@@ -238,6 +248,7 @@ def _profile_name(value: str) -> str:
 Limit = Annotated[float | str, AfterValidator(_limit)]
 ProfileName = Annotated[str, AfterValidator(_profile_name)]
 AttributePattern = Annotated[str, AfterValidator(_attribute_pattern)]
+RuleName = Annotated[str, AfterValidator(_rule_name)]
 
 
 class Profile(Section):
@@ -263,6 +274,14 @@ class Profile(Section):
             "A number is an absolute limit; N% is a percent of the left value (1500 to 1650 is within 10%)."
         ),
         examples=["interface.mtu = 10%\nbgp_peer.prefixes_received = 50"],
+    )
+    rules: dict[AttributePattern, RuleName] = Field(
+        default={},
+        description=(
+            "Values that differ as written but mean the same: one model.attribute = rule per line. "
+            "Rules: case-insensitive, whitespace, unordered, ip-address, and the rules of plugins."
+        ),
+        examples=["interface.description = case-insensitive\ninterface.addresses = ip-address"],
     )
     counts: dict[str, Limit] = Field(
         default={},

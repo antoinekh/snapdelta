@@ -215,8 +215,7 @@ class Mail(Notifier):
     settings_class = MailSettings
 
     @classmethod
-    def send(cls, event: RunEvent, settings: NotifierSettings) -> None:
-        ...
+    def send(cls, event: RunEvent, settings: NotifierSettings) -> None: ...
 ```
 
 ## Settings of a source

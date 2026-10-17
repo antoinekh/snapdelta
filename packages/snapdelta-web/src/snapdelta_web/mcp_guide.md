@@ -28,7 +28,7 @@ To compare a snapshot with the device now, without a second snapshot step: `comp
 
 - Never accept a change that you did not check against the intent of the change.
 - A snapshot can take seconds per target: take several targets in one `take_snapshots` call, which fetches them at the same time.
-- A value that a profile accepts (ignored, within tolerance) is not a difference.
+- A value that a profile accepts (ignored, the same by a rule such as case-insensitive, within tolerance) is not a difference.
 - The models and their attributes differ per plugin: `list_models` gives them; a field marked not compared is kept for reading only.
 - To show a diff to a person: the web UI of the same store, `snapdelta-web`, has a page per diff, `/diffs/NAME` (by default `http://127.0.0.1:8765/diffs/NAME`), where the person can filter the changes and accept them.
 - The docs: <https://github.com/antoinekh/snapdelta/tree/main/docs>.

@@ -202,8 +202,9 @@ def extension_points() -> list[ExtensionPoint[Any]]:
     from .inventory import INVENTORIES
     from .notify import NOTIFIERS
     from .render import RENDERERS
+    from .rules import RULES
     from .secrets import SECRETS
     from .source import SOURCES
     from .store import STORES
 
-    return [SOURCES, STORES, RENDERERS, INVENTORIES, SECRETS, NOTIFIERS]
+    return [SOURCES, STORES, RENDERERS, INVENTORIES, SECRETS, NOTIFIERS, RULES]

@@ -11,6 +11,8 @@ from diffsync.enum import DiffSyncFlags
 from pydantic import BaseModel
 
 from .errors import SnapdeltaError
+from .plugins import require
+from .rules import RULES
 from .settings import Limit, Profile
 from .snapshot import StoredSource, build_snapshot_file, stored_source_class
 from .source import Source
@@ -66,11 +68,14 @@ def rule_for(patterns: Collection[str], model: str, attribute: str) -> str | Non
 
 
 def accepted(profile: Profile | None, model: str, attribute: str, left: Any, right: Any) -> str | None:
-    """Why the profile accepts a difference of one attribute ("ignored", "within tolerance"), or None."""
+    """Why the profile accepts a difference of one attribute: "ignored", the name of a rule, "within tolerance"."""
     if profile is None:
         return None
     if rule_for(profile.ignore, model, attribute):
         return "ignored"
+    pattern = rule_for(profile.rules, model, attribute)
+    if pattern is not None and require(RULES, profile.rules[pattern]).same(left, right):
+        return profile.rules[pattern]
     pattern = rule_for(profile.tolerance, model, attribute)
     if pattern is not None and within(profile.tolerance[pattern], left, right):
         return "within tolerance"
