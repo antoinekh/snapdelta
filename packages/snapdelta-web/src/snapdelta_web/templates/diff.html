@@ -57,7 +57,7 @@
   {% if output.skipped %}<p class="muted small">Not compared, because only one side loaded them: {{ output.skipped | join(", ") }}</p>{% endif %}
   {% if output.not_selected %}<p class="muted small">Not selected: {{ output.not_selected | join(", ") }}</p>{% endif %}
   {% if output.expectations %}{% set check = output.expectations %}
-  <div class="notice {{ '' if check.as_expected else 'warn' }} small">Expected changes: {{ check.done | length }} done, {{ check.missing | length }} missing, {{ check.unexpected | length }} unexpected.
+  <div class="notice expectations {{ '' if check.as_expected else 'warn' }} small">Expected changes: {{ check.done | length }} done, {{ check.missing | length }} missing, {{ check.unexpected | length }} unexpected.
     {% for item in check.missing %}<div>Missing: <span class="mono">{{ item.describe() }}</span></div>{% endfor %}
     {% for item in check.unexpected %}<div>Unexpected: <span class="mono">{{ item.describe() }}</span></div>{% endfor %}
   </div>

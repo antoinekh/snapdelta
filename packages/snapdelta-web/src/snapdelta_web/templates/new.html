@@ -35,12 +35,12 @@
 <section class="panel many-targets">
   <h2>Many targets</h2>
   <form method="post" action="/diffs/targets" class="many-targets-form">
-    {% if groups %}<label class="field inline-field">Group<select name="group"><option value="">Every target</option>{% for group in groups %}<option>{{ group }}</option>{% endfor %}</select></label>{% endif %}
-    <label class="field inline-field">Left label<input name="left" value="before" required autocomplete="off"></label>
-    <label class="field inline-field">Right label<input name="right" value="after" autocomplete="off"></label>
+    {% if groups %}<label class="field">Group<select name="group"><option value="">Every target</option>{% for group in groups %}<option>{{ group }}</option>{% endfor %}</select></label>{% endif %}
+    <label class="field">Left label<input name="left" value="before" required autocomplete="off"></label>
+    <label class="field">Right label<input name="right" value="after" autocomplete="off"></label>
     <label class="check"><input type="checkbox" name="live" value="true"> With the targets now</label>
-    {% if profiles %}<label class="field inline-field">Profile<select name="profile"><option value="">None</option>{% for name, text in profiles %}<option value="{{ name }}">{{ text }}</option>{% endfor %}</select></label>{% endif %}
-    <label class="field inline-field">Title<input name="title" maxlength="120" autocomplete="off"></label>
+    {% if profiles %}<label class="field">Profile<select name="profile"><option value="">None</option>{% for name, text in profiles %}<option value="{{ name }}">{{ text }}</option>{% endfor %}</select></label>{% endif %}
+    <label class="field">Title<input name="title" maxlength="120" autocomplete="off"></label>
     <button type="submit" class="button primary" data-busy="Comparing…">Compare each target</button>
   </form>
 </section>

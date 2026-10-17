@@ -7,7 +7,7 @@
 <section class="panel" id="plugins-{{ point.table or point.group }}">
   <h2>{{ point.kind | capitalize }}s <span class="tag mono">{{ point.group }}</span> <span class="muted small mono">{{ point.interface }}</span></h2>
   <div class="scroll">
-    <table class="list dense">
+    <table class="list dense plugins-table">
       <thead><tr><th>Name</th><th>Package</th><th>Version</th><th>Status</th><th>In use</th><th>Problems</th></tr></thead>
       <tbody>
         {% for report in reports %}
