@@ -413,14 +413,7 @@ def load_settings(
         parsed = FileSettings.model_validate(raw)
     except ValidationError as error:
         raise settings_error(path, [], error) from error
-    settings = Settings(parsed.store, parsed.snapshot, parsed.web, parsed.sources, path, profiles=parsed.profiles)
-    settings.inventory = parsed.inventory
-    settings.stores = parsed.stores
-    settings.inventories = parsed.inventories
-    settings.secrets = parsed.secrets
-    settings.notifiers = parsed.notifiers
-    settings.runners = parsed.runners
-    settings.auth = parsed.auth
+    settings = Settings(file=path, **{name: getattr(parsed, name) for name in FileSettings.model_fields})
     for section in CORE_SECTIONS:
         model = getattr(settings, section)
         written = raw.get(section, {})
