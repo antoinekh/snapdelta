@@ -1,0 +1,13 @@
+from snapdelta.rules import RULES
+
+from {{package}}.rules import {{Class}}Rule
+
+
+def test_the_rule_passes_the_doctor() -> None:
+    assert RULES.check("{{name}}", {{Class}}Rule) is None
+    assert RULES.inspect("{{name}}", {{Class}}Rule) == []
+
+
+def test_what_the_rule_accepts() -> None:
+    assert {{Class}}Rule.same("R1.example.net.", "r1.example.net")
+    assert {{Class}}Rule.same(["a.net."], ["a.net"]) and not {{Class}}Rule.same("a.net", "b.net")

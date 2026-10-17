@@ -1,0 +1,26 @@
+"""The notifier {{name}}: `[notifiers.NAME] type = "{{name}}"` gets each run that its filter matches."""
+
+import json
+from pathlib import Path
+
+from snapdelta.notify import Notifier, NotifierSettings, RunEvent
+
+
+class {{Class}}NotifierSettings(NotifierSettings):
+    """The keys of a [notifiers.NAME] table with type = "{{name}}", besides on, kinds and groups."""
+
+    path: Path = Path("runs.jsonl")
+
+
+class {{Class}}Notifier(Notifier):
+    """Adds one JSON line per run to a file; replace it with a mail, a chat or a ticket."""
+
+    settings_class = {{Class}}NotifierSettings
+
+    @classmethod
+    def send(cls, event: RunEvent, settings: NotifierSettings) -> None:
+        chosen = settings if isinstance(settings, {{Class}}NotifierSettings) else None
+        if chosen is None:
+            raise TypeError("the settings of this notifier are {{Class}}NotifierSettings")
+        with chosen.path.open("a", encoding="utf-8") as handle:
+            handle.write(json.dumps(event.payload()) + "\n")

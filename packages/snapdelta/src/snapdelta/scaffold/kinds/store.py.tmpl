@@ -1,0 +1,119 @@
+"""The store backend {{name}}://ADDRESS: where snapdelta saves the snapshots, the diffs and the runs.
+
+It keeps everything in memory, one set of tables per address, and passes the contract tests. Replace each dict
+with the tables or the objects of your database, and keep the contract tests green: `uv run pytest`.
+"""
+
+from dataclasses import dataclass, field
+from typing import ClassVar
+
+from snapdelta.activity import Run
+from snapdelta.errors import NotFoundError
+from snapdelta.output import Output
+from snapdelta.settings import StoreBackendSettings
+from snapdelta.snapshot import SnapshotFile
+from snapdelta.store import OutputEntry, SnapshotEntry, Store, StoreInfo, output_entry, snapshot_entry
+
+
+class {{Class}}StoreSettings(StoreBackendSettings):
+    """The table [stores.{{name}}] of snapdelta.toml: a URL, a login, a timeout."""
+
+
+@dataclass
+class Tables:
+    """The JSON text of each document, as a database keeps it, by its reference, name or id."""
+
+    snapshots: dict[str, str] = field(default_factory=dict)
+    outputs: dict[str, str] = field(default_factory=dict)
+    runs: dict[str, str] = field(default_factory=dict)
+
+
+class {{Class}}Store(Store):
+    backend = "{{name}}"
+    settings_class = {{Class}}StoreSettings
+    # The tables of each address, for the life of the process.
+    databases: ClassVar[dict[str, Tables]] = {}
+
+    def __init__(self, address: str, settings: {{Class}}StoreSettings) -> None:
+        self.address = address
+        self.settings = settings
+        self.tables = self.databases.setdefault(address, Tables())
+
+    @classmethod
+    def open(cls, address: str, settings: StoreBackendSettings) -> "{{Class}}Store":
+        chosen = settings if isinstance(settings, {{Class}}StoreSettings) else {{Class}}StoreSettings()
+        return cls(address, chosen)
+
+    @property
+    def location(self) -> str:
+        return f"{{name}}://{self.address}"
+
+    def targets(self, query: str = "") -> list[str]:
+        names = {reference.partition("/")[0] for reference in self.tables.snapshots}
+        return sorted(name for name in names if query.strip().lower() in name.lower())
+
+    def snapshot_entries(self, target: str) -> list[SnapshotEntry]:
+        references = [reference for reference in self.tables.snapshots if reference.partition("/")[0] == target]
+        entries = [entry for reference in references if (entry := snapshot_entry(reference))]
+        return sorted(entries, key=lambda entry: entry.reference, reverse=True)
+
+    def output_entries(self, query: str = "") -> list[OutputEntry]:
+        wanted = query.strip().lower()
+        entries = [entry for name in self.tables.outputs if (entry := output_entry(name))]
+        chosen = [entry for entry in entries if wanted in entry.left.lower() or wanted in entry.right.lower()]
+        return sorted(chosen, key=lambda entry: entry.name, reverse=True)
+
+    def info(self) -> StoreInfo:
+        size = sum(len(body) for table in (self.tables.snapshots, self.tables.outputs) for body in table.values())
+        return StoreInfo(
+            backend=self.backend,
+            location=self.location,
+            targets=len(self.targets()),
+            snapshots=len(self.tables.snapshots),
+            outputs=len(self.tables.outputs),
+            size_bytes=size,
+            runs=len(self.tables.runs),
+        )
+
+    def _has_snapshot(self, reference: str) -> bool:
+        return reference in self.tables.snapshots
+
+    def _write_snapshot(self, reference: str, snapshot: SnapshotFile) -> None:
+        self.tables.snapshots[reference] = snapshot.model_dump_json(by_alias=True)
+
+    def _read_snapshot(self, reference: str) -> SnapshotFile:
+        if reference not in self.tables.snapshots:
+            raise NotFoundError(f"no snapshot {reference!r} in {self.location}")
+        return SnapshotFile.model_validate_json(self.tables.snapshots[reference])
+
+    def _delete_snapshot(self, reference: str) -> None:
+        self.tables.snapshots.pop(reference, None)
+
+    def _has_output(self, name: str) -> bool:
+        return name in self.tables.outputs
+
+    def _write_output(self, name: str, output: Output) -> None:
+        self.tables.outputs[name] = output.model_dump_json(by_alias=True)
+
+    def _read_output(self, name: str) -> Output:
+        if name not in self.tables.outputs:
+            raise NotFoundError(f"no output {name!r} in {self.location}")
+        return Output.model_validate_json(self.tables.outputs[name])
+
+    def _replace_output(self, name: str, output: Output) -> None:
+        self._write_output(name, output)
+
+    def _delete_output(self, name: str) -> None:
+        self.tables.outputs.pop(name, None)
+
+    def _write_run(self, run: Run) -> None:
+        self.tables.runs[run.id] = run.model_dump_json()
+
+    def _read_run(self, run_id: str) -> Run:
+        return Run.model_validate_json(self.tables.runs[run_id])
+
+    def _run_ids(self) -> list[str]:
+        return sorted(self.tables.runs, reverse=True)
+
+    def _delete_run(self, run_id: str) -> None:
+        self.tables.runs.pop(run_id, None)

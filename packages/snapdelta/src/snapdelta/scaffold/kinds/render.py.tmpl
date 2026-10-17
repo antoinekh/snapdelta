@@ -1,0 +1,17 @@
+"""The output format {{name}}: `snapdelta diff --format {{name}}`."""
+
+from snapdelta.output import Output
+from snapdelta.render import Renderer, change_rows
+
+
+def render(output: Output) -> str:
+    """One line per change; replace it with the format that your tool reads."""
+    lines = [f"{output.left.target} vs {output.right.target}"]
+    for row in change_rows(output):
+        where = " / ".join((*row.parents, row.name))
+        detail = f" {row.attribute}: {row.left!r} -> {row.right!r}" if row.attribute else ""
+        lines.append(f"{row.change} {row.model} {where}{detail}")
+    return "\n".join(lines) + "\n"
+
+
+{{CONSTANT}} = Renderer(media_type="text/plain", suffix="txt", render=render)

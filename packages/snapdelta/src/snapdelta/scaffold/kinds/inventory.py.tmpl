@@ -1,0 +1,39 @@
+"""The inventory format {{name}}: `[inventory] format = "{{name}}"`, with the hosts at `[inventory] location`."""
+
+import csv
+from pathlib import Path
+from typing import ClassVar
+
+from snapdelta.inventory import Host, Inventory, InventoryError, InventoryFormat
+from snapdelta.settings import InventoryFormatSettings
+
+
+class {{Class}}InventorySettings(InventoryFormatSettings):
+    """The table [inventories.{{name}}] of snapdelta.toml: a URL, a token, a filter."""
+
+
+class {{Class}}Inventory(InventoryFormat):
+    """A CSV file with the columns name, hostname, platform and groups (separated by spaces)."""
+
+    # The location is a path: the settings file resolves it against its directory.
+    local_path: ClassVar[bool] = True
+    settings_class = {{Class}}InventorySettings
+
+    @classmethod
+    def load(cls, location: str, settings: InventoryFormatSettings) -> Inventory:
+        path = Path(location)
+        try:
+            rows = list(csv.DictReader(path.read_text(encoding="utf-8").splitlines()))
+        except OSError as error:
+            raise InventoryError(f"{path}: {error.strerror}") from error
+        hosts = {
+            row["name"]: Host(
+                name=row["name"],
+                hostname=row.get("hostname") or None,
+                platform=row.get("platform") or None,
+                groups=tuple((row.get("groups") or "").split()),
+            )
+            for row in rows
+        }
+        groups = sorted({group for host in hosts.values() for group in host.groups})
+        return Inventory(hosts, groups, str(path))

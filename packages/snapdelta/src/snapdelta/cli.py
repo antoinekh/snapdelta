@@ -20,6 +20,7 @@ from .errors import SnapdeltaError
 from .output import Output, new_review
 from .plugins import Problem, Severity, package_of
 from .render import Renderer, render_snapshot, renderer
+from .scaffold import KINDS, new_plugin
 from .settings import Settings, load_settings, setting_rows
 from .source import SOURCES, Source, broken_sources, require_source, source_classes
 from .store import Store, age_cutoff, open_store_from
@@ -32,6 +33,8 @@ app = typer.Typer(
 )
 delete_app = typer.Typer(no_args_is_help=True, help="Delete snapshots or outputs.")
 app.add_typer(delete_app, name="delete")
+plugins_app = typer.Typer(help="List the plugins of every extension point, or write a new plugin package.")
+app.add_typer(plugins_app, name="plugins")
 
 Files = Annotated[
     list[Path] | None,
@@ -139,16 +142,37 @@ def list_sources() -> None:
         typer.echo(f"warning: source {name} cannot load: {error}", err=True)
 
 
-@app.command("plugins")
+@plugins_app.callback(invoke_without_command=True)
 @handle_errors
-def list_plugins(as_json: Json = False) -> None:
+def list_plugins(ctx: typer.Context, as_json: Json = False) -> None:
     """List the plugins of every extension point, the built-ins included, with their package and status."""
+    if ctx.invoked_subcommand is not None:
+        return
     reports = plugin_reports()
     if as_json:
         typer.echo(json.dumps([_report_json(report) for report in reports], indent=2))
         return
     for report in reports:
         typer.echo(f"{report.kind}\t{report.name}\t{_package(report)}\t{report.severity}")
+
+
+@plugins_app.command("new")
+@handle_errors
+def new_plugin_command(
+    name: Annotated[
+        str, typer.Argument(help="The name of the plugins, such as acme: the source acme, the store acme://.")
+    ],
+    kinds: Annotated[
+        list[str] | None,
+        typer.Option("--kind", help=f"A kind of plugin to write; repeat it for several: {', '.join(KINDS)}."),
+    ] = None,
+    path: Annotated[Path | None, typer.Option(help="The directory of the package; default: ./snapdelta-NAME.")] = None,
+) -> None:
+    """Write a plugin package to start from: one working plugin of each kind, its entry point and its tests."""
+    target = path or Path(f"snapdelta-{name}")
+    for written in new_plugin(name, kinds or ["source"], target):
+        typer.echo(f"wrote {written}")
+    typer.echo(f"next: cd {target} && uv sync && uv run snapdelta doctor && uv run pytest")
 
 
 @app.command("doctor")

@@ -1,0 +1,13 @@
+from snapdelta.render import RENDERERS, sample_output
+
+from {{package}}.render import {{CONSTANT}}
+
+
+def test_the_format_passes_the_doctor() -> None:
+    assert RENDERERS.check("{{name}}", {{CONSTANT}}) is None
+    assert [problem.message for problem in RENDERERS.inspect("{{name}}", {{CONSTANT}})] == []
+
+
+def test_the_format_writes_each_change() -> None:
+    text = {{CONSTANT}}.render(sample_output())
+    assert text.startswith("R1 vs R2\n") and "changed interface eth0 mtu: 1500 -> 9000" in text

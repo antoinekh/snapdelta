@@ -1,0 +1,39 @@
+"""The source {{name}}: the models of the data, and load(), which fills them for one target."""
+
+import json
+
+from diffsync import DiffSyncModel
+from snapdelta.source import Source
+
+
+class Interface(DiffSyncModel):
+    """One interface; replace the models with the data of your devices or services."""
+
+    _modelname = "interface"
+    _identifiers = ("name",)
+    _attributes = ("description", "mtu")
+
+    name: str
+    description: str | None = None
+    mtu: int | None = None
+
+
+class {{Class}}Source(Source):
+    """Reads JSON files such as {"device": "R1", "interfaces": [{"name": "eth0", "mtu": 1500}]}."""
+
+    # The name of the entry point in pyproject.toml.
+    source = "{{name}}"
+
+    interface = Interface
+    top_level = ["interface"]
+
+    def load(self) -> None:
+        target = None
+        for item in self.read_inputs():
+            data = json.loads(item.content)
+            target = data.get("device")
+            # Sorted, so that two loads of the same data give the same order.
+            for entry in sorted(data.get("interfaces", []), key=lambda entry: entry["name"]):
+                interface = Interface(name=entry["name"], description=entry.get("description"), mtu=entry.get("mtu"))
+                self.add_or_warn(interface)
+        self.finish_load(target, ["interface"])

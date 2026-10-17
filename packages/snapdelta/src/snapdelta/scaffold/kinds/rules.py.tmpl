@@ -1,0 +1,17 @@
+"""The compare rule {{name}}: `[profiles.NAME] rules = { "MODEL.ATTRIBUTE" = "{{name}}" }`."""
+
+from typing import Any
+
+from snapdelta.rules import Rule, each
+
+
+def _name(value: Any) -> Any:
+    return value.removesuffix(".").lower() if isinstance(value, str) else value
+
+
+class {{Class}}Rule(Rule):
+    description = "DNS names with or without the last dot, in any case: R1.example.net. and r1.example.net."
+
+    @classmethod
+    def same(cls, left: Any, right: Any) -> bool:
+        return each(left, right, lambda one, other: _name(one) == _name(other))

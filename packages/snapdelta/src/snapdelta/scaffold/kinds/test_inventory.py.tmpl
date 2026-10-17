@@ -1,0 +1,16 @@
+from snapdelta.inventory import INVENTORIES
+
+from {{package}}.inventory import {{Class}}Inventory, {{Class}}InventorySettings
+
+
+def test_the_format_passes_the_doctor() -> None:
+    assert INVENTORIES.check("{{name}}", {{Class}}Inventory) is None
+    assert INVENTORIES.inspect("{{name}}", {{Class}}Inventory) == []
+
+
+def test_the_hosts_and_their_groups(tmp_path) -> None:
+    path = tmp_path / "hosts.csv"
+    path.write_text("name,hostname,platform,groups\nR1,192.0.2.1,{{name}},core paris\nR2,,{{name}},core\n")
+    inventory = {{Class}}Inventory.load(str(path), {{Class}}InventorySettings())
+    assert inventory.groups == ["core", "paris"] and inventory.members("core") == ["R1", "R2"]
+    assert inventory.hosts["R1"].hostname == "192.0.2.1" and inventory.hosts["R2"].hostname is None

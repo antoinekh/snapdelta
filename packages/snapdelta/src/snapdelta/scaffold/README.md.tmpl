@@ -1,0 +1,12 @@
+# {{distribution}}
+
+A snapdelta plugin: {{kinds}}.
+
+```bash
+uv sync                      # install the plugin and snapdelta in .venv
+uv run snapdelta plugins     # the plugins of this package are in the list
+uv run snapdelta doctor      # each plugin passes the checks of its interface
+uv run pytest                # the contract tests of snapdelta.testing
+```
+
+Each module under `src/{{package}}/` holds one plugin, and `pyproject.toml` declares it as an entry point: snapdelta finds it there. The guide of each kind of plugin is in https://github.com/antoinekh/snapdelta/blob/main/docs/plugins.md.

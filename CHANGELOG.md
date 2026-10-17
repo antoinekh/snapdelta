@@ -9,6 +9,8 @@
 - Secret backends, a fifth entry point group, `snapdelta.secrets`: a secret is a plain value or `{ BACKEND = "NAME" }`, with the built-in backends `env` and `file` (`{ file = "/run/secrets/token" }`, for Docker and Kubernetes secrets), and a plugin backend such as a vault, with its settings in `[secrets.NAME]`. The web form chooses the backend of a secret.
 - Notifiers, a sixth entry point group, `snapdelta.notifiers`: after each snapshot and saved diff, each `[notifiers.NAME]` table whose filter matches (`on` failure, differences or success, `kinds`, inventory `groups`) gets the run. The built-in `webhook` posts JSON with a chat line (Slack, Teams, Mattermost) and `command` gives the JSON to a program; a run records `sent` or the error of each notifier, and a notifier that fails never fails the run. `[web] public_url` gives the messages a link to the diff or the run.
 - Compare rules, a seventh entry point group, `snapdelta.rules`: `[profiles.NAME] rules = { "interface.description" = "case-insensitive" }` accepts two values that mean the same. Built in: `case-insensitive`, `whitespace`, `unordered` and `ip-address` (`2001:db8::1` and `2001:DB8:0:0::1`).
+- `snapdelta plugins new NAME --kind KIND`: a plugin package to start from, with one working plugin of each kind (source, store, format, inventory, secret, notifier, rule), its entry point and its tests, which pass at once; the store is an in-memory backend that passes `StoreContract`.
+- `snapdelta.store.snapshot_entry()` and `output_entry()` are public, for a store backend of a plugin.
 - `snapdelta plugins`, **Admin > Plugins** and `GET /api/v1/plugins` list the plugins of every extension point, the built-ins and the broken ones included, with their package, version and problems.
 
 ### Changed

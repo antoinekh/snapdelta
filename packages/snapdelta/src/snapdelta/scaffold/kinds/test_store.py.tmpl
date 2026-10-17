@@ -1,0 +1,17 @@
+import uuid
+
+import pytest
+from snapdelta.plugins import register_plugin, unregister_plugin
+from snapdelta.store import STORES
+from snapdelta.testing import StoreContract
+
+from {{package}}.store import {{Class}}Store, {{Class}}StoreSettings
+
+
+class Test{{Class}}Store(StoreContract):
+    @pytest.fixture
+    def store(self):
+        # Registered, so that the contract can open the store again by its location.
+        register_plugin(STORES, "{{name}}", {{Class}}Store)
+        yield {{Class}}Store.open(uuid.uuid4().hex, {{Class}}StoreSettings())
+        unregister_plugin(STORES, "{{name}}")

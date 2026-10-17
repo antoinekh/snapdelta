@@ -1,0 +1,28 @@
+import json
+from datetime import UTC, datetime
+
+from snapdelta.activity import Run, RunStatus
+from snapdelta.notify import NOTIFIERS, RunEvent
+
+from {{package}}.notify import {{Class}}Notifier, {{Class}}NotifierSettings
+
+
+def test_the_notifier_passes_the_doctor() -> None:
+    assert NOTIFIERS.check("{{name}}", {{Class}}Notifier) is None
+    assert NOTIFIERS.inspect("{{name}}", {{Class}}Notifier) == []
+
+
+def test_a_run_is_one_line(tmp_path) -> None:
+    moment = datetime(2026, 1, 1, tzinfo=UTC)
+    run = Run(
+        id="20260101T000000000000Z-diff-abcd",
+        kind="diff",
+        origin="cli",
+        started_at=moment,
+        ended_at=moment,
+        status=RunStatus.OK,
+    )
+    settings = {{Class}}NotifierSettings(type="{{name}}", path=tmp_path / "runs.jsonl")
+    {{Class}}Notifier.send(RunEvent(run, "snapdelta diff of R1: no difference", None), settings)
+    [line] = (tmp_path / "runs.jsonl").read_text().splitlines()
+    assert json.loads(line)["run"]["id"] == run.id

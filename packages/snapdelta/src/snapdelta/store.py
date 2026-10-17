@@ -149,7 +149,8 @@ class PrunePlan:
     outputs: list[str] = field(default_factory=list)
 
 
-def _snapshot_entry(reference: str) -> SnapshotEntry | None:
+def snapshot_entry(reference: str) -> SnapshotEntry | None:
+    """The entry of a snapshot from its reference alone, TARGET/TIME-LABEL; None for another name."""
     target, _, name = reference.partition("/")
     match = SNAPSHOT_NAME_RE.match(name)
     if match is None:
@@ -157,7 +158,8 @@ def _snapshot_entry(reference: str) -> SnapshotEntry | None:
     return SnapshotEntry(target, reference, _parse_stamp(match["stamp"]), match["label"])
 
 
-def _output_entry(name: str) -> OutputEntry | None:
+def output_entry(name: str) -> OutputEntry | None:
+    """The entry of an output from its name alone, TIME-LEFT-vs-RIGHT; None for another name."""
     match = OUTPUT_NAME_RE.match(name)
     if match is None:
         return None
@@ -476,13 +478,13 @@ class FileStore(Store):
             return []
         directory = self.snapshots_dir / target
         references = [f"{target}/{path.stem}" for path in directory.glob("*.json")] if directory.is_dir() else []
-        entries = [entry for reference in references if (entry := _snapshot_entry(reference))]
+        entries = [entry for reference in references if (entry := snapshot_entry(reference))]
         return sorted(entries, key=lambda entry: entry.reference, reverse=True)
 
     def output_entries(self, query: str = "") -> list[OutputEntry]:
         wanted = query.strip().lower()
         paths = self.outputs_dir.glob("*.json") if self.outputs_dir.is_dir() else []
-        entries = [entry for path in paths if (entry := _output_entry(path.stem))]
+        entries = [entry for path in paths if (entry := output_entry(path.stem))]
         selected = [entry for entry in entries if wanted in entry.left.lower() or wanted in entry.right.lower()]
         return sorted(selected, key=lambda entry: entry.name, reverse=True)
 
@@ -628,7 +630,7 @@ class SqliteStore(Store):
             rows = db.execute(
                 "select reference from snapshots where target = ? order by reference desc", (target,)
             ).fetchall()
-        return [entry for (reference,) in rows if (entry := _snapshot_entry(reference))]
+        return [entry for (reference,) in rows if (entry := snapshot_entry(reference))]
 
     def output_entries(self, query: str = "") -> list[OutputEntry]:
         wanted = query.strip().lower()
@@ -638,7 +640,7 @@ class SqliteStore(Store):
                 "order by name desc",
                 (wanted, wanted),
             ).fetchall()
-        return [entry for (name,) in rows if (entry := _output_entry(name))]
+        return [entry for (name,) in rows if (entry := output_entry(name))]
 
     def info(self) -> StoreInfo:
         with self._connect() as db:
