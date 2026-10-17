@@ -202,9 +202,9 @@ def recorded(
 def _save(store: Store, run: Run) -> None:
     try:
         store.save_run(run)
-    except (OSError, SnapdeltaError) as error:
-        # The command itself went well: a run that cannot be saved must not turn it into an error.
-        _log.warning("the run was not saved: %s", error)
+    except Exception as error:
+        # The command itself went well: a run that cannot be saved, by any backend, must not turn it into an error.
+        _log.warning("the run was not saved: %s: %s", type(error).__name__, error)
 
 
 def _user() -> str | None:

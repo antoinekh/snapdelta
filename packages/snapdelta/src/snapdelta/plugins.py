@@ -202,6 +202,11 @@ def _check_point(name: str, value: Any) -> str | None:
         return f"not a snapdelta.plugins.ExtensionPoint: {value!r}"
     if value.group in {point.group for point in _core_points()}:
         return f"the group {value.group} is an extension point of the core already"
+    from .settings import FileSettings
+
+    # snapdelta.toml refuses a table that it does not know, so a new table needs a field of the core.
+    if value.table is not None and value.table not in FileSettings.model_fields:
+        return f"its settings table [{value.table}] is not a table of snapdelta.toml"
     return None
 
 

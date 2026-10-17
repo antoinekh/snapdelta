@@ -7,6 +7,7 @@ plugin. A notifier that fails never fails the run: the run records the error.
 
 from __future__ import annotations
 
+import functools
 import json
 import logging
 import subprocess
@@ -21,6 +22,7 @@ from pydantic import Field, ValidationError
 
 from .activity import Run, RunStatus
 from .errors import SnapdeltaError
+from .parallel import run_parallel
 from .plugins import ExtensionPoint, Problem, abstract_problems, discover, settings_problems, subclass_check
 from .settings import Secret, Section, Settings, SettingsError, settings_error
 
@@ -199,23 +201,27 @@ def run_url(run: Run, settings: Settings) -> str | None:
 
 
 def notify(run: Run, settings: Settings) -> dict[str, str]:
-    """Send the run to each notifier whose filter matches it: `sent` or the error, by notifier name."""
+    """Send the run to each notifier whose filter matches it, all at the same time: `sent` or the error, by name."""
     if not settings.notifiers:
         return {}
     event = RunEvent(run, describe_run(run), run_url(run, settings))
-    results: dict[str, str] = {}
-    for name, (cls, chosen) in notifier_settings(settings).items():
+    chosen: dict[str, tuple[type[Notifier], NotifierSettings]] = {}
+    failures: dict[str, Exception] = {}
+    for name, item in notifier_settings(settings).items():
         try:
-            if not matches(run, chosen, settings):
-                continue
-            cls.send(event, chosen)
-        except Exception as error:
-            # A notifier that fails must not fail the run, which already happened.
-            results[name] = f"{type(error).__name__}: {error}"
-            _log.warning("notifier %s failed: %s", name, results[name])
-        else:
-            results[name] = SENT
-    return results
+            if matches(run, item[1], settings):
+                chosen[name] = item
+        except SnapdeltaError as error:
+            failures[name] = error
+    # At the same time, so that a notifier that waits for its timeout does not delay the others.
+    tasks = {name: functools.partial(cls.send, event, item) for name, (cls, item) in chosen.items()}
+    sent, failed = run_parallel(tasks)
+    results = dict.fromkeys(sent, SENT)
+    for name, error in (failures | failed).items():
+        # A notifier that fails must not fail the run, which already happened.
+        results[name] = f"{type(error).__name__}: {error}"
+        _log.warning("notifier %s failed: %s", name, results[name])
+    return dict(sorted(results.items()))
 
 
 def deliver(run: Run, settings: Settings) -> Mapping[str, str]:

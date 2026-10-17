@@ -154,8 +154,11 @@ class ThreadRunner(Runner):
             _report(progress, outcome)
             return outcome
 
-        outcomes, _ = run_parallel({task.target: _bound(one, task) for task in tasks}, jobs)
-        return outcomes
+        outcomes, errors = run_parallel({task.target: _bound(one, task) for task in tasks}, jobs)
+        for target, error in errors.items():
+            # Only a progress callback can raise here: execute() turns every error of a load into its outcome.
+            outcomes[target] = LoadOutcome(target=target, error=f"{target}: {type(error).__name__}: {error}")
+        return {task.target: outcomes[task.target] for task in tasks}
 
 
 def _bound(function: Callable[[LoadTask], LoadOutcome], task: LoadTask) -> Callable[[], LoadOutcome]:

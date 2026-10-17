@@ -1,4 +1,7 @@
-"""The store `postgresql://`: the tables of the SQLite store in a PostgreSQL database, with the bodies as jsonb."""
+"""The store `postgresql://`: the tables of the SQLite store in a PostgreSQL database, with the bodies as json.
+
+json and not jsonb: jsonb sorts the keys, and the order of the models and objects of a diff is the order to show.
+"""
 
 from __future__ import annotations
 
@@ -9,7 +12,7 @@ from typing import Any, LiteralString
 
 import psycopg
 from psycopg.conninfo import conninfo_to_dict
-from psycopg.types.json import Jsonb
+from psycopg.types.json import Json
 from psycopg_pool import ConnectionPool, PoolTimeout
 from pydantic import Field
 
@@ -38,7 +41,7 @@ create table if not exists snapdelta_snapshots (
     captured_at timestamptz not null,
     label text,
     source text not null,
-    body jsonb not null
+    body json not null
 );
 create index if not exists snapdelta_snapshots_by_target on snapdelta_snapshots (target, reference);
 create table if not exists snapdelta_outputs (
@@ -46,12 +49,12 @@ create table if not exists snapdelta_outputs (
     created_at timestamptz not null,
     left_target text not null,
     right_target text not null,
-    body jsonb not null
+    body json not null
 );
 create index if not exists snapdelta_outputs_by_time on snapdelta_outputs (created_at);
 create table if not exists snapdelta_runs (
     id text primary key,
-    body jsonb not null
+    body json not null
 );
 """
 # Two servers that start at the same time must not create the tables twice.
@@ -168,7 +171,7 @@ class PostgresStore(Store):
             snapshot.captured_at,
             snapshot.label,
             snapshot.source,
-            Jsonb(snapshot.model_dump(mode="json", by_alias=True)),
+            Json(snapshot.model_dump(mode="json", by_alias=True)),
         )
         try:
             with self._connect() as db:
@@ -199,7 +202,7 @@ class PostgresStore(Store):
             output.created_at,
             output.left.target,
             output.right.target,
-            Jsonb(output.model_dump(mode="json", by_alias=True)),
+            Json(output.model_dump(mode="json", by_alias=True)),
         )
         with self._connect() as db:
             db.execute(
@@ -215,7 +218,7 @@ class PostgresStore(Store):
         with self._connect() as db:
             db.execute(
                 "update snapdelta_outputs set body = %s where name = %s",
-                (Jsonb(output.model_dump(mode="json", by_alias=True)), name),
+                (Json(output.model_dump(mode="json", by_alias=True)), name),
             )
 
     def _delete_output(self, name: str) -> None:
@@ -227,7 +230,7 @@ class PostgresStore(Store):
             db.execute(
                 "insert into snapdelta_runs (id, body) values (%s, %s) "
                 "on conflict (id) do update set body = excluded.body",
-                (run.id, Jsonb(run.model_dump(mode="json"))),
+                (run.id, Json(run.model_dump(mode="json"))),
             )
 
     def _read_run(self, run_id: str) -> Run:

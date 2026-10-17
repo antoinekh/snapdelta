@@ -19,4 +19,4 @@ connect_timeout_s = 10
 pool_size = 4
 ```
 
-The store creates its three tables, `snapdelta_snapshots`, `snapdelta_outputs` and `snapdelta_runs`, at its first use; the user needs the right to create tables in the database. The bodies are the JSON documents of the file store, as `jsonb`. See [docs/stores.md](https://github.com/antoinekh/snapdelta/blob/main/docs/stores.md).
+The store creates its three tables, `snapdelta_snapshots`, `snapdelta_outputs` and `snapdelta_runs`, at its first use; the user needs the right to create tables in the database. The bodies are the JSON documents of the file store, as `json`, which keeps their order. See [docs/stores.md](https://github.com/antoinekh/snapdelta/blob/main/docs/stores.md).

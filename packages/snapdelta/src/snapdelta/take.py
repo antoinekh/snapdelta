@@ -246,6 +246,7 @@ def diff_snapshots(
     if (right is None) == (not live):
         raise SnapdeltaError("give right, or live, not both")
     left_adapter = store.load_snapshot(store.resolve_snapshot(left))
+    _check_expected_targets(expected, [target or left_adapter.target or left])
     run = recorded(store, "diff", origin, [left_adapter.target or left], settings) if save else contextlib.nullcontext()
     with run as record:
         live_reference = None
@@ -325,6 +326,7 @@ def diff_targets(
         raise SnapdeltaError("a live diff of many targets saves the snapshots that it takes")
     chosen_profile = settings.profile(profile)
     names = _diff_names(store, settings, left, targets, groups, all_targets)
+    _check_expected_targets(expected, names)
     results: dict[str, TargetDiff] = {}
     lefts: dict[str, str] = {}
     for name in names:
@@ -353,8 +355,9 @@ def diff_targets(
                 if expected is not None:
                     output = output.model_copy(update={"expectations": check_expected(output, expected)})
                 saved = store.save_output(output) if save else None
-            except SnapdeltaError as error:
-                results[name] = TargetDiff(name, error=str(error))
+            except Exception as error:
+                # A target that fails, even on a bug of a plugin, must not stop the diffs of the others.
+                results[name] = TargetDiff(name, error=_message(name, error))
                 continue
             results[name] = TargetDiff(name, output, saved, rights[name] if live else None)
         if record is not None:
@@ -405,7 +408,11 @@ def _live_rights(
     """Take a snapshot of each target now, with the source of its left snapshot; the references by target."""
     plan: dict[str, type[Source]] = {}
     for name, reference in lefts.items():
-        cls = require_source(store.read_snapshot(reference).source)
+        try:
+            cls = require_source(store.read_snapshot(reference).source)
+        except SnapdeltaError as error:
+            results[name] = TargetDiff(name, error=str(error))
+            continue
         if cls.fetches:
             plan[name] = cls
         else:
@@ -420,3 +427,17 @@ def _live_rights(
     for name, message in failures.items():
         results[name] = TargetDiff(name, error=message)
     return {name: item.reference for name, item in taken.items()}
+
+
+def _message(target: str, error: Exception) -> str:
+    return str(error) if isinstance(error, SnapdeltaError) else f"{target}: {type(error).__name__}: {error}"
+
+
+def _check_expected_targets(expected: Sequence[ExpectedChange] | None, names: Sequence[str]) -> None:
+    """An expected change of a target that the diff does not compare would never count as missing."""
+    unknown = sorted({item.target for item in expected or [] if item.target is not None and item.target not in names})
+    if unknown:
+        raise SnapdeltaError(
+            f"expected changes name targets that this diff does not compare: {', '.join(unknown)} "
+            f"(compared: {', '.join(names)})"
+        )

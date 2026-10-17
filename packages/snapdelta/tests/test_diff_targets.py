@@ -1,5 +1,6 @@
 import json
 import shutil
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 import pytest
@@ -99,3 +100,33 @@ def test_a_run_of_snapdelta_0_1_reads_with_its_one_diff() -> None:
         }
     )
     assert run.outputs == ["20261014T080000Z-R1-vs-R1"]
+
+
+def test_a_target_whose_source_is_gone_fails_alone(lab) -> None:
+    from snapdelta.plugins import unregister_plugin
+    from snapdelta.source import SOURCES, register_source
+    from snapdelta.take import load_source
+    from snapdelta_example import ExampleLiveSource
+
+    _, settings, store = lab
+
+    class Gone(ExampleLiveSource):
+        source = "gone"
+
+    register_source(Gone)
+    later = datetime.now(UTC) + timedelta(hours=1)
+    loaded = load_source(Gone, target="EDGE1", label="before", captured_at=later, settings=settings.source(Gone))
+    store.save_snapshot(loaded)
+    unregister_plugin(SOURCES, "gone")
+    results = diff_targets(store, settings, "before", targets=["EDGE1", "R1"], live=True)
+    assert results["EDGE1"].error and "no source 'gone' is installed" in results["EDGE1"].error
+    assert results["R1"].output is not None
+
+
+def test_an_expected_change_names_a_compared_target(lab) -> None:
+    from snapdelta.expected import ExpectedChange
+
+    _, settings, store = lab
+    wrong = [ExpectedChange(model="vlan", object="20", change="added", target="r1")]
+    with pytest.raises(SnapdeltaError, match="name targets that this diff does not compare: r1"):
+        diff_targets(store, settings, "before", "after", groups=["core"], expected=wrong)

@@ -430,4 +430,4 @@ def main(
     try:
         create_mcp(state).run()
     finally:
-        state.store.close()
+        state.close()

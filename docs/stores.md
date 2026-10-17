@@ -41,7 +41,7 @@ connect_timeout_s = 10
 pool_size = 4                                   # the connections kept open, for the requests at once
 ```
 
-The store creates its tables `snapdelta_snapshots`, `snapdelta_outputs` and `snapdelta_runs` at its first use, with the columns of the SQLite store and the documents as `jsonb`. The database user needs the right to create tables. `make test-postgres` runs its tests against a server in a container.
+The store creates its tables `snapdelta_snapshots`, `snapdelta_outputs` and `snapdelta_runs` at its first use, with the columns of the SQLite store and the documents as `json`, which keeps the order of their keys. The database user needs the right to create tables. `make test-postgres` runs its tests against a server in a container.
 
 ## Names
 

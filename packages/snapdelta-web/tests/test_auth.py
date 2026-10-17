@@ -118,3 +118,17 @@ def test_the_access_of_each_built_in_backend(store) -> None:
     assert auth_backend(settings_of(store, "none")).access == Access.OPEN
     assert auth_backend(settings_of(store, "token")).access == Access.LOCAL
     assert auth_backend(settings_of(store, "header")).access == Access.LOGIN
+
+
+def test_an_mcp_call_records_the_user_of_its_request(store, make_app) -> None:
+    settings = settings_of(store, "header", header={"trusted_proxies": ["10.0.0.5"]})
+    headers = {
+        "Accept": "application/json, text/event-stream",
+        "MCP-Protocol-Version": "2025-11-25",
+        "X-Forwarded-User": "alice",
+    }
+    arguments = {"left": "R1@before", "right": "R1@after"}
+    call = {"jsonrpc": "2.0", "id": 1, "method": "tools/call", "params": {"name": "compare", "arguments": arguments}}
+    with TestClient(make_app(store, settings), base_url="http://127.0.0.1", client=PROXY) as client:
+        assert client.post("/mcp", json=call, headers=headers).status_code == 200
+    assert [run.user for run in store.runs()] == ["alice"]

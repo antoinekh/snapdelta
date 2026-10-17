@@ -160,6 +160,14 @@ class StoreContract:
         with pytest.raises(NotFoundError, match="no output matches"):
             store.resolve_output("nope")
 
+    def test_an_output_keeps_the_order_of_its_models_and_objects(self, store: Store) -> None:
+        # A diff shows its models and objects in this order: a backend that sorts the keys changes every report.
+        names = {"zeta": 1, "alpha": 2, "mid": 3, "b": 4}
+        output = compare(sample(interfaces=names), sample(interfaces={name: 9000 for name in names}))
+        saved = store.load_output(store.save_output(output))
+        assert list(saved.diff["interface"]) == list(output.diff["interface"]) == list(names)
+        assert saved.summary == output.summary
+
     def test_two_outputs_of_one_pair_in_one_second_get_two_names(self, store: Store) -> None:
         output = compare(sample(), sample(interfaces={"eth0": 9000}))
         first, second = store.save_output(output), store.save_output(output)
