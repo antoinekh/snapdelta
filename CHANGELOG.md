@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased
+
+### Fixed
+
+- `snapdelta prune` and the admin page refuse a negative keep or age, which used to delete every snapshot.
+- `snapdelta prune` and the admin page refuse an age too big for a date, which used to raise `OverflowError` (a traceback in the CLI, a 500 page in the web UI).
+
 ## v0.1.0
 
 ### Added

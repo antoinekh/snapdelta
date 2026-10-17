@@ -238,6 +238,16 @@ def test_prune_previews_then_deletes(client, store) -> None:
     assert client.post("/admin/prune", data={}).status_code == 400
 
 
+def test_prune_refuses_a_bad_number(client, store) -> None:
+    keep = client.post("/admin/prune", data={"keep": "-1", "confirm": "1"})
+    age = client.post("/admin/prune", data={"older_than": "-1", "confirm": "1"})
+    too_big = client.post("/admin/prune", data={"older_than": "1000000000000", "confirm": "1"})
+    assert keep.status_code == 400 and "cannot be negative" in keep.text
+    assert age.status_code == 400 and "cannot be negative" in age.text
+    assert too_big.status_code == 400 and "too big" in too_big.text
+    assert len(store.snapshot_entries("R1")) == 3
+
+
 def test_delete_buttons(client, store, names) -> None:
     page = client.get(f"/snapshots/{names.config}")
     assert f'action="/snapshots/{names.config}/delete"' in page.text

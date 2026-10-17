@@ -117,6 +117,14 @@ def test_prune_keeps_what_any_rule_keeps(store, make_adapter) -> None:
     assert store.targets() == ["R1", "R2"]
 
 
+def test_prune_refuses_a_negative_keep(store, make_adapter) -> None:
+    store.save_snapshot(make_adapter(captured_at=at(8)))
+    with pytest.raises(SnapdeltaError, match="cannot be negative"):
+        store.prune_plan(keep=-1)
+    assert len(store.prune_plan(keep=0).snapshots) == 1
+    assert len(store.snapshot_entries("R1")) == 1
+
+
 def test_prune_outputs_and_rules(store, make_adapter) -> None:
     name = store.save_output(compare(make_adapter(), make_adapter(target="R2")))
     future = datetime(2100, 1, 1, tzinfo=UTC)

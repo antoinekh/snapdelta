@@ -5,7 +5,6 @@ import hashlib
 import json
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
-from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Annotated, Any
 from urllib.parse import urlencode, urlsplit
@@ -28,7 +27,7 @@ from snapdelta.render import renderer, renderers
 from snapdelta.settings import Auth, Settings, SettingsError, save_settings, user_settings_path
 from snapdelta.snapshot import top_level_models
 from snapdelta.source import Source, broken_sources, source_classes
-from snapdelta.store import LATEST, PrunePlan, Store
+from snapdelta.store import LATEST, PrunePlan, Store, age_cutoff
 from snapdelta.take import diff_snapshots, plan_sources, platform_source, target_names
 
 from . import views
@@ -803,5 +802,5 @@ def _prune_plan(store: Store, target: str, keep: str, older_than: str, outputs: 
         days = int(older_than) if older_than.strip() else None
     except ValueError as error:
         raise SnapdeltaError("keep and age must be whole numbers") from error
-    cutoff = datetime.now(UTC) - timedelta(days=days) if days is not None else None
+    cutoff = age_cutoff(days) if days is not None else None
     return store.prune_plan(target=target.strip() or None, keep=kept, older_than=cutoff, outputs=outputs)

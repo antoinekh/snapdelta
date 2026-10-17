@@ -10,7 +10,7 @@ from abc import ABC, abstractmethod
 from collections.abc import Iterator
 from contextlib import closing, contextmanager
 from dataclasses import dataclass, field
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from importlib.metadata import entry_points
 from pathlib import Path
 from typing import ClassVar
@@ -88,6 +88,16 @@ def split_location(location: str) -> tuple[str, str]:
 
 def open_store_from(settings: Settings) -> Store:
     return open_store(settings.store.location or str(default_store_path()), settings)
+
+
+def age_cutoff(days: int) -> datetime:
+    """The moment `days` days ago, for the age rule of a prune."""
+    if days < 0:
+        raise SnapdeltaError("an age cannot be negative")
+    try:
+        return datetime.now(UTC) - timedelta(days=days)
+    except OverflowError as error:
+        raise SnapdeltaError(f"an age of {days} days is too big") from error
 
 
 def _stamp(moment: datetime) -> str:
@@ -322,6 +332,8 @@ class Store(ABC):
         outputs: bool = False,
     ) -> PrunePlan:
         """A snapshot goes when it fails every rule given: among the `keep` newest, or not older than `older_than`."""
+        if keep is not None and keep < 0:
+            raise SnapdeltaError("the number of snapshots to keep cannot be negative")
         if keep is None and older_than is None:
             raise SnapdeltaError("give a number of snapshots to keep, an age, or both")
         if outputs and older_than is None:

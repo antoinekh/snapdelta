@@ -87,6 +87,19 @@ def test_store_option_selects_the_backend(tmp_path) -> None:
     assert isinstance(open_location(f"sqlite://{tmp_path}/s.db"), SqliteStore)
 
 
+def test_prune_refuses_a_bad_number(location, make_adapter) -> None:
+    store = open_location(location)
+    store.save_snapshot(make_adapter())
+    for option in ("--keep=-1", "--older-than=-1"):
+        refused = runner.invoke(app, ["--store", location, "prune", option, "--dry-run"])
+        assert refused.exit_code == 2, refused.output
+        assert "Invalid value" in refused.output
+    too_big = runner.invoke(app, ["--store", location, "prune", "--older-than=1000000000000", "--dry-run"])
+    assert too_big.exit_code == 2, too_big.output
+    assert "too big" in too_big.output
+    assert len(store.snapshot_entries("R1")) == 1
+
+
 def test_info_delete_and_prune(make_adapter, location) -> None:
     from datetime import UTC, datetime
 

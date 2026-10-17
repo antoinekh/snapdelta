@@ -5,7 +5,7 @@ import getpass
 import json
 from collections.abc import Callable
 from dataclasses import asdict, dataclass
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Annotated
 
@@ -20,7 +20,7 @@ from .output import Output, new_review
 from .render import Renderer, render_snapshot, renderer
 from .settings import Settings, load_settings, setting_rows
 from .source import Source, broken_sources, require_source, source_classes
-from .store import Store, open_store_from
+from .store import Store, age_cutoff, open_store_from
 from .take import diff_snapshots, load_source, platform_source, snapshot_targets, target_names
 
 app = typer.Typer(
@@ -474,8 +474,10 @@ def delete_output(ctx: typer.Context, names: Annotated[list[str], typer.Argument
 def prune(
     ctx: typer.Context,
     target: Annotated[str | None, typer.Option(help="Only this target.")] = None,
-    keep: Annotated[int | None, typer.Option(help="Keep the N newest snapshots of each target.")] = None,
-    older_than: Annotated[int | None, typer.Option(help="Delete what is older than this number of days.")] = None,
+    keep: Annotated[int | None, typer.Option(min=0, help="Keep the N newest snapshots of each target.")] = None,
+    older_than: Annotated[
+        int | None, typer.Option(min=0, help="Delete what is older than this number of days.")
+    ] = None,
     outputs: Annotated[
         bool, typer.Option("--outputs", help="Also delete the outputs older than --older-than.")
     ] = False,
@@ -483,7 +485,7 @@ def prune(
 ) -> None:
     """Delete old snapshots (and outputs): a snapshot goes when no rule given keeps it."""
     store = ctx.obj.store
-    cutoff = datetime.now(UTC) - timedelta(days=older_than) if older_than is not None else None
+    cutoff = age_cutoff(older_than) if older_than is not None else None
     plan = store.prune_plan(target=target, keep=keep, older_than=cutoff, outputs=outputs)
     for reference in plan.snapshots:
         typer.echo(f"snapshot {reference}")
