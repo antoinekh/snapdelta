@@ -1,6 +1,6 @@
 # Plugins
 
-snapdelta is a plug-in architecture, also called a microkernel: a small core, and extension points that plugins fill. The core snapshots, compares, saves and shows. Everything that depends on your data or on your place goes in a plugin: the models and the source of the data, the store, the formats, the inventory, the secrets, the messages after a run, and the rules of a compare. The built-in parts are plugins too, so a plugin of another package gets the same means as a built-in one.
+snapdelta is a plug-in architecture, also called a microkernel: a small core, and extension points that plugins fill. The core snapshots, compares, saves and shows. Everything that depends on your data or on your place goes in a plugin: the models and the source of the data, the store, the formats, the inventory, the secrets, the messages after a run, the rules of a compare, and how the loads run. The built-in parts are plugins too, so a plugin of another package gets the same means as a built-in one.
 
 ## The extension points
 
@@ -15,6 +15,7 @@ Each extension point is a Python [entry point group](https://packaging.python.or
 | `snapdelta.secrets` | secret backend | `snapdelta.secrets.SecretBackend` | `env`, `file` | the key of each secret, `{ NAME = "REFERENCE" }` | `[secrets.NAME]` |
 | `snapdelta.notifiers` | notifier | `snapdelta.notify.Notifier` | `webhook`, `command` | every `[notifiers.X]` table whose `type` is the name and whose filter matches the run | `[notifiers.X]`, one table per notifier |
 | `snapdelta.rules` | compare rule | `snapdelta.rules.Rule` | `case-insensitive`, `whitespace`, `unordered`, `ip-address` | `rules` of a profile, `"MODEL.ATTRIBUTE" = "NAME"` | none |
+| `snapdelta.runners` | runner | `snapdelta.runners.Runner` | `threads`, `processes` | `[snapshot] runner` | `[runners.NAME]` |
 
 The guide of each kind:
 
@@ -27,6 +28,7 @@ The guide of each kind:
 | Secret backend | [settings.md](settings.md#add-a-secret-backend) |
 | Notifier | [settings.md](settings.md#add-a-notifier) |
 | Compare rule | [profiles.md](profiles.md#add-a-rule) |
+| Runner | [parallel.md](parallel.md#add-a-runner) |
 
 ## Write a plugin
 
@@ -40,7 +42,7 @@ uv run snapdelta doctor    # the source acme and the store acme:// pass the chec
 uv run pytest              # the contract tests pass
 ```
 
-`--kind` takes `source`, `store`, `format`, `inventory`, `secret`, `notifier` and `rule`, and can be given several times. Each kind writes one module with a plugin that works, its entry point in `pyproject.toml`, and its tests. The store is an in-memory backend: replace each of its dicts with your database, and keep its tests green.
+`--kind` takes `source`, `store`, `format`, `inventory`, `secret`, `notifier`, `rule` and `runner`, and can be given several times. Each kind writes one module with a plugin that works, its entry point in `pyproject.toml`, and its tests. The store is an in-memory backend: replace each of its dicts with your database, and keep its tests green.
 
 A plugin package has three parts:
 

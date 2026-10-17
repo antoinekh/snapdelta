@@ -16,6 +16,7 @@ busy_timeout_s = 30                     # how long a writer waits for the lock o
 [snapshot]
 jobs = 4                                # targets fetched at the same time
 log_level = "info"                      # the log messages of a load kept with its snapshot: debug, info, warning, error
+runner = "threads"                      # how the loads run: threads, processes, or a runner of a plugin; see parallel.md
 
 [web]
 host = "127.0.0.1"                      # another address needs a token or auth none, see api.md

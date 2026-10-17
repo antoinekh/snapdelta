@@ -1,8 +1,7 @@
 """Fetch several targets at the same time and save a snapshot of each; the inventory can choose the source of each."""
 
 import contextlib
-import functools
-from collections.abc import Callable, Iterable, Mapping, Sequence
+from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
@@ -11,7 +10,8 @@ from .activity import collecting, recorded
 from .errors import LoadError, SnapdeltaError
 from .inventory import Host
 from .output import Output, compare, described
-from .parallel import run_parallel
+from .plugins import require
+from .runners import RUNNERS, LoadTask, OnProgress
 from .settings import Settings, SourceSettings
 from .source import Source, require_source, source_classes
 from .store import Store
@@ -19,20 +19,12 @@ from .store import Store
 
 @dataclass(frozen=True)
 class Taken:
-    loaded: Source
+    """A saved snapshot of take_snapshots(), with what its load filled and found."""
+
     reference: str
-
-
-@dataclass(frozen=True)
-class Progress:
-    """Where one target of take_snapshots() stands: running, then saved or failed."""
-
-    status: str
-    reference: str | None = None
-    error: str | None = None
-
-
-type OnProgress = Callable[[str, Progress], None]
+    loaded: list[str]
+    warnings: list[str]
+    unmapped: int
 
 
 def target_names(
@@ -114,31 +106,34 @@ def take_snapshots(
     origin: str = "python",
     progress: OnProgress | None = None,
 ) -> tuple[dict[str, Taken], dict[str, str]]:
-    """The saved snapshots and the error messages by target; a failed target does not stop the others.
+    """The saved snapshots and the error messages, by target; a failed target does not stop the others.
 
-    The store records the command as a run of `origin` (cli, web, api, mcp), with the log of each load.
-    `progress` hears each target when it starts and when it ends, from the thread of its load.
+    The runner of `[snapshot] runner` runs the loads. The store records the command as a run of `origin` (cli,
+    web, api, mcp), with the log of each load. `progress` hears each target when it starts and when it ends.
     """
+    for cls in set(plan.values()):
+        if require_source(cls.source) is not cls:
+            # A task names its source, so the runner would load with the installed class of that name.
+            raise SnapdeltaError(f"{cls.__qualname__} is not the source {cls.source!r} of the registry: register it")
     chosen = settings or Settings()
-    inventory = chosen.hosts()
-    tasks = {
-        target: functools.partial(
-            _take,
-            store,
-            cls,
-            target,
-            label,
-            captured_at,
-            chosen.source(cls),
-            inventory.host(target) if inventory else None,
-        )
-        for target, cls in plan.items()
-    }
-    if progress is not None:
-        tasks = {target: functools.partial(_reported, target, task, progress) for target, task in tasks.items()}
+    name = chosen.snapshot.runner
+    runner = require(RUNNERS, name)
+    options = chosen.plugin("runners", name, runner.settings_class)
+    tasks = [
+        LoadTask(source=cls.source, target=target, label=label, captured_at=captured_at) for target, cls in plan.items()
+    ]
     with recorded(store, "snapshot", origin, list(plan), chosen) as run:
-        taken, errors = run_parallel(tasks, jobs)
-        failures = {target: _message(target, error) for target, error in errors.items()}
+        outcomes = runner.run(tasks, chosen, store, jobs, options, progress)
+        for outcome in outcomes.values():
+            run.log.extend(outcome.log)
+        taken = {
+            target: Taken(outcome.reference, outcome.loaded, outcome.warnings, outcome.unmapped)
+            for target, outcome in outcomes.items()
+            if outcome.reference is not None
+        }
+        failures = {
+            target: outcome.error or "failed" for target, outcome in outcomes.items() if outcome.reference is None
+        }
         run.saved = [item.reference for item in taken.values()]
         run.errors = failures
     return taken, failures
@@ -265,33 +260,3 @@ def diff_snapshots(
             record.output = name
             record.has_differences = output.has_differences()
     return Compared(output, name, live_reference)
-
-
-def _take(
-    store: Store,
-    cls: type[Source],
-    target: str,
-    label: str | None,
-    captured_at: datetime | None,
-    settings: SourceSettings,
-    host: Host | None,
-) -> Taken:
-    loaded = load_source(cls, target=target, label=label, captured_at=captured_at, settings=settings, host=host)
-    return Taken(loaded, store.save_snapshot(loaded))
-
-
-def _reported(target: str, task: Callable[[], Taken], progress: OnProgress) -> Taken:
-    progress(target, Progress("running"))
-    try:
-        taken = task()
-    except Exception as error:
-        progress(target, Progress("failed", error=_message(target, error)))
-        raise
-    progress(target, Progress("saved", reference=taken.reference))
-    return taken
-
-
-def _message(target: str, error: Exception) -> str:
-    if isinstance(error, SnapdeltaError):
-        return str(error)
-    return f"{target}: {type(error).__name__}: {error}"

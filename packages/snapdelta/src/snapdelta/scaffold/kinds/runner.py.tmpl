@@ -1,0 +1,42 @@
+"""The runner {{name}}: `[snapshot] runner = "{{name}}"` runs the loads of each snapshot."""
+
+from collections.abc import Sequence
+
+from snapdelta.runners import LoadOutcome, LoadTask, OnProgress, Progress, Runner, RunnerSettings, execute
+from snapdelta.settings import Settings
+from snapdelta.store import Store
+
+
+class {{Class}}RunnerSettings(RunnerSettings):
+    """The table [runners.{{name}}] of snapdelta.toml: the URL of a queue, a timeout."""
+
+
+class {{Class}}Runner(Runner):
+    """Runs the loads one after the other, in this process; replace it with the jobs of your queue.
+
+    A task is data: send it to a worker, where `execute(task, settings, store)` loads the target with the plugins,
+    the settings and the store of that worker, then send the outcome back.
+    """
+
+    settings_class = {{Class}}RunnerSettings
+
+    @classmethod
+    def run(
+        cls,
+        tasks: Sequence[LoadTask],
+        settings: Settings,
+        store: Store,
+        jobs: int,
+        options: RunnerSettings,
+        progress: OnProgress | None = None,
+    ) -> dict[str, LoadOutcome]:
+        outcomes = {}
+        for task in tasks:
+            if progress is not None:
+                progress(task.target, Progress("running"))
+            outcome = execute(task, settings, store)
+            if progress is not None:
+                status = "saved" if outcome.ok else "failed"
+                progress(task.target, Progress(status, reference=outcome.reference, error=outcome.error))
+            outcomes[task.target] = outcome
+        return outcomes

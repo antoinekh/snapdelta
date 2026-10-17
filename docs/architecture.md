@@ -1,12 +1,12 @@
 # Architecture
 
-snapdelta is a small core with seven extension points. A plugin brings what depends on the data: the diffsync models and the source that fills them. It can also bring a store backend, an output format, an inventory format, a secret backend, a notifier or a compare rule. The core does the rest: snapshots, compares, stores, formats, the CLI and the web UI.
+snapdelta is a small core with eight extension points. A plugin brings what depends on the data: the diffsync models and the source that fills them. It can also bring a store backend, an output format, an inventory format, a secret backend, a notifier, a compare rule or a runner. The core does the rest: snapshots, compares, stores, formats, the CLI and the web UI.
 
 ## Plugin architecture
 
-snapdelta is a plug-in architecture, by design: a small core, and seven entry point groups that plugins fill. [plugins.md](plugins.md) has the whole guide: each group, how to write and check a plugin, and how to add a group. The rules:
+snapdelta is a plug-in architecture, by design: a small core, and eight entry point groups that plugins fill. [plugins.md](plugins.md) has the whole guide: each group, how to write and check a plugin, and how to add a group. The rules:
 
-- **The built-ins are plugins too.** The `snapdelta` package declares its stores, formats, inventory format, secret backends, notifiers and compare rules as entry points in its own `pyproject.toml`, and the core finds them through the same registry as an installed plugin, never as a special case.
+- **The built-ins are plugins too.** The `snapdelta` package declares its stores, formats, inventory format, secret backends, notifiers, compare rules and runners as entry points in its own `pyproject.toml`, and the core finds them through the same registry as an installed plugin, never as a special case.
 - **One registry.** `snapdelta.plugins` reads each group once per process. A plugin that cannot load, that is not of the kind of its group, or whose name another package also gives is left out as broken, with its error: the other plugins and the commands that do not need it go on.
 - **The store stays pluggable.** The `Store` class is a public interface: the core, the CLI and the web UI use only its methods, never a backend class or a file on disk.
 - **A plugin gets what a built-in gets.** A registry entry, its own settings table, its place in `snapdelta plugins`, `snapdelta doctor`, **Admin > Plugins** and the docs, contract tests, and a template in `snapdelta plugins new`.
@@ -25,6 +25,7 @@ flowchart TB
         K["snapdelta.secrets<br/>SecretBackend: read()"]
         N["snapdelta.notifiers<br/>Notifier: send()"]
         R["snapdelta.rules<br/>Rule: same()"]
+        U["snapdelta.runners<br/>Runner: run()"]
     end
     subgraph core["snapdelta (core)"]
         PL["plugins.py + doctor.py<br/>registry, checks"]
@@ -32,7 +33,7 @@ flowchart TB
         CO["output.py + profile.py<br/>compare(), Output, profiles"]
         ST["store.py<br/>Store, FileStore, SqliteStore"]
         RE["render.py<br/>text, json, markdown, csv"]
-        TA["take.py + parallel.py<br/>loads of one or many targets"]
+        TA["take.py + runners.py<br/>loads of one or many targets"]
         AC["activity.py + notify.py<br/>runs, notifiers"]
         SE["settings.py + secrets.py<br/>snapdelta.toml, secrets"]
         IN["inventory.py<br/>Inventory, Nornir"]
@@ -105,6 +106,7 @@ sequenceDiagram
 | Another place for secrets (a vault, a keyring) | a `SecretBackend` subclass whose `read()` returns the secret | `snapdelta.secrets` |
 | A message after each run (mail, chat, ticket) | a `Notifier` subclass whose `send()` gets the run | `snapdelta.notifiers` |
 | Rules for a compare | no code: a `[profiles.NAME]` table | none |
+| Loads that run elsewhere: processes, a queue and its workers | a `Runner` subclass whose `run()` gives the outcome of each `LoadTask` | `snapdelta.runners` |
 | A value written in two ways that means the same | a `Rule` subclass whose `same()` says so, named in `rules` of a profile | `snapdelta.rules` |
 
 `snapdelta models` (and the web tab Admin > Models) lists the models of the installed sources, grouped by sources with the same models. It names the sources that compare with each group, and warns when two sources use the same model name with other fields: such a compare shows false differences.

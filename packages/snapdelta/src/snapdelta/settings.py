@@ -58,6 +58,10 @@ class StoreBackendSettings(Section):
 
 class SnapshotSettings(Section):
     jobs: int = Field(default=4, ge=1)
+    runner: str = Field(
+        default="threads",
+        description="How the loads run: threads, processes (one process per load), or a runner of a plugin.",
+    )
     log_level: Literal["debug", "info", "warning", "error"] = Field(
         default="info",
         description="The log messages of a load at this level and above are saved with its snapshot and its run.",
@@ -313,6 +317,7 @@ class FileSettings(Section):
     inventories: dict[str, dict[str, Any]] = {}
     secrets: dict[str, dict[str, Any]] = {}
     notifiers: dict[str, dict[str, Any]] = {}
+    runners: dict[str, dict[str, Any]] = {}
     profiles: dict[ProfileName, Profile] = {}
 
 
@@ -332,6 +337,7 @@ class Settings:
     inventories: dict[str, dict[str, Any]] = field(default_factory=dict)
     secrets: dict[str, dict[str, Any]] = field(default_factory=dict)
     notifiers: dict[str, dict[str, Any]] = field(default_factory=dict)
+    runners: dict[str, dict[str, Any]] = field(default_factory=dict)
     _plugin_cache: dict[tuple[str, str], Section] = field(default_factory=dict, repr=False)
     _inventory_cache: list[Inventory | None] = field(default_factory=list, repr=False)
 
@@ -417,6 +423,7 @@ def load_settings(
     settings.inventories = parsed.inventories
     settings.secrets = parsed.secrets
     settings.notifiers = parsed.notifiers
+    settings.runners = parsed.runners
     for section in CORE_SECTIONS:
         model = getattr(settings, section)
         written = raw.get(section, {})
@@ -446,7 +453,19 @@ def load_settings(
 
     # A wrong notifier table must fail at the start, not in silence after the first run.
     notifier_settings(settings)
+    _check_runner(settings)
     return settings
+
+
+def _check_runner(settings: Settings) -> None:
+    from .plugins import discover
+    from .runners import RUNNERS
+
+    found = discover(RUNNERS).plugins
+    if settings.snapshot.runner not in found:
+        message = f"no runner {settings.snapshot.runner!r} is installed (installed: {', '.join(sorted(found))})"
+        where = settings.file or "settings"
+        raise SettingsError(f"{where}: snapshot.runner: {message}", {"snapshot.runner": message})
 
 
 def plugin_tables() -> dict[str, str]:

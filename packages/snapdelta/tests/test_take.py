@@ -11,6 +11,8 @@ from snapdelta_example import ExampleLiveSource, ExampleSource
 
 
 class SlowSource(ExampleLiveSource):
+    source = "slow"
+
     def load(self) -> None:
         time.sleep(0.2)
         super().load()
@@ -27,6 +29,9 @@ def test_all_targets_come_from_the_source() -> None:
 
 
 def test_targets_are_fetched_at_the_same_time(tmp_path) -> None:
+    from snapdelta.source import register_source
+
+    register_source(SlowSource)
     store = FileStore(tmp_path)
     start = time.monotonic()
     taken, failures = take_snapshots(store, dict.fromkeys(["R1", "R2", "EDGE1"], SlowSource), label="live")

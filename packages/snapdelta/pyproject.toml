@@ -64,6 +64,10 @@ whitespace = "snapdelta.rules:Whitespace"
 unordered = "snapdelta.rules:Unordered"
 ip-address = "snapdelta.rules:IpAddress"
 
+[project.entry-points."snapdelta.runners"]
+threads = "snapdelta.runners:ThreadRunner"
+processes = "snapdelta.runners:ProcessRunner"
+
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"

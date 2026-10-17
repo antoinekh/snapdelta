@@ -12,6 +12,7 @@
 - `snapdelta plugins new NAME --kind KIND`: a plugin package to start from, with one working plugin of each kind (source, store, format, inventory, secret, notifier, rule), its entry point and its tests, which pass at once; the store is an in-memory backend that passes `StoreContract`.
 - Each CLI command, `snapdelta doctor`, the web server and the MCP server close the store that they opened.
 - For a store backend of a plugin: `snapdelta.store.snapshot_entry()`, `output_entry()`, and `parse_snapshot()`, `parse_output()`, `parse_run()`, which check a saved document and its schema version; `Store.close()` gives back the connections of a backend, and the web server calls it on a store that the settings replace.
+- Runners, an eighth entry point group, `snapdelta.runners`: `[snapshot] runner` chooses how the loads of a snapshot run, `threads` (the default) or `processes` (one process per load, for a plugin that parses much or is not thread-safe), or a runner of a plugin such as a queue. A load is data, `LoadTask`, and `execute()` runs it in any process.
 - `snapdelta plugins`, **Admin > Plugins** and `GET /api/v1/plugins` list the plugins of every extension point, the built-ins and the broken ones included, with their package, version and problems.
 
 - `snapdelta-postgres`, a third package: the PostgreSQL store backend, `--store postgresql://USER@HOST/DATABASE`, with its password in `[stores.postgresql]` (any secret backend), a pool of connections, and the documents as `jsonb`; it passes `StoreContract` against a server in CI and with `make test-postgres`.
@@ -21,6 +22,7 @@
 
 - One plugin registry, `snapdelta.plugins`, for the four entry point groups, and the built-in stores, formats and Nornir inventory are entry points of the `snapdelta` package. A store backend, a format or an inventory format that cannot load is left out with its error, as a source already was, instead of a traceback; so is a plugin of the wrong kind, a name that two packages give, and a source whose `source` is not its entry point name.
 - `Secret(env="NAME")` is `Secret(backend="env", reference="NAME")` in Python; the file keeps `{ env = "NAME" }`.
+- `take_snapshots()` and `snapshot_targets()` give each saved snapshot as a `Taken` of data (`reference`, `loaded`, `warnings`, `unmapped`) in place of the loaded source, and refuse a source class that is not the one of the registry; `Progress` moves to `snapdelta.runners`.
 - The package of a plugin comes from its entry point: `Source.distribution` is gone, `register_source(cls)` takes the class only, and in `GET /api/v1/version` each plugin package lists `plugins` (`source example`) in place of `sources`.
 
 ### Fixed

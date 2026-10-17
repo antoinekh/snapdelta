@@ -32,6 +32,7 @@ KINDS = {
     "secret": Kind("secrets", "snapdelta.secrets", "{Class}Secrets", "a secret backend"),
     "notifier": Kind("notify", "snapdelta.notifiers", "{Class}Notifier", "a notifier"),
     "rule": Kind("rules", "snapdelta.rules", "{Class}Rule", "a compare rule"),
+    "runner": Kind("runner", "snapdelta.runners", "{Class}Runner", "a runner"),
 }
 
 

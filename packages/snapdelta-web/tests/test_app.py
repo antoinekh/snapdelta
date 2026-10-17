@@ -693,6 +693,15 @@ def test_the_diffs_of_one_change_are_grouped(client, names, store) -> None:
     assert '<a class="row-link" href="/diffs/' in page and ">first</a>" in page and ">second</a>" in page
 
 
+def wait_for_runs(store, count: int = 1) -> None:
+    """The take job runs in a thread of the server: wait until it records its run."""
+    import time
+
+    deadline = time.monotonic() + 10
+    while len(store.runs()) < count and time.monotonic() < deadline:
+        time.sleep(0.02)
+
+
 def test_the_activity_lists_the_runs_and_shows_their_log(client, store, monkeypatch) -> None:
     from snapdelta.activity import configure_logging
     from snapdelta_example.live import DEVICES as devices
@@ -700,6 +709,7 @@ def test_the_activity_lists_the_runs_and_shows_their_log(client, store, monkeypa
     configure_logging("info")
     page = client.post("/take", data={"source": "example-live", "target": ["R1"], "label": "logged"})
     assert page.status_code == 200
+    wait_for_runs(store)
     listed = client.get("/activity").text
     assert '<span class="tag">snapshot</span>' in listed and '<span class="run-status ok">OK</span>' in listed
     run = store.runs()[0]

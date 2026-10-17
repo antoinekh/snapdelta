@@ -1,0 +1,24 @@
+from snapdelta.runners import RUNNERS, LoadTask
+from snapdelta.settings import Settings
+from snapdelta.store import FileStore
+
+from {{package}}.runner import {{Class}}Runner, {{Class}}RunnerSettings
+
+
+def test_the_runner_passes_the_doctor() -> None:
+    assert RUNNERS.check("{{name}}", {{Class}}Runner) is None
+    assert RUNNERS.inspect("{{name}}", {{Class}}Runner) == []
+
+
+def test_each_task_gets_an_outcome(tmp_path) -> None:
+    heard = []
+    outcomes = {{Class}}Runner.run(
+        [LoadTask(source="no-such-source", target="R1")],
+        Settings(),
+        FileStore(tmp_path),
+        jobs=1,
+        options={{Class}}RunnerSettings(),
+        progress=lambda target, step: heard.append((target, step.status)),
+    )
+    assert outcomes["R1"].error is not None and "no-such-source" in outcomes["R1"].error
+    assert heard == [("R1", "running"), ("R1", "failed")]

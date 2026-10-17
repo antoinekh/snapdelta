@@ -136,10 +136,15 @@ def test_the_source_gets_its_host(tmp_path) -> None:
     seen = {}
 
     class Recording(ExampleLiveSource):
+        source = "recording"
+
         def load(self) -> None:
             seen[self.target] = self.host
             super().load()
 
+    from snapdelta.source import register_source
+
+    register_source(Recording)
     settings = with_inventory()
     taken, failures = take_snapshots(FileStore(tmp_path), {"R1": Recording}, settings=settings)
     assert failures == {} and list(taken) == ["R1"]

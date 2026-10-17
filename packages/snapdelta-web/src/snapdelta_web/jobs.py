@@ -6,8 +6,9 @@ from dataclasses import dataclass, field
 from datetime import UTC, datetime
 
 from snapdelta.errors import NotFoundError, SnapdeltaError
+from snapdelta.runners import Progress
 from snapdelta.source import Source
-from snapdelta.take import Progress, take_snapshots
+from snapdelta.take import take_snapshots
 
 from .state import AppState
 
