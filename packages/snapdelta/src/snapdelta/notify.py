@@ -132,6 +132,13 @@ def _inspect_notifier(name: str, cls: type[Notifier]) -> list[Problem]:
     return abstract_problems(cls) + settings_problems(cls, NotifierSettings)
 
 
+def _notifiers_in_use(settings: Settings) -> dict[str, list[str]]:
+    used: dict[str, list[str]] = {}
+    for name, table in sorted(settings.notifiers.items()):
+        used.setdefault(str(table.get("type")), []).append(f"[notifiers.{name}]")
+    return used
+
+
 NOTIFIERS: ExtensionPoint[type[Notifier]] = ExtensionPoint(
     group="snapdelta.notifiers",
     kind="notifier",
@@ -140,6 +147,7 @@ NOTIFIERS: ExtensionPoint[type[Notifier]] = ExtensionPoint(
     table=None,
     check=subclass_check(Notifier),
     inspect=_inspect_notifier,
+    in_use=_notifiers_in_use,
 )
 
 

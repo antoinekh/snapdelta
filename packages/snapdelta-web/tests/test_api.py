@@ -28,6 +28,7 @@ def test_the_plugins_of_every_extension_point(api) -> None:
         "version": None,
         "severity": "ok",
         "problems": [],
+        "used_by": [],
     }
 
 

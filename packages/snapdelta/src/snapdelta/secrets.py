@@ -8,8 +8,11 @@ from __future__ import annotations
 
 import os
 from abc import ABC, abstractmethod
+from collections.abc import Iterator
 from pathlib import Path
 from typing import Any, ClassVar
+
+from pydantic import BaseModel
 
 from .plugins import ExtensionPoint, Problem, abstract_problems, settings_problems, subclass_check
 from .settings import SecretBackendSettings, Settings, SettingsError
@@ -71,6 +74,38 @@ def _inspect_backend(name: str, cls: type[SecretBackend]) -> list[Problem]:
     return abstract_problems(cls) + settings_problems(cls, SecretBackendSettings)
 
 
+def _secrets_in_use(settings: Settings) -> dict[str, list[str]]:
+    """The backends of the secrets of the settings, with the key of each secret."""
+    from .notify import notifier_settings
+    from .settings import Secret, plugin_models
+
+    tables: list[tuple[str, BaseModel]] = [("web", settings.web)]
+    for table, models in plugin_models().items():
+        for name, model in models.items():
+            if name in getattr(settings, table):
+                tables.append((f"{table}.{name}", settings.plugin(table, name, model)))
+    tables += [(f"notifiers.{name}", typed) for name, (_, typed) in notifier_settings(settings).items()]
+    used: dict[str, list[str]] = {}
+    for prefix, model in tables:
+        for key, secret in _secrets(prefix, model):
+            if isinstance(secret, Secret) and secret.backend:
+                used.setdefault(secret.backend, []).append(key)
+    return used
+
+
+def _secrets(prefix: str, value: Any) -> Iterator[tuple[str, Any]]:
+    from .settings import Secret
+
+    if isinstance(value, Secret):
+        yield prefix, value
+    elif isinstance(value, BaseModel):
+        for key in type(value).model_fields:
+            yield from _secrets(f"{prefix}.{key}", getattr(value, key))
+    elif isinstance(value, dict):
+        for key, item in value.items():
+            yield from _secrets(f"{prefix}.{key}", item)
+
+
 SECRETS: ExtensionPoint[type[SecretBackend]] = ExtensionPoint(
     group="snapdelta.secrets",
     kind="secret backend",
@@ -78,6 +113,7 @@ SECRETS: ExtensionPoint[type[SecretBackend]] = ExtensionPoint(
     table="secrets",
     check=_check_backend,
     inspect=_inspect_backend,
+    in_use=_secrets_in_use,
 )
 
 

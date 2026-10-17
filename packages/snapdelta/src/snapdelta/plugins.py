@@ -34,6 +34,10 @@ def no_problems(name: str, value: Any) -> list[Problem]:
     return []
 
 
+def nothing_in_use(settings: Any) -> dict[str, list[str]]:
+    return {}
+
+
 @dataclass(frozen=True)
 class ExtensionPoint[T]:
     """One entry point group: what its plugins must be, and the settings table of each plugin."""
@@ -49,6 +53,8 @@ class ExtensionPoint[T]:
     check: Callable[[str, Any], str | None] = field(repr=False, compare=False)
     # The deeper checks of `snapdelta doctor` on a plugin that passed `check`.
     inspect: Callable[[str, T], list[Problem]] = field(default=no_problems, repr=False, compare=False)
+    # The plugins that the settings use, by name, with where each is used: `[snapshot] runner`, `web.token`.
+    in_use: Callable[[Any], dict[str, list[str]]] = field(default=nothing_in_use, repr=False, compare=False)
 
 
 @dataclass(frozen=True)

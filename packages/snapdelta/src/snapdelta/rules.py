@@ -102,6 +102,14 @@ def _inspect_rule(name: str, cls: type[Rule]) -> list[Problem]:
     return problems
 
 
+def _rules_in_use(settings: Any) -> dict[str, list[str]]:
+    used: dict[str, list[str]] = {}
+    for name, profile in sorted(settings.profiles.items()):
+        for rule in dict.fromkeys(profile.rules.values()):
+            used.setdefault(rule, []).append(f"[profiles.{name}]")
+    return used
+
+
 RULES: ExtensionPoint[type[Rule]] = ExtensionPoint(
     group="snapdelta.rules",
     kind="compare rule",
@@ -109,4 +117,5 @@ RULES: ExtensionPoint[type[Rule]] = ExtensionPoint(
     table=None,
     check=subclass_check(Rule),
     inspect=_inspect_rule,
+    in_use=_rules_in_use,
 )

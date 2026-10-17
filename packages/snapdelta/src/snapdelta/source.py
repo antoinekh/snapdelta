@@ -264,6 +264,19 @@ def _inspect_source(name: str, cls: type[Source]) -> list[Problem]:
     return problems
 
 
+def _sources_in_use(settings: Any) -> dict[str, list[str]]:
+    """The sources of the platforms of the inventory; a command chooses the others with --source."""
+    inventory = settings.hosts()
+    if inventory is None:
+        return {}
+    hosts: dict[str, int] = {}
+    for host in inventory.hosts.values():
+        if host.platform:
+            source = settings.inventory.platforms.get(host.platform, host.platform)
+            hosts[source] = hosts.get(source, 0) + 1
+    return {source: [f"{count} hosts of the inventory"] for source, count in hosts.items()}
+
+
 SOURCES: ExtensionPoint[type[Source]] = ExtensionPoint(
     group="snapdelta.sources",
     kind="source",
@@ -271,6 +284,7 @@ SOURCES: ExtensionPoint[type[Source]] = ExtensionPoint(
     table="sources",
     check=_check_source,
     inspect=_inspect_source,
+    in_use=_sources_in_use,
 )
 
 

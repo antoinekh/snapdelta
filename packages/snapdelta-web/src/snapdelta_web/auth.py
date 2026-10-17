@@ -195,6 +195,10 @@ def _inspect_backend(name: str, cls: type[AuthBackend]) -> list[Problem]:
     return problems
 
 
+def _auth_in_use(settings: Settings) -> dict[str, list[str]]:
+    return {settings.web.auth: ["[web] auth"]}
+
+
 AUTH: ExtensionPoint[type[AuthBackend]] = ExtensionPoint(
     group="snapdelta.auth",
     kind="auth backend",
@@ -202,6 +206,7 @@ AUTH: ExtensionPoint[type[AuthBackend]] = ExtensionPoint(
     table="auth",
     check=subclass_check(AuthBackend),
     inspect=_inspect_backend,
+    in_use=_auth_in_use,
 )
 
 

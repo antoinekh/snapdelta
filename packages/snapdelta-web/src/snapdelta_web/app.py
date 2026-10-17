@@ -751,7 +751,7 @@ def create_app(state: AppState) -> FastAPI:
 
     @app.get("/admin/plugins", response_class=HTMLResponse)
     def plugins_page(request: Request) -> HTMLResponse:
-        reports = plugin_reports()
+        reports = plugin_reports(settings=state.settings)
         points = [(point, [item for item in reports if item.group == point.group]) for point in extension_points()]
         return render(request, "admin_plugins.html", {"tab": "admin", "section": "plugins", "points": points})
 

@@ -8,7 +8,7 @@
   <h2>{{ point.kind | capitalize }}s <span class="tag mono">{{ point.group }}</span> <span class="muted small mono">{{ point.interface }}</span></h2>
   <div class="scroll">
     <table class="list dense">
-      <thead><tr><th>Name</th><th>Package</th><th>Version</th><th>Status</th><th>Problems</th></tr></thead>
+      <thead><tr><th>Name</th><th>Package</th><th>Version</th><th>Status</th><th>In use</th><th>Problems</th></tr></thead>
       <tbody>
         {% for report in reports %}
         <tr id="plugin-{{ point.table or point.group }}-{{ report.name }}">
@@ -16,10 +16,11 @@
           <td class="mono">{{ report.package or "registered in code" }}</td>
           <td class="mono">{{ report.version or "" }}</td>
           <td>{% if report.severity == "error" %}<span class="error">error</span>{% elif report.severity == "warning" %}<span class="warn-text">warning</span>{% else %}<span class="tag">ok</span>{% endif %}</td>
+          <td class="small">{% for place in report.used_by %}<div>{{ place }}</div>{% endfor %}</td>
           <td class="small">{% for problem in report.problems %}<div>{{ problem.message }}</div>{% endfor %}</td>
         </tr>
         {% else %}
-        <tr><td colspan="5" class="muted">none</td></tr>
+        <tr><td colspan="6" class="muted">none</td></tr>
         {% endfor %}
       </tbody>
     </table>

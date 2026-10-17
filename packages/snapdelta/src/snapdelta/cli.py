@@ -150,15 +150,23 @@ def list_sources() -> None:
 @plugins_app.callback(invoke_without_command=True)
 @handle_errors
 def list_plugins(ctx: typer.Context, as_json: Json = False) -> None:
-    """List the plugins of every extension point, the built-ins included, with their package and status."""
+    """List the plugins of every extension point, with their package, their status, and where the settings use them."""
     if ctx.invoked_subcommand is not None:
         return
-    reports = plugin_reports()
+    runtime: Runtime = ctx.obj
+    try:
+        settings = runtime.settings
+    except SnapdeltaError as error:
+        # The list helps most when the settings are wrong: give it without the use of each plugin.
+        typer.echo(f"warning: the settings cannot be read, so the plugins in use are not shown: {error}", err=True)
+        settings = None
+    reports = plugin_reports(settings=settings)
     if as_json:
         typer.echo(json.dumps([_report_json(report) for report in reports], indent=2))
         return
     for report in reports:
-        typer.echo(f"{report.kind}\t{report.name}\t{_package(report)}\t{report.severity}")
+        used = "; ".join(report.used_by) or "-"
+        typer.echo(f"{report.kind}\t{report.name}\t{_package(report)}\t{report.severity}\t{used}")
 
 
 @plugins_app.command("new")
@@ -193,7 +201,8 @@ def doctor(ctx: typer.Context, as_json: Json = False) -> None:
         raise typer.Exit(0 if diagnosis.healthy else 1)
     typer.echo("plugins:")
     for report in diagnosis.plugins:
-        typer.echo(f"  {report.severity:<8} {report.kind} {report.name} ({_package(report)})")
+        used = f", in use: {'; '.join(report.used_by)}" if report.used_by else ""
+        typer.echo(f"  {report.severity:<8} {report.kind} {report.name} ({_package(report)}){used}")
         _print_problems(report.problems)
     typer.echo("setup:")
     for check in diagnosis.checks:

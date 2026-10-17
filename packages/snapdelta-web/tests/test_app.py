@@ -527,6 +527,7 @@ def test_the_plugins_tab_shows_each_extension_point_with_its_problems(client) ->
     register_plugin(RENDERERS, "crash", Renderer("text/plain", "txt", lambda output: str(1 / 0)))
     page = client.get("/admin/plugins")
     assert page.status_code == 200 and 'aria-current="page" href="/admin/plugins"' in page.text
+    assert "<th>In use</th>" in page.text and "<div>the store</div>" in page.text
     for group in ("snapdelta.sources", "snapdelta.stores", "snapdelta.renderers", "snapdelta.inventories"):
         assert f'<span class="tag mono">{group}</span>' in page.text
     assert 'id="plugin-stores-sqlite"' in page.text and 'id="plugin-sources-example-live"' in page.text

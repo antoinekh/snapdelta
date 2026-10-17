@@ -48,6 +48,7 @@ class PluginItem(BaseModel):
     version: str | None
     severity: str = Field(description="ok, warning or error: the worst problem of `snapdelta doctor`.")
     problems: list[ProblemItem]
+    used_by: list[str] = Field(description="Where the settings use the plugin; empty when they do not.")
 
 
 class VersionInfo(BaseModel):
@@ -304,8 +305,9 @@ def create_api(state: AppState, row_cache: LruCache[Any, Any]) -> FastAPI:
                 version=report.version,
                 severity=report.severity,
                 problems=[ProblemItem(severity=item.severity, message=item.message) for item in report.problems],
+                used_by=report.used_by,
             )
-            for report in plugin_reports()
+            for report in plugin_reports(settings=state.settings)
         ]
 
     @api.get("/sources")

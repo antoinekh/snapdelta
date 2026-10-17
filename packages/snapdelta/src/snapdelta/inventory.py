@@ -7,13 +7,16 @@ from abc import ABC, abstractmethod
 from collections.abc import Iterable, Mapping
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, ClassVar
+from typing import TYPE_CHECKING, Any, ClassVar
 
 import yaml
 
 from .errors import SnapdeltaError
 from .plugins import ExtensionPoint, Problem, abstract_problems, plugins, require, settings_problems, subclass_check
 from .settings import InventoryFormatSettings
+
+if TYPE_CHECKING:
+    from .settings import Settings
 
 # The keys of a Nornir host, group or defaults entry, besides `groups` and `data`.
 NORNIR_KEYS = ("hostname", "port", "username", "password", "platform")
@@ -89,6 +92,10 @@ def _inspect_inventory(name: str, cls: type[InventoryFormat]) -> list[Problem]:
     return abstract_problems(cls) + settings_problems(cls, InventoryFormatSettings)
 
 
+def _inventories_in_use(settings: Settings) -> dict[str, list[str]]:
+    return {settings.inventory.format: ["the inventory"]} if settings.inventory.location else {}
+
+
 INVENTORIES: ExtensionPoint[type[InventoryFormat]] = ExtensionPoint(
     group="snapdelta.inventories",
     kind="inventory format",
@@ -96,6 +103,7 @@ INVENTORIES: ExtensionPoint[type[InventoryFormat]] = ExtensionPoint(
     table="inventories",
     check=subclass_check(InventoryFormat),
     inspect=_inspect_inventory,
+    in_use=_inventories_in_use,
 )
 
 

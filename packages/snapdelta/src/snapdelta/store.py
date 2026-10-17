@@ -417,6 +417,10 @@ def _inspect_store(name: str, cls: type[Store]) -> list[Problem]:
     return problems
 
 
+def _stores_in_use(settings: Settings) -> dict[str, list[str]]:
+    return {split_location(settings.store.location or str(default_store_path()))[0]: ["the store"]}
+
+
 STORES: ExtensionPoint[type[Store]] = ExtensionPoint(
     group="snapdelta.stores",
     kind="store backend",
@@ -424,6 +428,7 @@ STORES: ExtensionPoint[type[Store]] = ExtensionPoint(
     table="stores",
     check=subclass_check(Store),
     inspect=_inspect_store,
+    in_use=_stores_in_use,
 )
 
 

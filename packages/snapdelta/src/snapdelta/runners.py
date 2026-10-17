@@ -249,6 +249,10 @@ def _inspect_runner(name: str, cls: type[Runner]) -> list[Problem]:
     return abstract_problems(cls) + settings_problems(cls, RunnerSettings)
 
 
+def _runners_in_use(settings: Settings) -> dict[str, list[str]]:
+    return {settings.snapshot.runner: ["[snapshot] runner"]}
+
+
 RUNNERS: ExtensionPoint[type[Runner]] = ExtensionPoint(
     group="snapdelta.runners",
     kind="runner",
@@ -256,4 +260,5 @@ RUNNERS: ExtensionPoint[type[Runner]] = ExtensionPoint(
     table="runners",
     check=subclass_check(Runner),
     inspect=_inspect_runner,
+    in_use=_runners_in_use,
 )

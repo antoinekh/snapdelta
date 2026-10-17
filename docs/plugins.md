@@ -70,7 +70,7 @@ acme = "snapdelta_acme.store:AcmeStore"
 
 | Tool | What it checks |
 |---|---|
-| `snapdelta plugins` | The plugins of every group, with their package, version and status |
+| `snapdelta plugins` | The plugins of every group, with their package, version and status, and where the settings use each one: `the store`, `[snapshot] runner`, `web.token`, `[profiles.change-window]` |
 | `snapdelta doctor` | Each plugin against its interface, then the settings, the store, the inventory, the notifiers and the models of the sources; exit code `1` on an error, `--json` for a pipeline |
 | **Admin > Plugins**, `GET /api/v1/plugins` | The same as `snapdelta plugins`, in the web UI and the API |
 | `snapdelta.testing` | Contract tests for the tests of a plugin: `StoreContract` and `SourceContract` (`pip install "snapdelta[testing]"`) |
@@ -131,7 +131,7 @@ A broken plugin never stops the other plugins, nor the commands that do not need
 This part is for the developers of snapdelta. An extension point is a promise to the authors of plugins, so add one when a second implementation is planned, not before. A built-in implementation and a planned plugin count as two.
 
 1. **The interface**, in the module of its feature: an abstract class whose methods have no code (`abc.abstractmethod`), and a `settings_class` when its plugins have settings.
-2. **The extension point**, next to the interface: an `ExtensionPoint` with the group `snapdelta.NAME`, the word for one plugin (`kind`), the interface, the settings table or `None`, a `check` (the kind of the object, with `subclass_check()` for a class) and an `inspect` (the deeper checks of `snapdelta doctor`: `abstract_problems()`, `settings_problems()`, a call on a sample).
+2. **The extension point**, next to the interface: an `ExtensionPoint` with the group `snapdelta.NAME`, the word for one plugin (`kind`), the interface, the settings table or `None`, a `check` (the kind of the object, with `subclass_check()` for a class) and an `inspect` (the deeper checks of `snapdelta doctor`: `abstract_problems()`, `settings_problems()`, a call on a sample), and an `in_use` (the plugins that the settings use, with where, for `snapdelta plugins`).
 3. **The list**: add it to `_core_points()` in `snapdelta/plugins.py`. An extension point of another package, such as `snapdelta.auth` of `snapdelta-web`, is an entry point of the group `snapdelta.extension_points` of that package instead. `snapdelta plugins`, `snapdelta doctor`, **Admin > Plugins** and the API then show it.
 4. **The built-ins**, as entry points in `packages/snapdelta/pyproject.toml`, never as a special case in the code.
 5. **The settings**: when its plugins have one table each, add the table to `FileSettings` and `Settings` in `snapdelta/settings.py`, so that `snapdelta settings` and **Admin > Settings** show their keys.

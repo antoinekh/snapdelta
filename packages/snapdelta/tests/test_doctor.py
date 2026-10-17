@@ -113,3 +113,28 @@ def test_the_plugins_command_lists_every_group() -> None:
     assert "store backend\tfile\tsnapdelta " in result.output
     assert "output format\tmarkdown\tsnapdelta " in result.output
     assert any(SOURCES.kind in line for line in result.output.splitlines())
+
+
+def test_the_plugins_in_use_come_from_the_settings(tmp_path) -> None:
+    secret = tmp_path / "token"
+    secret.write_text("t0ken")
+    path = tmp_path / "snapdelta.toml"
+    path.write_text(
+        f'[store]\nlocation = "sqlite://{tmp_path / "s.db"}"\n'
+        '[snapshot]\nrunner = "processes"\n'
+        f'[web]\ntoken = {{ file = "{secret}" }}\n'
+        '[notifiers.chat]\ntype = "webhook"\nurl = { env = "CHAT_URL" }\n'
+        '[profiles.window]\nrules = { "interface.description" = "case-insensitive" }\n'
+    )
+    from snapdelta.settings import load_settings
+
+    used = {(report.kind, report.name): report.used_by for report in plugin_reports(settings=load_settings(path))}
+    assert used[("store backend", "sqlite")] == ["the store"] and used[("store backend", "file")] == []
+    assert used[("runner", "processes")] == ["[snapshot] runner"] and used[("runner", "threads")] == []
+    assert used[("secret backend", "file")] == ["web.token"]
+    assert used[("secret backend", "env")] == ["notifiers.chat.url"]
+    assert used[("notifier", "webhook")] == ["[notifiers.chat]"]
+    assert used[("compare rule", "case-insensitive")] == ["[profiles.window]"]
+    assert used[("inventory format", "nornir")] == []
+    listed = runner.invoke(app, ["--settings", str(path), "plugins"])
+    assert "store backend\tsqlite\tsnapdelta " in listed.output and "\tok\tthe store\n" in listed.output

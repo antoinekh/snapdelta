@@ -30,6 +30,8 @@ class PluginReport:
     version: str | None
     target: str | None
     problems: list[Problem]
+    # Where the settings use the plugin: "the store", "[snapshot] runner", "web.token"; empty when they do not.
+    used_by: list[str] = field(default_factory=list)
 
     @property
     def severity(self) -> Severity:
@@ -63,11 +65,14 @@ class Diagnosis:
         return self.count(Severity.ERROR) == 0
 
 
-def plugin_reports(points: list[ExtensionPoint[Any]] | None = None) -> list[PluginReport]:
-    """Every plugin of every extension point, the broken ones included, with the problems of each."""
+def plugin_reports(
+    points: list[ExtensionPoint[Any]] | None = None, settings: Settings | None = None
+) -> list[PluginReport]:
+    """Every plugin of every extension point, the broken ones included, with its problems, and its use by `settings`."""
     reports = []
     for point in points or extension_points():
         found = discover(point)
+        used = _in_use(point, settings) if settings is not None else {}
         for name, plugin in sorted(found.plugins.items()):
             try:
                 problems = point.inspect(name, plugin.value)
@@ -76,15 +81,39 @@ def plugin_reports(points: list[ExtensionPoint[Any]] | None = None) -> list[Plug
                 problems = [Problem(Severity.ERROR, f"the check failed: {type(error).__name__}: {error}")]
             reports.append(
                 PluginReport(
-                    point.group, point.kind, name, plugin.distribution, plugin.version, plugin.target, problems
+                    point.group,
+                    point.kind,
+                    name,
+                    plugin.distribution,
+                    plugin.version,
+                    plugin.target,
+                    problems,
+                    used.get(name, []),
                 )
             )
         for name, broken in sorted(found.broken.items()):
             problem = Problem(Severity.ERROR, broken.error)
             reports.append(
-                PluginReport(point.group, point.kind, name, broken.distribution, None, broken.target, [problem])
+                PluginReport(
+                    point.group,
+                    point.kind,
+                    name,
+                    broken.distribution,
+                    None,
+                    broken.target,
+                    [problem],
+                    used.get(name, []),
+                )
             )
     return reports
+
+
+def _in_use(point: ExtensionPoint[Any], settings: Settings) -> dict[str, list[str]]:
+    try:
+        return point.in_use(settings)
+    except Exception:
+        # The use is a help to read the list: a broken inventory or table is the error of `snapdelta doctor`.
+        return {}
 
 
 def model_check(reports: list[PluginReport]) -> Check:
@@ -96,15 +125,17 @@ def model_check(reports: list[PluginReport]) -> Check:
 
 
 def diagnose(settings_file: Path | None = None, store_option: str | None = None) -> Diagnosis:
-    reports = plugin_reports()
-    checks = [model_check(reports)]
     try:
         settings = load_settings(settings_file, store_option)
     except SnapdeltaError as error:
+        reports = plugin_reports()
+        checks = [model_check(reports)]
         checks.append(
             Check("settings", str(settings_file or "the settings file"), [Problem(Severity.ERROR, str(error))])
         )
         return Diagnosis(reports, checks)
+    reports = plugin_reports(settings=settings)
+    checks = [model_check(reports)]
     where = str(settings.file) if settings.file else "none, defaults"
     checks.append(Check("settings", where, [Problem(Severity.WARNING, warning) for warning in settings.warnings]))
     checks.append(_store_check(settings))
