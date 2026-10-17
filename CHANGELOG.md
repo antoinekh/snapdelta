@@ -8,6 +8,7 @@
 - `snapdelta prune` and the admin page refuse an age too big for a date, which used to raise `OverflowError` (a traceback in the CLI, a 500 page in the web UI).
 - MCP tools refuse a page out of range: `offset` below 0, and `limit` below 1 or above 500.
 - A malformed Nornir inventory reports which entry is wrong and why (a host that is not a mapping, a port that is not a number, groups that are not a list) instead of a `TypeError`, `AttributeError` or `ValueError` traceback.
+- `~` in `--settings`, `SNAPDELTA_SETTINGS`, `--store`, `SNAPDELTA_STORE` and the web `--tls-cert`/`--tls-key` means the home directory, as it already did inside a settings file.
 
 ## v0.1.0
 

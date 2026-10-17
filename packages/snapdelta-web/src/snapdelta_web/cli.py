@@ -46,7 +46,9 @@ def main(
     for warning in settings.warnings:
         typer.echo(f"warning: {warning}", err=True)
     listen = host or settings.web.host
-    cert, key = tls_cert or settings.web.tls_cert, tls_key or settings.web.tls_key
+    # The settings file already expands its own paths.
+    cert = tls_cert.expanduser() if tls_cert else settings.web.tls_cert
+    key = tls_key.expanduser() if tls_key else settings.web.tls_key
     open_access = settings.web.auth == Auth.NONE
     if listen not in LOOPBACK and token is None and not open_access:
         typer.echo(f"error: set [web] token in the settings to listen on {listen}: the network needs a login", err=True)

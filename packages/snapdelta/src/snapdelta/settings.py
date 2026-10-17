@@ -7,7 +7,7 @@ import re
 import stat
 import tempfile
 import tomllib
-from collections.abc import Collection, Mapping
+from collections.abc import Callable, Collection, Mapping
 from dataclasses import dataclass, field
 from enum import StrEnum
 from pathlib import Path
@@ -329,10 +329,12 @@ def find_settings_file(explicit: Path | None) -> Path | None:
     """The one file to read: the option, the environment, the current directory, then the user file."""
     chosen = explicit or (Path(os.environ[SETTINGS_ENV]) if os.environ.get(SETTINGS_ENV) else None)
     if chosen is not None:
+        # ~ first: a written ~ is not a path until it is expanded, and is_file says no to it.
+        chosen = chosen.expanduser()
         if not chosen.is_file():
             raise SettingsError(f"settings file {chosen} does not exist")
         # Absolute, so that the paths of the file stay right when the current directory changes.
-        return chosen.expanduser().absolute()
+        return chosen.absolute()
     for candidate in (Path.cwd() / FILE_NAME, user_settings_path()):
         if candidate.is_file():
             return candidate
@@ -443,28 +445,37 @@ def _read(path: Path) -> dict[str, Any]:
 def _apply_store(settings: Settings, option: str | None) -> None:
     location = settings.store.location
     if location is not None:
-        location = _resolve_location(location, settings.base)
+        location = _local_address(location, lambda address: _resolve_path(Path(address), settings.base))
+    # An option or an environment path stays relative to the current directory, unlike a path of the file.
     if os.environ.get(STORE_ENV):
-        location = os.environ[STORE_ENV]
+        location = _local_address(os.environ[STORE_ENV], _expand_user)
         settings.origins["store.location"], settings.notes["store.location"] = Origin.ENV, STORE_ENV
     if option:
-        location = option
+        location = _local_address(option, _expand_user)
         settings.origins["store.location"], settings.notes["store.location"] = Origin.OPTION, "--store"
     from .store import default_store_path
 
     settings.store = settings.store.model_copy(update={"location": location or str(default_store_path())})
 
 
-def _resolve_location(location: str, base: Path) -> str:
-    """A relative path of a backend whose address is a local path is relative to the settings file."""
+def _local_address(location: str, change: Callable[[str], str | Path]) -> str:
+    """The location with its address changed, when its backend reads a local path; any other stays as written."""
     from .store import SCHEME_SEPARATOR, split_location, store_classes
 
     scheme, address = split_location(location)
     backend = store_classes().get(scheme)
     if backend is None or not backend.local_path:
         return location
-    resolved = str(_resolve_path(Path(address), base))
-    return f"{scheme}{SCHEME_SEPARATOR}{resolved}" if SCHEME_SEPARATOR in location else resolved
+    changed = str(change(address))
+    return f"{scheme}{SCHEME_SEPARATOR}{changed}" if SCHEME_SEPARATOR in location else changed
+
+
+def _expand_user(address: str) -> str:
+    """`~` and `~user` of a local path; a user that does not exist is a mistake, not a literal directory."""
+    try:
+        return str(Path(address).expanduser())
+    except RuntimeError as error:
+        raise SettingsError(f"cannot expand {address}: no such user") from error
 
 
 def _resolve_inventory(inventory: InventorySettings, base: Path) -> str | None:
@@ -478,7 +489,7 @@ def _resolve_inventory(inventory: InventorySettings, base: Path) -> str | None:
 
 
 def _resolve_path(path: Path, base: Path) -> Path:
-    path = path.expanduser()
+    path = Path(_expand_user(str(path)))
     return path if path.is_absolute() else base / path
 
 

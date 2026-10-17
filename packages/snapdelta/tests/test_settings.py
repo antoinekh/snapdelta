@@ -101,6 +101,40 @@ def test_relative_paths_are_relative_to_the_file(tmp_path) -> None:
     assert load_settings(folder / "home.toml", installed=INSTALLED).store.location == str(Path.home() / "store")
 
 
+def test_a_tilde_settings_path_is_expanded(tmp_path, monkeypatch) -> None:
+    home = tmp_path / "home"
+    home.mkdir()
+    (home / "snapdelta.toml").write_text('[store]\nlocation = "store"\n')
+    monkeypatch.setenv("HOME", str(home))
+    settings = load_settings(Path("~/snapdelta.toml"), installed={})
+    assert settings.file == home / "snapdelta.toml"
+    monkeypatch.setenv("SNAPDELTA_SETTINGS", "~/snapdelta.toml")
+    assert load_settings(None, installed={}).file == home / "snapdelta.toml"
+
+
+def test_a_tilde_store_location_of_the_option_or_the_environment_is_expanded(tmp_path, monkeypatch) -> None:
+    home = tmp_path / "home"
+    monkeypatch.setenv("HOME", str(home))
+    assert load_settings(store="~/data", installed={}).store.location == str(home / "data")
+    sqlite = load_settings(store="sqlite://~/data/s.db", installed={})
+    assert sqlite.store.location == f"sqlite://{home / 'data' / 's.db'}"
+    monkeypatch.setenv("SNAPDELTA_STORE", "~/env-data")
+    assert load_settings(installed={}).store.location == str(home / "env-data")
+    # An option or an environment path stays relative to the current directory, unlike a path in a settings file.
+    assert load_settings(store="data", installed={}).store.location == "data"
+    # A backend whose address is not a local path keeps its location as written, as one in a settings file does.
+    assert load_settings(store="s3://~/bucket", installed={}).store.location == "s3://~/bucket"
+    with pytest.raises(SettingsError, match="cannot expand"):
+        load_settings(store="~snapdelta-no-such-user/data", installed={})
+
+
+def test_a_tilde_of_an_unknown_user_in_a_settings_file_says_so(tmp_path) -> None:
+    path = tmp_path / "snapdelta.toml"
+    path.write_text('[store]\nlocation = "~snapdelta-no-such-user/data"\n')
+    with pytest.raises(SettingsError, match="cannot expand"):
+        load_settings(path, installed={})
+
+
 def test_a_plugin_backend_gets_the_path_resolution_of_its_kind(tmp_path, monkeypatch) -> None:
     from types import SimpleNamespace
 

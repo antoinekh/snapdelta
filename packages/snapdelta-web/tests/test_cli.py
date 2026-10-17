@@ -45,6 +45,17 @@ def test_tls_needs_the_certificate_and_its_key(served, tmp_path) -> None:
     assert "https://127.0.0.1:8765/diffs" in result.output
 
 
+def test_a_tilde_in_the_tls_options_is_expanded(served, tmp_path, monkeypatch) -> None:
+    home = tmp_path / "home"
+    home.mkdir()
+    monkeypatch.setenv("HOME", str(home))
+    result = CliRunner().invoke(
+        cli.app, ["--store", str(tmp_path / "store"), "--tls-cert", "~/cert.pem", "--tls-key", "~/key.pem"]
+    )
+    assert result.exit_code == 0, result.output
+    assert (served["ssl_certfile"], served["ssl_keyfile"]) == (str(home / "cert.pem"), str(home / "key.pem"))
+
+
 def test_auth_none_opens_the_network_to_the_listed_host_names(served, tmp_path) -> None:
     settings = tmp_path / "snapdelta.toml"
     settings.write_text('[web]\nauth = "none"\ntoken = "t0ken"\n')
