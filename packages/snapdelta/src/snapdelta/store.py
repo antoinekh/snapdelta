@@ -7,12 +7,12 @@ import os
 import re
 import sqlite3
 from abc import ABC, abstractmethod
-from collections.abc import Iterator
+from collections.abc import Iterator, Mapping
 from contextlib import closing, contextmanager
 from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
-from typing import ClassVar
+from typing import Any, ClassVar
 
 from pydantic import Field, ValidationError
 
@@ -190,6 +190,10 @@ class Store(ABC):
     @abstractmethod
     def location(self) -> str:
         """The location that opens this store again, with its scheme when it has one."""
+
+    def close(self) -> None:
+        """Give back what the store holds open, such as the connections of a database; it is not used after."""
+        return None
 
     # Snapshots
 
@@ -546,7 +550,7 @@ class FileStore(Store):
         write_json(self.runs_dir / f"{run.id}.json", run.model_dump_json(indent=2))
 
     def _read_run(self, run_id: str) -> Run:
-        return _validated_run((self.runs_dir / f"{run_id}.json").read_text(encoding="utf-8"), run_id)
+        return parse_run((self.runs_dir / f"{run_id}.json").read_text(encoding="utf-8"), run_id)
 
     def _run_ids(self) -> list[str]:
         paths = self.runs_dir.glob("*.json") if self.runs_dir.is_dir() else []
@@ -675,7 +679,7 @@ class SqliteStore(Store):
         # Another process can delete the row between the existence check and this read.
         if row is None:
             raise NotFoundError(f"no snapshot {reference!r} in {self.location}")
-        return _validated_snapshot(row[0], reference)
+        return parse_snapshot(row[0], reference)
 
     def _delete_snapshot(self, reference: str) -> None:
         with self._connect() as db:
@@ -703,7 +707,7 @@ class SqliteStore(Store):
             row = db.execute("select body from outputs where name = ?", (name,)).fetchone()
         if row is None:
             raise NotFoundError(f"no output {name!r} in {self.location}")
-        return _validated_output(row[0], name)
+        return parse_output(row[0], name)
 
     def _replace_output(self, name: str, output: Output) -> None:
         with self._connect() as db:
@@ -722,7 +726,7 @@ class SqliteStore(Store):
             row = db.execute("select body from runs where id = ?", (run_id,)).fetchone()
         if row is None:
             raise NotFoundError(f"no run {run_id!r} in {self.location}")
-        return _validated_run(row[0], run_id)
+        return parse_run(row[0], run_id)
 
     def _run_ids(self) -> list[str]:
         with self._connect() as db:
@@ -733,30 +737,39 @@ class SqliteStore(Store):
             db.execute("delete from runs where id = ?", (run_id,))
 
 
-def _validated_snapshot(body: str, reference: str) -> SnapshotFile:
+def parse_snapshot(body: str | Mapping[str, Any], reference: str) -> SnapshotFile:
+    """A saved snapshot, from its JSON text or its parsed JSON, checked against the schema that this snapdelta reads."""
     try:
-        snapshot = SnapshotFile.model_validate(json.loads(body))
+        snapshot = SnapshotFile.model_validate(json.loads(body) if isinstance(body, str) else body)
     except ValidationError as error:
         raise SnapdeltaError(f"snapshot {reference}: not valid ({error.error_count()} errors)") from error
+    except ValueError as error:
+        raise SnapdeltaError(f"snapshot {reference}: not valid JSON ({error})") from error
     if snapshot.schema_version != SNAPSHOT_SCHEMA:
         found = snapshot.schema_version
         raise SnapdeltaError(f"snapshot {reference}: schema {found}, this snapdelta reads {SNAPSHOT_SCHEMA}")
     return snapshot
 
 
-def _validated_run(body: str, run_id: str) -> Run:
+def parse_output(body: str | Mapping[str, Any], name: str) -> Output:
+    """A saved output, from its JSON text or its parsed JSON, checked against the schema that this snapdelta reads."""
     try:
-        return Run.model_validate_json(body)
-    except ValidationError as error:
-        raise SnapdeltaError(f"run {run_id} is not a valid run: {error.error_count()} problems") from error
-
-
-def _validated_output(body: str, name: str) -> Output:
-    try:
-        output = Output.model_validate(json.loads(body))
+        output = Output.model_validate(json.loads(body) if isinstance(body, str) else body)
     except ValidationError as error:
         raise SnapdeltaError(f"output {name}: not valid ({error.error_count()} errors)") from error
+    except ValueError as error:
+        raise SnapdeltaError(f"output {name}: not valid JSON ({error})") from error
     if output.schema_version != OUTPUT_SCHEMA:
         found = output.schema_version
         raise SnapdeltaError(f"output {name}: schema {found}, this snapdelta reads {OUTPUT_SCHEMA}")
     return output
+
+
+def parse_run(body: str | Mapping[str, Any], run_id: str) -> Run:
+    """A saved run, from its JSON text or its parsed JSON."""
+    try:
+        return Run.model_validate(json.loads(body) if isinstance(body, str) else body)
+    except ValidationError as error:
+        raise SnapdeltaError(f"run {run_id} is not a valid run: {error.error_count()} problems") from error
+    except ValueError as error:
+        raise SnapdeltaError(f"run {run_id} is not valid JSON ({error})") from error

@@ -8,11 +8,20 @@ from dataclasses import dataclass, field
 from typing import ClassVar
 
 from snapdelta.activity import Run
-from snapdelta.errors import NotFoundError
 from snapdelta.output import Output
 from snapdelta.settings import StoreBackendSettings
 from snapdelta.snapshot import SnapshotFile
-from snapdelta.store import OutputEntry, SnapshotEntry, Store, StoreInfo, output_entry, snapshot_entry
+from snapdelta.store import (
+    OutputEntry,
+    SnapshotEntry,
+    Store,
+    StoreInfo,
+    output_entry,
+    parse_output,
+    parse_run,
+    parse_snapshot,
+    snapshot_entry,
+)
 
 
 class {{Class}}StoreSettings(StoreBackendSettings):
@@ -82,9 +91,8 @@ class {{Class}}Store(Store):
         self.tables.snapshots[reference] = snapshot.model_dump_json(by_alias=True)
 
     def _read_snapshot(self, reference: str) -> SnapshotFile:
-        if reference not in self.tables.snapshots:
-            raise NotFoundError(f"no snapshot {reference!r} in {self.location}")
-        return SnapshotFile.model_validate_json(self.tables.snapshots[reference])
+        # parse_snapshot() also refuses a snapshot of a schema that this snapdelta does not read.
+        return parse_snapshot(self.tables.snapshots[reference], reference)
 
     def _delete_snapshot(self, reference: str) -> None:
         self.tables.snapshots.pop(reference, None)
@@ -96,9 +104,7 @@ class {{Class}}Store(Store):
         self.tables.outputs[name] = output.model_dump_json(by_alias=True)
 
     def _read_output(self, name: str) -> Output:
-        if name not in self.tables.outputs:
-            raise NotFoundError(f"no output {name!r} in {self.location}")
-        return Output.model_validate_json(self.tables.outputs[name])
+        return parse_output(self.tables.outputs[name], name)
 
     def _replace_output(self, name: str, output: Output) -> None:
         self._write_output(name, output)
@@ -110,7 +116,7 @@ class {{Class}}Store(Store):
         self.tables.runs[run.id] = run.model_dump_json()
 
     def _read_run(self, run_id: str) -> Run:
-        return Run.model_validate_json(self.tables.runs[run_id])
+        return parse_run(self.tables.runs[run_id], run_id)
 
     def _run_ids(self) -> list[str]:
         return sorted(self.tables.runs, reverse=True)

@@ -128,7 +128,7 @@ A plugin package can add a backend, for example an object store or a database se
 - `targets()`, `snapshot_entries()`, `output_entries()`, `info()`;
 - the private primitives of the snapshots, `_has_snapshot`, `_write_snapshot`, `_read_snapshot`, `_delete_snapshot`; of the outputs, `_has_output`, `_write_output`, `_read_output`, `_replace_output`, `_delete_output`; and of Activity, `_write_run`, `_read_run`, `_run_ids` (newest first), `_delete_run`.
 
-The base class gives the naming, the resolution of `TARGET@latest`, the checks of names, and pruning. Declare the backend under its scheme in the `pyproject.toml` of the plugin:
+The base class gives the naming, the resolution of `TARGET@latest`, the checks of names, and pruning. A backend that holds connections gives them back in `close()`. To read a saved document back, `snapdelta.store.parse_snapshot()`, `parse_output()` and `parse_run()` take its JSON text or its parsed JSON and refuse a document of a schema that this snapdelta does not read; `snapshot_entry()` and `output_entry()` read a snapshot or an output entry from its name alone, as `snapshot_entries()` and `output_entries()` return them. Declare the backend under its scheme in the `pyproject.toml` of the plugin:
 
 ```toml
 [project.entry-points."snapdelta.stores"]

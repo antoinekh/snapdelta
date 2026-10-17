@@ -18,4 +18,7 @@ class AppState:
         """Read the settings again; the state changes only when the new store opens."""
         settings = load_settings(self.settings_option or self.settings.file, self.store_option)
         store = open_store_from(settings) if settings.store != self.settings.store else self.store
+        previous = self.store
         self.settings, self.store = settings, store
+        if previous is not store:
+            previous.close()
