@@ -1,0 +1,255 @@
+"""The store `postgresql://`: the tables of the SQLite store in a PostgreSQL database, with the bodies as jsonb."""
+
+from __future__ import annotations
+
+import math
+from collections.abc import Iterator
+from contextlib import contextmanager
+from typing import Any, LiteralString
+
+import psycopg
+from psycopg.conninfo import conninfo_to_dict
+from psycopg.types.json import Jsonb
+from psycopg_pool import ConnectionPool, PoolTimeout
+from pydantic import Field
+
+from snapdelta.activity import Run
+from snapdelta.errors import NotFoundError, SnapdeltaError
+from snapdelta.output import Output
+from snapdelta.settings import Secret, StoreBackendSettings
+from snapdelta.snapshot import SnapshotFile
+from snapdelta.store import (
+    OutputEntry,
+    SnapshotEntry,
+    Store,
+    StoreInfo,
+    output_entry,
+    parse_output,
+    parse_run,
+    parse_snapshot,
+    snapshot_entry,
+)
+
+SCHEME = "postgresql"
+TABLES = """
+create table if not exists snapdelta_snapshots (
+    reference text primary key,
+    target text not null,
+    captured_at timestamptz not null,
+    label text,
+    source text not null,
+    body jsonb not null
+);
+create index if not exists snapdelta_snapshots_by_target on snapdelta_snapshots (target, reference);
+create table if not exists snapdelta_outputs (
+    name text primary key,
+    created_at timestamptz not null,
+    left_target text not null,
+    right_target text not null,
+    body jsonb not null
+);
+create index if not exists snapdelta_outputs_by_time on snapdelta_outputs (created_at);
+create table if not exists snapdelta_runs (
+    id text primary key,
+    body jsonb not null
+);
+"""
+# Two servers that start at the same time must not create the tables twice.
+LOCK_ID = 0x736E6170
+
+
+class PostgresSettings(StoreBackendSettings):
+    password: Secret | None = Field(
+        default=None,
+        description="The password of the database user; never in the location, which the pages and the runs show.",
+    )
+    connect_timeout_s: float = Field(default=10, gt=0, description="How long a connection may take, in seconds.")
+    pool_size: int = Field(
+        default=4, ge=1, le=100, description="The connections that the store keeps open, for the requests at once."
+    )
+
+
+class PostgresStore(Store):
+    """`postgresql://USER@HOST:PORT/DATABASE?OPTIONS`: any libpq URI, without its password."""
+
+    backend = SCHEME
+    settings_class = PostgresSettings
+
+    def __init__(self, address: str, settings: PostgresSettings) -> None:
+        conninfo = f"{SCHEME}://{address}"
+        try:
+            parts = conninfo_to_dict(conninfo)
+        except psycopg.ProgrammingError as error:
+            raise SnapdeltaError(f"{SCHEME}://{_without_password(address)}: not a valid location ({error})") from error
+        if "password" in parts:
+            raise SnapdeltaError(
+                "the location of a postgresql store holds a password, and snapdelta shows the location: "
+                "put the password in [stores.postgresql] password, or in PGPASSWORD or ~/.pgpass"
+            )
+        self.address = address
+        connection: dict[str, Any] = {"connect_timeout": math.ceil(settings.connect_timeout_s)}
+        if settings.password is not None:
+            connection["password"] = settings.password.value()
+        self.pool = ConnectionPool(conninfo, kwargs=connection, min_size=1, max_size=settings.pool_size, open=False)
+        try:
+            self.pool.open(wait=True, timeout=settings.connect_timeout_s)
+        except PoolTimeout as error:
+            self.pool.close()
+            raise SnapdeltaError(f"{self.location}: no connection within {settings.connect_timeout_s} s") from error
+        with self._connect() as db:
+            db.execute("select pg_advisory_xact_lock(%s)", (LOCK_ID,))
+            db.execute(TABLES)
+
+    @classmethod
+    def open(cls, address: str, settings: StoreBackendSettings) -> PostgresStore:
+        return cls(address, settings if isinstance(settings, PostgresSettings) else PostgresSettings())
+
+    @property
+    def location(self) -> str:
+        return f"{SCHEME}://{self.address}"
+
+    def close(self) -> None:
+        self.pool.close()
+
+    @contextmanager
+    def _connect(self) -> Iterator[psycopg.Connection[Any]]:
+        """A connection of the pool, in one transaction that commits at the end of the block."""
+        with self.pool.connection() as db:
+            yield db
+
+    def targets(self, query: str = "") -> list[str]:
+        wanted = query.strip().lower()
+        with self._connect() as db:
+            rows = db.execute(
+                "select distinct target from snapdelta_snapshots where strpos(lower(target), %s) > 0 order by target",
+                (wanted,),
+            ).fetchall()
+        return [row[0] for row in rows]
+
+    def snapshot_entries(self, target: str) -> list[SnapshotEntry]:
+        with self._connect() as db:
+            rows = db.execute(
+                "select reference from snapdelta_snapshots where target = %s order by reference desc", (target,)
+            ).fetchall()
+        return [entry for (reference,) in rows if (entry := snapshot_entry(reference))]
+
+    def output_entries(self, query: str = "") -> list[OutputEntry]:
+        wanted = query.strip().lower()
+        with self._connect() as db:
+            rows = db.execute(
+                "select name from snapdelta_outputs "
+                "where strpos(lower(left_target), %s) > 0 or strpos(lower(right_target), %s) > 0 order by name desc",
+                (wanted, wanted),
+            ).fetchall()
+        return [entry for (name,) in rows if (entry := output_entry(name))]
+
+    def info(self) -> StoreInfo:
+        with self._connect() as db:
+            row = db.execute(
+                "select (select count(distinct target) from snapdelta_snapshots), "
+                "(select count(*) from snapdelta_snapshots), (select count(*) from snapdelta_outputs), "
+                "(select count(*) from snapdelta_runs), "
+                "pg_total_relation_size('snapdelta_snapshots') + pg_total_relation_size('snapdelta_outputs') "
+                "+ pg_total_relation_size('snapdelta_runs')"
+            ).fetchone()
+        assert row is not None
+        targets, snapshots, outputs, runs, size = row
+        return StoreInfo(self.backend, self.location, targets, snapshots, outputs, size, runs)
+
+    def _has_snapshot(self, reference: str) -> bool:
+        with self._connect() as db:
+            found = db.execute("select 1 from snapdelta_snapshots where reference = %s", (reference,)).fetchone()
+        return found is not None
+
+    def _write_snapshot(self, reference: str, snapshot: SnapshotFile) -> None:
+        values = (
+            reference,
+            reference.partition("/")[0],
+            snapshot.captured_at,
+            snapshot.label,
+            snapshot.source,
+            Jsonb(snapshot.model_dump(mode="json", by_alias=True)),
+        )
+        try:
+            with self._connect() as db:
+                db.execute(
+                    "insert into snapdelta_snapshots (reference, target, captured_at, label, source, body) "
+                    "values (%s, %s, %s, %s, %s, %s)",
+                    values,
+                )
+        except psycopg.errors.UniqueViolation as error:
+            # Another writer saved the same reference between the check and this insert.
+            raise SnapdeltaError(f"snapshot {reference} already exists: give another label") from error
+
+    def _read_snapshot(self, reference: str) -> SnapshotFile:
+        body = self._body("select body from snapdelta_snapshots where reference = %s", reference, "snapshot")
+        return parse_snapshot(body, reference)
+
+    def _delete_snapshot(self, reference: str) -> None:
+        with self._connect() as db:
+            db.execute("delete from snapdelta_snapshots where reference = %s", (reference,))
+
+    def _has_output(self, name: str) -> bool:
+        with self._connect() as db:
+            return db.execute("select 1 from snapdelta_outputs where name = %s", (name,)).fetchone() is not None
+
+    def _write_output(self, name: str, output: Output) -> None:
+        values = (
+            name,
+            output.created_at,
+            output.left.target,
+            output.right.target,
+            Jsonb(output.model_dump(mode="json", by_alias=True)),
+        )
+        with self._connect() as db:
+            db.execute(
+                "insert into snapdelta_outputs (name, created_at, left_target, right_target, body) "
+                "values (%s, %s, %s, %s, %s)",
+                values,
+            )
+
+    def _read_output(self, name: str) -> Output:
+        return parse_output(self._body("select body from snapdelta_outputs where name = %s", name, "output"), name)
+
+    def _replace_output(self, name: str, output: Output) -> None:
+        with self._connect() as db:
+            db.execute(
+                "update snapdelta_outputs set body = %s where name = %s",
+                (Jsonb(output.model_dump(mode="json", by_alias=True)), name),
+            )
+
+    def _delete_output(self, name: str) -> None:
+        with self._connect() as db:
+            db.execute("delete from snapdelta_outputs where name = %s", (name,))
+
+    def _write_run(self, run: Run) -> None:
+        with self._connect() as db:
+            db.execute(
+                "insert into snapdelta_runs (id, body) values (%s, %s) "
+                "on conflict (id) do update set body = excluded.body",
+                (run.id, Jsonb(run.model_dump(mode="json"))),
+            )
+
+    def _read_run(self, run_id: str) -> Run:
+        return parse_run(self._body("select body from snapdelta_runs where id = %s", run_id, "run"), run_id)
+
+    def _run_ids(self) -> list[str]:
+        with self._connect() as db:
+            return [row[0] for row in db.execute("select id from snapdelta_runs order by id desc").fetchall()]
+
+    def _delete_run(self, run_id: str) -> None:
+        with self._connect() as db:
+            db.execute("delete from snapdelta_runs where id = %s", (run_id,))
+
+    def _body(self, query: LiteralString, key: str, kind: str) -> dict[str, Any]:
+        with self._connect() as db:
+            row = db.execute(query, (key,)).fetchone()
+        # Another process can delete the row between the existence check and this read.
+        if row is None:
+            raise NotFoundError(f"no {kind} {key!r} in {self.location}")
+        return row[0]
+
+
+def _without_password(address: str) -> str:
+    user, at, rest = address.rpartition("@")
+    return f"{user.partition(':')[0]}{at}{rest}" if at else address

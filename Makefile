@@ -1,11 +1,14 @@
 .DEFAULT_GOAL := help
-.PHONY: help test lint format assets
+.PHONY: help test test-postgres lint format assets
 
 help: ## Show the targets
-	@grep -E '^[a-z-]+:.*## ' $(MAKEFILE_LIST) | awk -F ':.*## ' '{printf "  %-8s %s\n", $$1, $$2}'
+	@grep -E '^[a-z-]+:.*## ' $(MAKEFILE_LIST) | awk -F ':.*## ' '{printf "  %-14s %s\n", $$1, $$2}'
 
 test: ## Run the tests of every package
 	uv run pytest -q
+
+test-postgres: ## Run the tests of the PostgreSQL store against a server in a container (docker)
+	scripts/test-postgres.sh
 
 lint: ## Check the code: ruff and pyright
 	uv run ruff check .

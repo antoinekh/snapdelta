@@ -102,7 +102,7 @@ def test_a_row_deleted_after_the_check_is_not_found(tmp_path, make_adapter) -> N
 def test_a_location_with_a_scheme_opens_its_backend(tmp_path) -> None:
     assert isinstance(open_store(f"file://{tmp_path}/files"), FileStore)
     assert isinstance(open_store(f"sqlite://{tmp_path}/store.db"), SqliteStore)
-    with pytest.raises(SnapdeltaError, match=r"no store backend 's3' is installed \(installed: file, sqlite\)"):
+    with pytest.raises(SnapdeltaError, match=r"no store backend 's3' is installed \(installed: file, "):
         open_store("s3://bucket/snapdelta")
 
 

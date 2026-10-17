@@ -14,6 +14,7 @@
 - For a store backend of a plugin: `snapdelta.store.snapshot_entry()`, `output_entry()`, and `parse_snapshot()`, `parse_output()`, `parse_run()`, which check a saved document and its schema version; `Store.close()` gives back the connections of a backend, and the web server calls it on a store that the settings replace.
 - `snapdelta plugins`, **Admin > Plugins** and `GET /api/v1/plugins` list the plugins of every extension point, the built-ins and the broken ones included, with their package, version and problems.
 
+- `snapdelta-postgres`, a third package: the PostgreSQL store backend, `--store postgresql://USER@HOST/DATABASE`, with its password in `[stores.postgresql]` (any secret backend), a pool of connections, and the documents as `jsonb`; it passes `StoreContract` against a server in CI and with `make test-postgres`.
 - `docs/plugins.md`: the plug-in architecture, each extension point, how to write, check and test a plugin, and how to add an extension point; the README says it on its front page.
 
 ### Changed

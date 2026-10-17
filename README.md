@@ -62,7 +62,7 @@ The diff page shows the two sides, filters and a search, and **Accept** on each 
 ```mermaid
 flowchart LR
     A["Source of a plugin<br/>files, API, NETCONF, SSH"] -->|load| B["Snapshot<br/>diffsync models + metadata"]
-    B -->|save| S[("Store<br/>directory, SQLite, plugin")]
+    B -->|save| S[("Store<br/>directory, SQLite, PostgreSQL, plugin")]
     S -->|two snapshots| C["compare<br/>diffsync + profile"]
     C -->|save| S
     C --> O["Output<br/>text, JSON, Markdown, CSV"]
@@ -74,7 +74,7 @@ flowchart LR
 | Target | What a snapshot describes: a device, a service, an API |
 | Snapshot | One load of one target, saved as `TARGET/TIME-LABEL` (`R1/20260101T100000Z-before`); `R1@latest` is the newest of R1, `R1@before` the newest with the label `before` |
 | Output | The result of one compare, saved as `TIME-LEFT-vs-RIGHT`; `-` is the left value, `+` the right value |
-| Store | Where snapshots and outputs go: a directory, a SQLite file, or a plugin backend |
+| Store | Where snapshots and outputs go: a directory, a SQLite file, a PostgreSQL database, or a plugin backend |
 | Profile | Optional rules of a compare: ignore, tolerance (`"5%"`), counts, pairs of names |
 | Inventory | Optional hosts, groups and platforms, which choose the source of each host |
 
@@ -152,7 +152,7 @@ Every extension point of snapdelta is an entry point group. A plugin package dec
 | Entry point group | A plugin gives | Built in |
 |---|---|---|
 | `snapdelta.sources` | the models and the load of the data of one target | none: `examples/minimal-plugin` |
-| `snapdelta.stores` | a place for the snapshots, the diffs and the runs | `file`, `sqlite` |
+| `snapdelta.stores` | a place for the snapshots, the diffs and the runs | `file`, `sqlite`; `postgresql` in the package `snapdelta-postgres` |
 | `snapdelta.renderers` | an output format | `text`, `json`, `markdown`, `csv` |
 | `snapdelta.inventories` | an inventory format: the hosts, their platform and groups | `nornir` |
 | `snapdelta.secrets` | a place for the passwords and tokens of the settings | `env`, `file` |
@@ -176,6 +176,7 @@ The contract tests of `snapdelta.testing` (`StoreContract`, `SourceContract`) gi
 uv sync
 make test           # uv run pytest
 make lint           # ruff and pyright
+make test-postgres  # the PostgreSQL store against a server in a container (docker)
 make assets         # update htmx, the fonts and Swagger UI in static/vendor; HTMX_VERSION=2.0.11 pins a version
 ```
 
@@ -183,11 +184,12 @@ make assets         # update htmx, the fonts and Swagger UI in static/vendor; HT
 |---|---|
 | `packages/snapdelta` | Core: sources, snapshots, compare and profiles, stores, formats, inventory, settings, activity, CLI |
 | `packages/snapdelta-web` | Web UI, JSON API and MCP server: FastAPI, Jinja2, htmx, MCP SDK (`snapdelta-web` and `snapdelta-mcp` commands) |
+| `packages/snapdelta-postgres` | The PostgreSQL store backend, a plugin of the group `snapdelta.stores` |
 | `examples/minimal-plugin` | Example plugin: models, a JSON source, a fetching source, samples, an inventory; used by the tests |
 | `lab/example` | Lab: containerlab topology (FRR and SR Linux), the `frr` and `srlinux` sources, an inventory, the scenario script; its own uv project |
 | `docs/` | The guides above |
 | `skills/snapdelta` | The skill for AI agents that use the CLI |
-| `scripts/` | `update-assets.sh`: download and check the files of `static/vendor` |
+| `scripts/` | `update-assets.sh`: download and check the files of `static/vendor`; `test-postgres.sh`: the tests of the PostgreSQL store against a server in a container |
 | `.github/workflows` | `ci.yml`: tests on Python 3.13 and 3.14, and lint; `publish.yml`: publish both packages to PyPI when a GitHub release is published |
 
 ## License

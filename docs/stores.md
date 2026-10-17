@@ -1,11 +1,12 @@
 # Stores: where snapshots and diffs are saved
 
-snapdelta saves every snapshot and every diff output in a store. Two backends exist; both keep the same JSON documents, so you can change the backend without losing data.
+snapdelta saves every snapshot, every diff output and every run in a store. Two backends are built in and a third is a package of this repository; all keep the same JSON documents, so you can change the backend without losing data.
 
 | Backend | Location | Choose it when |
 |---|---|---|
 | File store (`FileStore`) | a directory: one JSON file per snapshot and per output | you want to read the files, back them up with any tool, or keep them in git (private repositories only) |
-| SQLite store (`SqliteStore`) | one SQLite file | you have many targets and snapshots, or several processes write at the same time |
+| SQLite store (`SqliteStore`) | one SQLite file | you have many targets and snapshots, or several processes of one machine write at the same time |
+| PostgreSQL store (`snapdelta-postgres`) | a PostgreSQL database | several servers share the store, or the database is where your team keeps its data and its backups |
 
 ## Choose the store
 
@@ -25,6 +26,22 @@ snapdelta info
 ```
 
 `sqlite://` is followed by the path of the file: `sqlite:///data/snapdelta.db` is the absolute path `/data/snapdelta.db`, `sqlite://snapdelta.db` is relative to the current directory. snapdelta creates the file and its tables on first use.
+
+### PostgreSQL
+
+The PostgreSQL backend is the package `snapdelta-postgres`, a plugin of the group `snapdelta.stores` (`pip install snapdelta-postgres`). The location is a libpq URI without its password: snapdelta shows the location in its pages and its runs, so it refuses a location with a password. Give the password in the settings, or in `PGPASSWORD` or `~/.pgpass`:
+
+```toml
+[store]
+location = "postgresql://snapdelta@db.example.net:5432/snapdelta?sslmode=require"
+
+[stores.postgresql]
+password = { env = "SNAPDELTA_DB_PASSWORD" }   # any secret backend
+connect_timeout_s = 10
+pool_size = 4                                   # the connections kept open, for the requests at once
+```
+
+The store creates its tables `snapdelta_snapshots`, `snapdelta_outputs` and `snapdelta_runs` at its first use, with the columns of the SQLite store and the documents as `jsonb`. The database user needs the right to create tables. `make test-postgres` runs its tests against a server in a container.
 
 ## Names
 
@@ -103,7 +120,7 @@ for target in store.targets():
     print(target, [entry.reference for entry in store.snapshot_entries(target)])
 ```
 
-## Move a store to the other backend
+## Move a store to another backend
 
 ```python
 from snapdelta.store import open_store

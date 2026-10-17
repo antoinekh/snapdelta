@@ -2,7 +2,7 @@
 name = "snapdelta-workspace"
 version = "0.0.0"
 requires-python = ">=3.13"
-dependencies = ["snapdelta", "snapdelta-web", "snapdelta-example"]
+dependencies = ["snapdelta", "snapdelta-web", "snapdelta-postgres", "snapdelta-example"]
 
 [tool.uv]
 package = false
@@ -15,6 +15,7 @@ exclude = ["lab/*"]
 [tool.uv.sources]
 snapdelta = { workspace = true }
 snapdelta-web = { workspace = true }
+snapdelta-postgres = { workspace = true }
 snapdelta-example = { workspace = true }
 
 [dependency-groups]
@@ -28,13 +29,13 @@ target-version = "py313"
 select = ["E", "F", "W", "B", "UP", "I"]
 
 [tool.ruff.lint.isort]
-known-first-party = ["snapdelta", "snapdelta_web", "snapdelta_example"]
+known-first-party = ["snapdelta", "snapdelta_web", "snapdelta_postgres", "snapdelta_example"]
 
 [tool.pytest.ini_options]
 testpaths = ["packages", "examples"]
 addopts = "--import-mode=importlib"
 
 [tool.pyright]
-include = ["packages/snapdelta/src", "packages/snapdelta-web/src", "examples/minimal-plugin/src"]
+include = ["packages/snapdelta/src", "packages/snapdelta-web/src", "packages/snapdelta-postgres/src", "examples/minimal-plugin/src"]
 pythonVersion = "3.13"
 typeCheckingMode = "standard"

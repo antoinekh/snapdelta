@@ -9,7 +9,7 @@ from snapdelta.store import STORES, FileStore, SqliteStore
 
 
 def test_the_built_ins_are_entry_points_of_snapdelta() -> None:
-    assert plugins(STORES) == {"file": FileStore, "sqlite": SqliteStore}
+    assert {"file": FileStore, "sqlite": SqliteStore}.items() <= plugins(STORES).items()
     assert plugins(INVENTORIES) == {"nornir": NornirInventory}
     assert set(plugins(RENDERERS)) == {"csv", "json", "markdown", "text"}
     for point, name in ((STORES, "file"), (RENDERERS, "text"), (INVENTORIES, "nornir")):
