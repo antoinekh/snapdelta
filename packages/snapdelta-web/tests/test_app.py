@@ -520,6 +520,19 @@ def test_the_models_tab_lists_the_models_of_each_set_of_sources(client) -> None:
     assert 'href="/admin/models"' in client.get("/admin/profiles").text
 
 
+def test_the_plugins_tab_shows_each_extension_point_with_its_problems(client) -> None:
+    from snapdelta.plugins import register_plugin
+    from snapdelta.render import RENDERERS, Renderer
+
+    register_plugin(RENDERERS, "crash", Renderer("text/plain", "txt", lambda output: str(1 / 0)))
+    page = client.get("/admin/plugins")
+    assert page.status_code == 200 and 'aria-current="page" href="/admin/plugins"' in page.text
+    for group in ("snapdelta.sources", "snapdelta.stores", "snapdelta.renderers", "snapdelta.inventories"):
+        assert f'<span class="tag mono">{group}</span>' in page.text
+    assert 'id="plugin-stores-sqlite"' in page.text and 'id="plugin-sources-example-live"' in page.text
+    assert "render() fails on a sample diff: ZeroDivisionError" in page.text
+
+
 def test_the_chips_count_the_selected_model(client, names, store) -> None:
     output = store.load_output(names.same)
     vlan = dict(views.model_deltas(output))["vlan"]

@@ -51,6 +51,7 @@ allowed_hosts = ["10.0.0.5", "snapdelta.lab"]   # required on the network; "*" a
 | Call | What it does |
 |---|---|
 | `GET /api/v1/version` | Versions of snapdelta, the web UI, diffsync, Python and the plugins |
+| `GET /api/v1/plugins` | Every plugin of every extension point, the built-ins and the broken ones included, with the problems that `snapdelta doctor` finds |
 | `GET /api/v1/sources` | The installed sources, and whether each fetches its data |
 | `GET /api/v1/targets?q=R` | The targets that have snapshots |
 | `GET /api/v1/snapshots?target=R1` | The snapshots of one target, newest first |

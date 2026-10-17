@@ -15,9 +15,10 @@ from diffsync.logging import enable_console_logging
 from .about import version_line
 from .activity import configure_logging
 from .catalog import catalog
+from .doctor import PluginReport, diagnose, plugin_reports
 from .errors import SnapdeltaError
 from .output import Output, new_review
-from .plugins import package_of
+from .plugins import Problem, Severity, package_of
 from .render import Renderer, render_snapshot, renderer
 from .settings import Settings, load_settings, setting_rows
 from .source import SOURCES, Source, broken_sources, require_source, source_classes
@@ -136,6 +137,54 @@ def list_sources() -> None:
         typer.echo(f"{name}\t{package_of(SOURCES, name)}\t{'fetches' if cls.fetches else 'files'}")
     for name, error in sorted(broken_sources().items()):
         typer.echo(f"warning: source {name} cannot load: {error}", err=True)
+
+
+@app.command("plugins")
+@handle_errors
+def list_plugins(as_json: Json = False) -> None:
+    """List the plugins of every extension point, the built-ins included, with their package and status."""
+    reports = plugin_reports()
+    if as_json:
+        typer.echo(json.dumps([_report_json(report) for report in reports], indent=2))
+        return
+    for report in reports:
+        typer.echo(f"{report.kind}\t{report.name}\t{_package(report)}\t{report.severity}")
+
+
+@app.command("doctor")
+def doctor(ctx: typer.Context, as_json: Json = False) -> None:
+    """Check each plugin against its interface, then the settings, store and inventory; exit code 1 on an error."""
+    runtime: Runtime = ctx.obj
+    diagnosis = diagnose(runtime.settings_file, runtime.store_option)
+    errors, warnings = diagnosis.count(Severity.ERROR), diagnosis.count(Severity.WARNING)
+    if as_json:
+        checks = [{**asdict(check), "severity": check.severity} for check in diagnosis.checks]
+        plugins = [_report_json(report) for report in diagnosis.plugins]
+        typer.echo(json.dumps({"errors": errors, "warnings": warnings, "plugins": plugins, "checks": checks}, indent=2))
+        raise typer.Exit(0 if diagnosis.healthy else 1)
+    typer.echo("plugins:")
+    for report in diagnosis.plugins:
+        typer.echo(f"  {report.severity:<8} {report.kind} {report.name} ({_package(report)})")
+        _print_problems(report.problems)
+    typer.echo("setup:")
+    for check in diagnosis.checks:
+        typer.echo(f"  {check.severity:<8} {check.subject}: {check.detail}")
+        _print_problems(check.problems)
+    typer.echo(f"{errors} errors, {warnings} warnings")
+    raise typer.Exit(0 if diagnosis.healthy else 1)
+
+
+def _report_json(report: PluginReport) -> dict[str, object]:
+    return {**asdict(report), "severity": report.severity}
+
+
+def _package(report: PluginReport) -> str:
+    return f"{report.package} {report.version or ''}".strip() if report.package else "registered in code"
+
+
+def _print_problems(problems: list[Problem]) -> None:
+    for problem in problems:
+        typer.echo(f"           {problem.severity}: {problem.message}")
 
 
 @app.command("models")

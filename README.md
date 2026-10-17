@@ -93,6 +93,7 @@ uv run snapdelta --store /tmp/snapdelta-demo diff R1@demo R2@demo
 | `delete`, `prune`, `info` | Delete snapshots or outputs; keep the N newest or the last days; show the store |
 | `activity [RUN]` | The runs: each snapshot and saved diff, from the CLI, the web UI, the API or MCP, with the log of its loads |
 | `sources`, `models`, `inventory` | The installed sources; their models and attributes; the hosts of the inventory |
+| `plugins`, `doctor` | The plugins of every extension point; a check of each plugin against its interface, then of the settings, the store and the inventory (exit code 1 on an error) |
 | `settings` | The settings in use and where each value comes from |
 
 `diff` and `output` exit with `0` (no difference), `1` (differences) or `2` (error), so a script can check a change. Run `uv run snapdelta COMMAND --help` for every option.

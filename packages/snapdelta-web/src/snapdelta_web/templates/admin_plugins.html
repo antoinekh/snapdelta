@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+{% block title %}Plugins · snapdelta{% endblock %}
+{% block content %}
+<div class="title-row"><h1>Admin</h1></div>
+{% include "_admin_nav.html" %}
+{% for point, reports in points %}
+<section class="panel" id="plugins-{{ point.table or point.group }}">
+  <h2>{{ point.kind | capitalize }}s <span class="tag mono">{{ point.group }}</span></h2>
+  <div class="scroll">
+    <table class="list dense">
+      <thead><tr><th>Name</th><th>Package</th><th>Version</th><th>Status</th><th>Problems</th></tr></thead>
+      <tbody>
+        {% for report in reports %}
+        <tr id="plugin-{{ point.table or point.group }}-{{ report.name }}">
+          <td class="mono strong">{{ report.name }}</td>
+          <td class="mono">{{ report.package or "registered in code" }}</td>
+          <td class="mono">{{ report.version or "" }}</td>
+          <td>{% if report.severity == "error" %}<span class="error">error</span>{% elif report.severity == "warning" %}<span class="warn-text">warning</span>{% else %}<span class="tag">ok</span>{% endif %}</td>
+          <td class="small">{% for problem in report.problems %}<div>{{ problem.message }}</div>{% endfor %}</td>
+        </tr>
+        {% else %}
+        <tr><td colspan="5" class="muted">none</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+{% endfor %}
+{% endblock %}

@@ -22,7 +22,7 @@ snapdelta takes snapshots of targets (routers, services) through source plugins,
 - In a uv project, run every command with `uv run` (`uv run snapdelta ...`): the sources are plugins installed in the environment of the project.
 - Run the commands in the directory of the `snapdelta.toml` of the project, or give `--settings PATH`: it names the store, the inventory and the profiles.
 - `snapdelta settings` shows the settings file and the store in use. `file: none, defaults` means no project settings and the default store `~/.local/share/snapdelta`: ask the user if this is the right place before you take snapshots.
-- `snapdelta inventory` lists the targets with their platform (the source) and their groups; `snapdelta sources` lists the installed sources.
+- `snapdelta inventory` lists the targets with their platform (the source) and their groups; `snapdelta sources` lists the installed sources; `snapdelta doctor` checks the plugins, the settings, the store and the inventory when a command fails for no clear reason.
 - No project yet: follow `docs/getting-started.md`, or show the demo of the README (the example plugin, in the web UI).
 - A snapshot reference is `TARGET/NAME`, `TARGET@latest`, or `TARGET@LABEL` (the newest snapshot with that label, for example `r1@before`).
 

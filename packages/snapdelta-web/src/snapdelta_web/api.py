@@ -10,6 +10,7 @@ from pydantic import BaseModel, Field
 
 from snapdelta.about import components, package_version, plugins
 from snapdelta.activity import Run, RunStatus
+from snapdelta.doctor import plugin_reports
 from snapdelta.errors import NotFoundError, SnapdeltaError
 from snapdelta.output import Output, Review, Side, new_review
 from snapdelta.plugins import package_of
@@ -30,6 +31,21 @@ class Component(BaseModel):
     name: str
     version: str
     plugins: list[str] = []
+
+
+class ProblemItem(BaseModel):
+    severity: str
+    message: str
+
+
+class PluginItem(BaseModel):
+    group: str = Field(description="The entry point group, such as snapdelta.stores.")
+    kind: str
+    name: str
+    package: str | None = Field(description="The package that gives the plugin; null for one registered in code.")
+    version: str | None
+    severity: str = Field(description="ok, warning or error: the worst problem of `snapdelta doctor`.")
+    problems: list[ProblemItem]
 
 
 class VersionInfo(BaseModel):
@@ -194,6 +210,22 @@ def create_api(state: AppState, row_cache: LruCache[Any, Any]) -> FastAPI:
             components=[Component(**vars(item)) for item in components(["snapdelta-web"])],
             plugins=[Component(**vars(item)) for item in plugins()],
         )
+
+    @api.get("/plugins")
+    def plugins_list() -> list[PluginItem]:
+        """Every plugin of every extension point, the built-ins and the broken ones included, with its problems."""
+        return [
+            PluginItem(
+                group=report.group,
+                kind=report.kind,
+                name=report.name,
+                package=report.package,
+                version=report.version,
+                severity=report.severity,
+                problems=[ProblemItem(severity=item.severity, message=item.message) for item in report.problems],
+            )
+            for report in plugin_reports()
+        ]
 
     @api.get("/sources")
     def sources() -> list[SourceInfo]:

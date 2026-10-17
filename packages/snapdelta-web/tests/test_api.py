@@ -17,6 +17,20 @@ def guarded(store, make_app) -> TestClient:
     return TestClient(make_app(store, settings), base_url="http://127.0.0.1")
 
 
+def test_the_plugins_of_every_extension_point(api) -> None:
+    found = {(item["group"], item["name"]): item for item in api.get("/api/v1/plugins").json()}
+    assert found[("snapdelta.stores", "file")]["package"] == "snapdelta"
+    assert found[("snapdelta.sources", "example")] | {"version": None} == {
+        "group": "snapdelta.sources",
+        "kind": "source",
+        "name": "example",
+        "package": "snapdelta-example",
+        "version": None,
+        "severity": "ok",
+        "problems": [],
+    }
+
+
 def test_a_pipeline_takes_before_and_after_then_compares(api) -> None:
     assert "snapdelta" in [item["name"] for item in api.get("/api/v1/version").json()["components"]]
     assert {"name": "example-live", "distribution": "snapdelta-example", "fetches": True} in api.get(

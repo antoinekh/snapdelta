@@ -16,7 +16,17 @@ from .activity import LogLine
 from .errors import LoadError
 from .inputs import InputFile
 from .inventory import Host
-from .plugins import ExtensionPoint, discover, package_of, plugins, register_plugin, require
+from .plugins import (
+    ExtensionPoint,
+    Problem,
+    Severity,
+    discover,
+    package_of,
+    plugins,
+    register_plugin,
+    require,
+    settings_problems,
+)
 from .settings import SourceSettings
 
 
@@ -177,12 +187,36 @@ def _check_source(name: str, value: Any) -> str | None:
     return None
 
 
+def _inspect_source(name: str, cls: type[Source]) -> list[Problem]:
+    problems = settings_problems(cls, SourceSettings)
+    if cls.load is Adapter.load:
+        problems.append(Problem(Severity.ERROR, "load() has no code: it must fill the models of one target"))
+    if not cls.top_level:
+        problems.append(Problem(Severity.ERROR, "top_level is empty: a compare would have no model"))
+    seen = set(cls.top_level)
+    parents: list[tuple[str, str | None]] = [(model, None) for model in cls.top_level]
+    while parents:
+        model_name, parent = parents.pop()
+        model = getattr(cls, model_name, None)
+        if not (isinstance(model, type) and issubclass(model, DiffSyncModel)):
+            # diffsync checks the top-level models only; a missing child fails later, at the first load.
+            where = f"{parent}: its child" if parent else "top_level names"
+            problems.append(Problem(Severity.ERROR, f"{where} {model_name!r}, which is not a model of the source"))
+            continue
+        for child in model.get_children_mapping():
+            if child not in seen:
+                seen.add(child)
+                parents.append((child, model_name))
+    return problems
+
+
 SOURCES: ExtensionPoint[type[Source]] = ExtensionPoint(
     group="snapdelta.sources",
     kind="source",
     interface="snapdelta.source.Source",
     table="sources",
     check=_check_source,
+    inspect=_inspect_source,
 )
 
 

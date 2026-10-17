@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+### Added
+
+- `snapdelta doctor` checks each plugin against its interface (a source with no `load()` or a child model that is not one of its models, a store backend with methods left abstract, a format that fails on a sample diff, settings classes of the wrong kind), then the settings, the store, the inventory and the models that two sources name the same way; exit code 1 on an error, `--json` for a pipeline.
+- `snapdelta plugins`, **Admin > Plugins** and `GET /api/v1/plugins` list the plugins of every extension point, the built-ins and the broken ones included, with their package, version and problems.
+
 ### Changed
 
 - One plugin registry, `snapdelta.plugins`, for the four entry point groups, and the built-in stores, formats and Nornir inventory are entry points of the `snapdelta` package. A store backend, a format or an inventory format that cannot load is left out with its error, as a source already was, instead of a traceback; so is a plugin of the wrong kind, a name that two packages give, and a source whose `source` is not its entry point name.

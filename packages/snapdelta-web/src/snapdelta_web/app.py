@@ -21,8 +21,10 @@ from starlette.middleware.trustedhost import TrustedHostMiddleware
 from snapdelta.about import CHANGELOG_URL, DOCS_URL, ISSUES_URL, PROJECT_URL, components, package_version, plugins
 from snapdelta.activity import configure_logging
 from snapdelta.catalog import catalog
+from snapdelta.doctor import plugin_reports
 from snapdelta.errors import NotFoundError, SnapdeltaError
 from snapdelta.output import Output, common_models, new_review, skipped_models
+from snapdelta.plugins import extension_points
 from snapdelta.render import renderer, renderers
 from snapdelta.settings import Auth, Settings, SettingsError, save_settings, user_settings_path
 from snapdelta.snapshot import top_level_models
@@ -687,6 +689,12 @@ def create_app(state: AppState) -> FastAPI:
     def models_page(request: Request) -> HTMLResponse:
         context = {"tab": "admin", "section": "models", "sets": catalog(source_classes()), "broken": broken_sources()}
         return render(request, "admin_models.html", context)
+
+    @app.get("/admin/plugins", response_class=HTMLResponse)
+    def plugins_page(request: Request) -> HTMLResponse:
+        reports = plugin_reports()
+        points = [(point, [item for item in reports if item.group == point.group]) for point in extension_points()]
+        return render(request, "admin_plugins.html", {"tab": "admin", "section": "plugins", "points": points})
 
     @app.get("/admin/profiles", response_class=HTMLResponse)
     def profiles_page(request: Request, saved: str | None = None) -> HTMLResponse:

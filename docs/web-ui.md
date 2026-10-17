@@ -64,7 +64,8 @@ The log holds the messages that the source plugins write with the standard `logg
 | Profiles | One group per profile, with help on each field |
 | Inventory | The groups, and each host with its platform, source and data |
 | Models | The models of the installed sources: identifiers, attributes, fields not compared, children |
-| About | The versions, the plugins, this server and the project links |
+| Plugins | Every plugin of each extension point: its package, its version, and the problems that `snapdelta doctor` finds |
+| About | The versions, the plugin packages, this server and the project links |
 
 ![Admin, Store: the store and pruning](images/screenshots/admin-store.png)
 

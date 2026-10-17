@@ -7,11 +7,12 @@ import io
 import json
 from collections.abc import Callable, Iterator
 from dataclasses import dataclass
+from datetime import UTC, datetime
 from typing import Any
 
 from .errors import SnapdeltaError
 from .output import Output, Side
-from .plugins import ExtensionPoint, plugins, require
+from .plugins import ExtensionPoint, Problem, Severity, plugins, require
 from .source import Source
 
 OWN = ("-", "+")
@@ -241,12 +242,53 @@ def _check_renderer(name: str, value: Any) -> str | None:
     return None if isinstance(value, Renderer) else f"not a snapdelta.render.Renderer: {value!r}"
 
 
+def sample_output() -> Output:
+    """A small output with one change of each kind, to try a format on."""
+    moment = datetime(2026, 1, 1, tzinfo=UTC)
+    sides = [Side(target=name, source="sample", label=None, captured_at=moment, snapshot=None) for name in ("R1", "R2")]
+    diff = {
+        "interface": {
+            "eth0": {"-": {"mtu": 1500}, "+": {"mtu": 9000}},
+            "eth1": {"-": {}},
+            "eth2": {"+": {}},
+        }
+    }
+    summary = {"create": 1, "update": 1, "delete": 1, "no-change": 0}
+    return Output(
+        created_at=moment,
+        versions={},
+        left=sides[0],
+        right=sides[1],
+        compared=["interface"],
+        skipped=[],
+        summary=summary,
+        diff=diff,
+    )
+
+
+def _inspect_renderer(name: str, value: Renderer) -> list[Problem]:
+    problems = []
+    if "/" not in value.media_type:
+        problems.append(Problem(Severity.ERROR, f"media_type {value.media_type!r} is not a type such as text/plain"))
+    if not value.suffix or value.suffix.startswith("."):
+        problems.append(Problem(Severity.WARNING, f"suffix {value.suffix!r}: give the file suffix without a dot"))
+    try:
+        text = value.render(sample_output())
+    except Exception as error:
+        problems.append(Problem(Severity.ERROR, f"render() fails on a sample diff: {type(error).__name__}: {error}"))
+    else:
+        if not isinstance(text, str):
+            problems.append(Problem(Severity.ERROR, f"render() must return text, not {type(text).__name__}"))
+    return problems
+
+
 RENDERERS: ExtensionPoint[Renderer] = ExtensionPoint(
     group="snapdelta.renderers",
     kind="output format",
     interface="snapdelta.render.Renderer",
     table=None,
     check=_check_renderer,
+    inspect=_inspect_renderer,
 )
 
 

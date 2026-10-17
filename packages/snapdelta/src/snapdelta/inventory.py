@@ -12,7 +12,7 @@ from typing import Any, ClassVar
 import yaml
 
 from .errors import SnapdeltaError
-from .plugins import ExtensionPoint, plugins, require, subclass_check
+from .plugins import ExtensionPoint, Problem, abstract_problems, plugins, require, settings_problems, subclass_check
 from .settings import InventoryFormatSettings
 
 # The keys of a Nornir host, group or defaults entry, besides `groups` and `data`.
@@ -85,12 +85,17 @@ class NornirInventory(InventoryFormat):
         return load_nornir(Path(location))
 
 
+def _inspect_inventory(name: str, cls: type[InventoryFormat]) -> list[Problem]:
+    return abstract_problems(cls) + settings_problems(cls, InventoryFormatSettings)
+
+
 INVENTORIES: ExtensionPoint[type[InventoryFormat]] = ExtensionPoint(
     group="snapdelta.inventories",
     kind="inventory format",
     interface="snapdelta.inventory.InventoryFormat",
     table="inventories",
     check=subclass_check(InventoryFormat),
+    inspect=_inspect_inventory,
 )
 
 

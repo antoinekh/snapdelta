@@ -21,7 +21,16 @@ from .errors import NotFoundError, SnapdeltaError
 from .jsonfile import write_json
 from .output import SCHEMA as OUTPUT_SCHEMA
 from .output import Output, Review, described, load_output, reviewed, save_output
-from .plugins import ExtensionPoint, plugins, require, subclass_check
+from .plugins import (
+    ExtensionPoint,
+    Problem,
+    Severity,
+    abstract_problems,
+    plugins,
+    require,
+    settings_problems,
+    subclass_check,
+)
 from .settings import Settings, StoreBackendSettings
 from .snapshot import SCHEMA as SNAPSHOT_SCHEMA
 from .snapshot import (
@@ -392,12 +401,23 @@ class Store(ABC):
     def _delete_run(self, run_id: str) -> None: ...
 
 
+def _inspect_store(name: str, cls: type[Store]) -> list[Problem]:
+    problems = abstract_problems(cls) + settings_problems(cls, StoreBackendSettings)
+    backend = getattr(cls, "backend", None)
+    if not backend:
+        problems.append(Problem(Severity.ERROR, "the class attribute backend is not set: `snapdelta info` shows it"))
+    elif backend != name:
+        problems.append(Problem(Severity.WARNING, f"backend is {backend!r}: give it the name of its scheme, {name!r}"))
+    return problems
+
+
 STORES: ExtensionPoint[type[Store]] = ExtensionPoint(
     group="snapdelta.stores",
     kind="store backend",
     interface="snapdelta.store.Store",
     table="stores",
     check=subclass_check(Store),
+    inspect=_inspect_store,
 )
 
 

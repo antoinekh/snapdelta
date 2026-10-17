@@ -6,13 +6,32 @@ the commands that do not need it go on, and `snapdelta doctor` shows the error.
 
 from __future__ import annotations
 
+import inspect
 import threading
 from collections.abc import Callable
 from dataclasses import dataclass, field
+from enum import StrEnum
 from importlib.metadata import EntryPoint, entry_points
 from typing import Any
 
 from .errors import PluginError, SnapdeltaError
+
+
+class Severity(StrEnum):
+    OK = "ok"
+    # The plugin works, but a part of it will not do what its author meant.
+    WARNING = "warning"
+    ERROR = "error"
+
+
+@dataclass(frozen=True)
+class Problem:
+    severity: Severity
+    message: str
+
+
+def no_problems(name: str, value: Any) -> list[Problem]:
+    return []
 
 
 @dataclass(frozen=True)
@@ -28,6 +47,8 @@ class ExtensionPoint[T]:
     table: str | None
     # The problem of a value loaded under a name, or None when the value is a plugin of this group.
     check: Callable[[str, Any], str | None] = field(repr=False, compare=False)
+    # The deeper checks of `snapdelta doctor` on a plugin that passed `check`.
+    inspect: Callable[[str, T], list[Problem]] = field(default=no_problems, repr=False, compare=False)
 
 
 @dataclass(frozen=True)
@@ -151,6 +172,22 @@ def subclass_check(base: type) -> Callable[[str, Any], str | None]:
         return f"not a {base.__module__}.{base.__qualname__} subclass: {value!r}"
 
     return check
+
+
+def settings_problems(value: type, base: type) -> list[Problem]:
+    """The problems of the `settings_class` of a plugin class, whose settings must subclass `base`."""
+    chosen = getattr(value, "settings_class", None)
+    if not (isinstance(chosen, type) and issubclass(chosen, base)):
+        return [Problem(Severity.ERROR, f"settings_class must be a {base.__qualname__} subclass, not {chosen!r}")]
+    return []
+
+
+def abstract_problems(value: type) -> list[Problem]:
+    """An error when a plugin class leaves abstract methods of its interface without code."""
+    if not inspect.isabstract(value):
+        return []
+    missing = ", ".join(sorted(getattr(value, "__abstractmethods__", ())))
+    return [Problem(Severity.ERROR, f"these methods of the interface have no code: {missing}")]
 
 
 def extension_points() -> list[ExtensionPoint[Any]]:
