@@ -9,9 +9,11 @@
   <img src="https://img.shields.io/badge/version-0.1.0-3d5afe" alt="Version" />
   <img src="https://img.shields.io/badge/python-%3E%3D%203.13-blue" alt="Python version" />
   <img src="https://img.shields.io/badge/built%20on-diffsync-12876f" alt="Built on diffsync" />
+  <img src="https://img.shields.io/badge/architecture-plug--in-8a4baf" alt="Plug-in architecture" />
   <p>
     <strong><a href="docs/getting-started.md">Getting started</a></strong> |
     <strong><a href="docs/architecture.md">Architecture</a></strong> |
+    <strong><a href="docs/plugins.md">Plugins</a></strong> |
     <strong><a href="docs/profiles.md">Profiles</a></strong> |
     <strong><a href="docs/inventory.md">Inventory</a></strong> |
     <strong><a href="docs/api.md">API</a></strong> |
@@ -21,6 +23,8 @@
 </div>
 
 Take a snapshot of anything, then compare two snapshots. A plugin brings the [diffsync](https://github.com/networktocode/diffsync) models and a source: the way to get the data of one target, from input files, an API, NETCONF or SSH. snapdelta saves each load as a snapshot, compares two snapshots on their models, not on text, and shows the diff in a web UI, a CLI and an API.
+
+snapdelta is a plug-in architecture from end to end: the sources, the stores, the output formats, the inventories, the secret backends, the notifiers and the compare rules are all plugins, the built-in ones included. `snapdelta plugins new` writes a plugin package that works, and `snapdelta doctor` checks it. See [docs/plugins.md](docs/plugins.md).
 
 - **Before and after a change:** snapshot a device, apply the change, snapshot it again, and see exactly what changed.
 - **Before and after a migration:** two vendors fill the same models, so the diff shows what the new device does differently, not how each vendor writes it.
@@ -129,6 +133,7 @@ snapdelta reads `snapdelta.toml`: the file given with `--settings`, else `SNAPDE
 |---|---|
 | [getting-started.md](docs/getting-started.md) | Your own project, step by step: install, models, one source per vendor, inventory, settings, test data, web UI |
 | [architecture.md](docs/architecture.md) | The parts, a diff step by step, and the extension points |
+| [plugins.md](docs/plugins.md) | The plug-in architecture: each extension point, write and check a plugin, contract tests, add an extension point |
 | [output.md](docs/output.md) | The output document, the diff tree, the formats, the exit codes |
 | [profiles.md](docs/profiles.md) | Ignore, tolerance, counts, pairs: the rules of a compare |
 | [inventory.md](docs/inventory.md) | The optional Nornir inventory: groups, platforms, host data |
@@ -142,13 +147,28 @@ snapdelta reads `snapdelta.toml`: the file given with `--settings`, else `SNAPDE
 
 ## Write a plugin
 
-A plugin is a Python package with your diffsync models and a subclass of `snapdelta.source.Source`, declared in the entry point group `snapdelta.sources`. [docs/getting-started.md](docs/getting-started.md) writes one step by step, and `examples/minimal-plugin` is a small one to copy. Three rules:
+Every extension point of snapdelta is an entry point group. A plugin package declares its plugins in its `pyproject.toml`, and snapdelta finds them once the package is installed:
+
+| Entry point group | A plugin gives | Built in |
+|---|---|---|
+| `snapdelta.sources` | the models and the load of the data of one target | none: `examples/minimal-plugin` |
+| `snapdelta.stores` | a place for the snapshots, the diffs and the runs | `file`, `sqlite` |
+| `snapdelta.renderers` | an output format | `text`, `json`, `markdown`, `csv` |
+| `snapdelta.inventories` | an inventory format: the hosts, their platform and groups | `nornir` |
+| `snapdelta.secrets` | a place for the passwords and tokens of the settings | `env`, `file` |
+| `snapdelta.notifiers` | a message after each run | `webhook`, `command` |
+| `snapdelta.rules` | a compare rule: two values written in two ways that mean the same | `case-insensitive`, `whitespace`, `unordered`, `ip-address` |
+
+```bash
+snapdelta plugins new acme --kind source --kind store   # a package with a working plugin of each kind, and its tests
+snapdelta doctor                                         # each plugin against its interface, then the settings and the store
+```
+
+The contract tests of `snapdelta.testing` (`StoreContract`, `SourceContract`) give a plugin the tests that every plugin of its kind must pass. [docs/plugins.md](docs/plugins.md) is the guide, and [docs/getting-started.md](docs/getting-started.md) writes a project with two sources step by step. For a source, three rules:
 
 - Both sides must give the same value for the same meaning: normalize names, units and defaults in `load()`, sort lists, and use `None` when the data gives no value. Put the input fields that no attribute maps in `unmapped`.
 - A source that fetches (`fetches = True`) can list the targets that it reaches with the class method `targets()`, for the pickers of the web UI and `--all-targets`.
 - A snapshot names its source, so keep the plugin installed to read its snapshots.
-
-A plugin can also add a store backend, an output format or an inventory format: see [docs/architecture.md](docs/architecture.md#plugin-architecture).
 
 ## Develop
 

@@ -1,12 +1,12 @@
 [project]
 name = "snapdelta"
 version = "0.1.0"
-description = "Snapshot your devices and services, then see exactly what changed: CLI and Python API, built on diffsync"
+description = "Snapshot your devices and services, then see exactly what changed: a plug-in architecture, CLI and Python API, built on diffsync"
 readme = "README.md"
 requires-python = ">=3.13"
 license = "Apache-2.0"
 authors = [{ name = "Antoine Keranflec'h", email = "antoine.keranflech@gmail.com" }]
-keywords = ["network-automation", "netdevops", "snapshot", "diff", "diffsync", "nornir"]
+keywords = ["network-automation", "netdevops", "snapshot", "diff", "diffsync", "nornir", "plugin-architecture"]
 classifiers = [
     "Development Status :: 3 - Alpha",
     "Environment :: Console",

@@ -6,6 +6,8 @@
 
 Take a snapshot of anything, then compare two snapshots. A plugin brings the [diffsync](https://github.com/networktocode/diffsync) models and a source: the way to get the data of one target, from input files, an API, NETCONF or SSH. snapdelta saves each load as a snapshot, compares two snapshots on their models, not on text, and shows what changed.
 
+snapdelta is a plug-in architecture: the sources, the stores, the formats, the inventories, the secret backends, the notifiers and the compare rules are plugins, the built-in ones included. `snapdelta plugins new NAME` writes a plugin package that works, `snapdelta doctor` checks it, and `snapdelta.testing` gives it contract tests.
+
 This package is the core and the `snapdelta` CLI. The web UI, the JSON API and the MCP server are in [snapdelta-web](https://pypi.org/project/snapdelta-web/).
 
 ## Install
@@ -30,7 +32,8 @@ snapdelta diff R1@before R1@after
 
 - [Getting started](https://github.com/antoinekh/snapdelta/blob/main/docs/getting-started.md): your own project, step by step
 - [Architecture](https://github.com/antoinekh/snapdelta/blob/main/docs/architecture.md): the parts and the extension points
-- [Profiles](https://github.com/antoinekh/snapdelta/blob/main/docs/profiles.md): ignore, tolerance, counts, pairs
+- [Plugins](https://github.com/antoinekh/snapdelta/blob/main/docs/plugins.md): each extension point, write and check a plugin
+- [Profiles](https://github.com/antoinekh/snapdelta/blob/main/docs/profiles.md): ignore, rules, tolerance, counts, pairs
 - [Inventory](https://github.com/antoinekh/snapdelta/blob/main/docs/inventory.md): the optional Nornir inventory
 - [Settings](https://github.com/antoinekh/snapdelta/blob/main/docs/settings.md): every key of `snapdelta.toml`
 - [Changelog](https://github.com/antoinekh/snapdelta/blob/main/CHANGELOG.md)

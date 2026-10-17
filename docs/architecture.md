@@ -4,41 +4,46 @@ snapdelta is a small core with seven extension points. A plugin brings what depe
 
 ## Plugin architecture
 
-snapdelta is a plugin architecture, by design. The entry point groups (`snapdelta.sources`, `snapdelta.stores`, `snapdelta.renderers`, `snapdelta.inventories`, `snapdelta.secrets`, `snapdelta.notifiers`, `snapdelta.rules`) are part of the product, not options to remove when only the built-in implementations use them.
+snapdelta is a plug-in architecture, by design: a small core, and seven entry point groups that plugins fill. [plugins.md](plugins.md) has the whole guide: each group, how to write and check a plugin, and how to add a group. The rules:
 
-- **The built-ins are plugins too.** The `snapdelta` package declares `FileStore`, `SqliteStore`, the four formats, the Nornir inventory the `env` and `file` secret backends the `webhook` and `command` notifiers and the four compare rules as entry points in its own `pyproject.toml`, and the core finds them through the same registry as an installed plugin, never as a special case.
-- **One registry.** `snapdelta.plugins` reads each entry point group once per process. A plugin that cannot load, that is not of the kind of its group, or whose name another package also gives is left out as broken, with its error: the other plugins and the commands that do not need it go on. A source whose `source` attribute is not its entry point name is broken too, because its snapshots could not be read again.
-- **The store stays pluggable.** Users can write their own store backend, and the project will add new ones later. The `Store` class is a public interface: the core, the CLI and the web UI use only its methods, never a backend class or a file on disk.
-- **A plugin gets what a built-in gets.** Each extension point gives its plugins the same means as the built-ins: a registry entry, its own settings, and its place in the CLI, the web UI and the docs.
+- **The built-ins are plugins too.** The `snapdelta` package declares its stores, formats, inventory format, secret backends, notifiers and compare rules as entry points in its own `pyproject.toml`, and the core finds them through the same registry as an installed plugin, never as a special case.
+- **One registry.** `snapdelta.plugins` reads each group once per process. A plugin that cannot load, that is not of the kind of its group, or whose name another package also gives is left out as broken, with its error: the other plugins and the commands that do not need it go on.
+- **The store stays pluggable.** The `Store` class is a public interface: the core, the CLI and the web UI use only its methods, never a backend class or a file on disk.
+- **A plugin gets what a built-in gets.** A registry entry, its own settings table, its place in `snapdelta plugins`, `snapdelta doctor`, **Admin > Plugins** and the docs, contract tests, and a template in `snapdelta plugins new`.
 - **A new extension point needs a use.** Add one when a second implementation is planned, not before.
+- **Never remove an extension point** because only the built-ins use it: the groups are part of the product.
 
 ## Parts
 
 ```mermaid
 flowchart TB
-    subgraph plugin["Plugin packages (entry points)"]
-        S["snapdelta.sources<br/>Source subclass: diffsync models + load()"]
-        B["snapdelta.stores<br/>Store subclass for a location scheme"]
+    subgraph plugin["Plugin packages (entry points), the built-ins included"]
+        S["snapdelta.sources<br/>Source: diffsync models + load()"]
+        B["snapdelta.stores<br/>Store for a location scheme"]
         F["snapdelta.renderers<br/>Renderer: a format of an output"]
-        I["snapdelta.inventories<br/>InventoryFormat subclass: load()"]
+        I["snapdelta.inventories<br/>InventoryFormat: load()"]
+        K["snapdelta.secrets<br/>SecretBackend: read()"]
+        N["snapdelta.notifiers<br/>Notifier: send()"]
+        R["snapdelta.rules<br/>Rule: same()"]
     end
     subgraph core["snapdelta (core)"]
+        PL["plugins.py + doctor.py<br/>registry, checks"]
         SN["snapshot.py<br/>SnapshotFile, StoredSource"]
         CO["output.py + profile.py<br/>compare(), Output, profiles"]
         ST["store.py<br/>Store, FileStore, SqliteStore"]
         RE["render.py<br/>text, json, markdown, csv"]
         TA["take.py + parallel.py<br/>loads of one or many targets"]
-        SE["settings.py<br/>snapdelta.toml"]
+        AC["activity.py + notify.py<br/>runs, notifiers"]
+        SE["settings.py + secrets.py<br/>snapdelta.toml, secrets"]
         IN["inventory.py<br/>Inventory, Nornir"]
     end
     CLI["snapdelta (CLI)"]
     WEB["snapdelta-web (FastAPI, htmx)"]
-    S --> TA
-    B --> ST
-    F --> RE
-    I --> IN
+    plugin --> PL
+    PL --> TA & ST & RE & IN & SE & AC & CO
     IN --> TA
     TA --> SN --> ST
+    TA --> AC --> ST
     ST --> CO --> RE
     SE --> TA & ST & CO
     CLI --> core
@@ -54,6 +59,9 @@ flowchart TB
 | Store | Where snapshots and outputs go: a directory, a SQLite file, or a plugin backend. See [stores.md](stores.md). |
 | Profile | The rules of a compare: ignore, tolerance, counts, pairs, skip one side. See [profiles.md](profiles.md). |
 | Renderer | A format of an output: `text`, `json`, `markdown`, `csv`, or a plugin format. |
+| Secret backend | Where a password or a token of the settings comes from: `env`, `file`, or a plugin backend. See [settings.md](settings.md#secrets). |
+| Notifier | What gets each run that its filter matches: `webhook`, `command`, or a plugin notifier. See [settings.md](settings.md#notifiers). |
+| Rule | Two values written in two ways that mean the same, for a profile: `case-insensitive`, `ip-address`, or a plugin rule. See [profiles.md](profiles.md#rules). |
 | Inventory | The hosts, their platform and groups: a Nornir directory, or a plugin format. See [inventory.md](inventory.md). |
 
 ## A diff, step by step

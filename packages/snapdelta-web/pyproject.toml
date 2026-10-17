@@ -6,7 +6,7 @@ readme = "README.md"
 requires-python = ">=3.13"
 license = "Apache-2.0"
 authors = [{ name = "Antoine Keranflec'h", email = "antoine.keranflech@gmail.com" }]
-keywords = ["network-automation", "netdevops", "snapshot", "diff", "diffsync", "mcp", "fastapi"]
+keywords = ["network-automation", "netdevops", "snapshot", "diff", "diffsync", "mcp", "fastapi", "plugin-architecture"]
 classifiers = [
     "Development Status :: 3 - Alpha",
     "Environment :: Web Environment",
