@@ -24,8 +24,9 @@ from snapdelta.catalog import catalog
 from snapdelta.doctor import plugin_reports
 from snapdelta.errors import NotFoundError, SnapdeltaError
 from snapdelta.output import Output, common_models, new_review, skipped_models
-from snapdelta.plugins import extension_points
+from snapdelta.plugins import discover, extension_points
 from snapdelta.render import renderer, renderers
+from snapdelta.secrets import SECRETS
 from snapdelta.settings import Auth, Settings, SettingsError, save_settings, user_settings_path
 from snapdelta.snapshot import top_level_models
 from snapdelta.source import Source, broken_sources, source_classes
@@ -756,6 +757,7 @@ def create_app(state: AppState) -> FastAPI:
             "failure": None,
             "saved": None,
             "restart": False,
+            "secret_backends": sorted(discover(SECRETS).plugins),
         } | extra
 
     @app.get("/admin", response_class=HTMLResponse)

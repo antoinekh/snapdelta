@@ -108,7 +108,9 @@ def test_with_a_token_any_host_name_works_unless_listed(store, make_app) -> None
 
 
 def test_auth_none_needs_no_login_even_with_a_token(store, make_app) -> None:
-    web = WebSettings(token=Secret(env="SNAPDELTA_UNSET_TOKEN"), auth="none", allowed_hosts=["10.0.0.5"])
+    web = WebSettings(
+        token=Secret(backend="env", reference="SNAPDELTA_UNSET_TOKEN"), auth="none", allowed_hosts=["10.0.0.5"]
+    )
     client = TestClient(
         make_app(store, Settings(store=StoreSettings(location=store.location), web=web)), base_url="http://10.0.0.5"
     )

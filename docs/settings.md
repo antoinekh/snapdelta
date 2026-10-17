@@ -105,17 +105,57 @@ The web UI refuses a POST from another site, as for every other action. For the 
 
 ## Secrets
 
-A secret field of a source, a store backend or an inventory format (a password, a token) takes a plain value or the name of an environment variable:
+A secret field (a password, a token) of the web UI, a source, a store backend or an inventory format takes a plain value, or a table with one key: the secret backend, and the name of the secret in it.
 
 ```toml
 [sources.junos-netconf]
-password = "s3cret"                       # a plain value
-token = { env = "JUNOS_NETCONF_TOKEN" }   # read from the environment when the source needs it
+password = "s3cret"                          # a plain value
+token = { env = "JUNOS_NETCONF_TOKEN" }      # an environment variable
+key = { file = "/run/secrets/junos-key" }    # a file, such as a Docker or Kubernetes secret
+login = { vault = "net/junos#password" }     # a backend of a plugin
 ```
 
-- With `{ env = "NAME" }`, the file holds no secret and can go into git. When the variable is not set, the source stops with `environment variable NAME is not set`.
-- A plain value in a file that other users can read gives a warning that tells you to run `chmod 600 <file>`.
-- In the web form, a secret field has two inputs: an environment variable name, or a new value. Both empty keeps the current secret; **Remove** deletes it.
+- snapdelta reads the secret from its backend each time a part needs it, never saves it, and shows only the backend and the name (`env JUNOS_NETCONF_TOKEN`) in `snapdelta settings` and the web UI. A secret that changes needs no restart.
+- The built-in backends are `env`, an environment variable, and `file`, the content of a file without its last line break; the path of a `file` secret must be absolute. When the secret is missing, the part that needs it stops with a message such as `environment variable NAME is not set`.
+- With a backend, the file holds no secret and can go into git. A plain value in a file that other users can read gives a warning that tells you to run `chmod 600 <file>`.
+- In the web form, a secret field has a backend list, an input for the name of the secret in that backend, and an input for a new plain value. All empty keeps the current secret; **Remove** deletes it.
+
+### Add a secret backend
+
+A plugin adds a backend, such as HashiCorp Vault, a cloud secret manager or the system keyring, with a subclass of `snapdelta.secrets.SecretBackend` in the entry point group `snapdelta.secrets`. Its class method `read(reference, settings)` returns the secret, or raises `snapdelta.secrets.SecretError`. Its settings come from the table `[secrets.NAME]`, typed by its `settings_class`, a subclass of `snapdelta.settings.SecretBackendSettings`; a secret of these settings can come from another backend.
+
+```python
+from snapdelta.secrets import SecretBackend, SecretError
+from snapdelta.settings import Secret, SecretBackendSettings
+
+
+class VaultSettings(SecretBackendSettings):
+    url: str = "https://vault.example.net"
+    token: Secret | None = None
+
+
+class VaultSecrets(SecretBackend):
+    settings_class = VaultSettings
+
+    @classmethod
+    def read(cls, reference: str, settings: SecretBackendSettings) -> str:
+        path, _, key = reference.partition("#")
+        ...
+```
+
+```toml
+# pyproject.toml of the plugin
+[project.entry-points."snapdelta.secrets"]
+vault = "my_plugin.secrets:VaultSecrets"
+```
+
+```toml
+# snapdelta.toml
+[secrets.vault]
+token = { env = "VAULT_TOKEN" }
+```
+
+The names `plain`, `backend` and `reference` are the keys of the table form of a secret, so no backend can take them.
 
 ## Settings of a source
 

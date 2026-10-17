@@ -92,23 +92,47 @@ class InventoryFormatSettings(Section):
     """The base of the settings of an inventory format; a plugin subclass adds its typed fields."""
 
 
+SECRET_FORM = 'give a value, or a table with one key, its backend: { env = "NAME" }'
+
+
+class SecretBackendSettings(Section):
+    """The base of the settings of a secret backend; a plugin subclass adds its typed fields."""
+
+
 class Secret(BaseModel):
-    """A password or a token: a plain value, or the name of the environment variable that holds it."""
+    """A password or a token: a plain value, or a table with one key, the backend that reads it: `{ env = "NAME" }`."""
 
     model_config = ConfigDict(frozen=True, extra="forbid")
 
-    env: str | None = None
+    backend: str | None = None
+    reference: str | None = None
     plain: str | None = Field(default=None, repr=False)
 
     @model_validator(mode="before")
     @classmethod
     def _from_toml(cls, value: Any) -> Any:
-        return {"plain": value} if isinstance(value, str) else value
+        if isinstance(value, str):
+            return {"plain": value}
+        if isinstance(value, Mapping) and not set(value) <= {"plain", "backend", "reference"}:
+            if len(value) != 1:
+                raise ValueError(SECRET_FORM)
+            [(backend, reference)] = value.items()
+            return {"backend": backend, "reference": reference}
+        return value
 
     @model_validator(mode="after")
     def _one_of(self) -> Secret:
-        if (self.env is None) == (self.plain is None):
-            raise ValueError('give a value, or { env = "NAME" }')
+        if self.plain is not None and self.backend is None and self.reference is None:
+            return self
+        if self.plain is not None or not self.backend or not self.reference:
+            raise ValueError(SECRET_FORM)
+        from .plugins import discover
+        from .secrets import SECRETS
+
+        found = discover(SECRETS)
+        if self.backend not in found.plugins:
+            installed = ", ".join(sorted(found.plugins)) or "none"
+            raise ValueError(f"no secret backend {self.backend!r} is installed (installed: {installed})")
         return self
 
     @property
@@ -116,18 +140,27 @@ class Secret(BaseModel):
         return self.plain is not None
 
     def value(self) -> str:
+        """The secret, read from its backend at each call, so that a changed secret needs no restart."""
         if self.plain is not None:
             return self.plain
-        found = os.environ.get(self.env or "")
-        if found is None:
-            raise SettingsError(f"environment variable {self.env} is not set")
-        return found
+        from .plugins import require
+        from .secrets import SECRETS, backend_settings
+
+        backend, reference = self.backend or "", self.reference or ""
+        cls = require(SECRETS, backend)
+        try:
+            return cls.read(reference, backend_settings(backend, cls))
+        except SnapdeltaError:
+            raise
+        except Exception as error:
+            # A bug or an outage of a plugin backend: the message must still name the secret.
+            raise SettingsError(f"secret {self.describe()}: {type(error).__name__}: {error}") from error
 
     def describe(self) -> str:
-        return f"env {self.env}" if self.env else "********"
+        return f"{self.backend} {self.reference}" if self.backend else "********"
 
     def to_toml(self) -> str | dict[str, str]:
-        return self.plain if self.plain is not None else {"env": self.env or ""}
+        return self.plain if self.plain is not None else {self.backend or "": self.reference or ""}
 
 
 class Auth(StrEnum):
@@ -254,6 +287,7 @@ class FileSettings(Section):
     sources: dict[str, dict[str, Any]] = {}
     stores: dict[str, dict[str, Any]] = {}
     inventories: dict[str, dict[str, Any]] = {}
+    secrets: dict[str, dict[str, Any]] = {}
     profiles: dict[ProfileName, Profile] = {}
 
 
@@ -271,6 +305,7 @@ class Settings:
     inventory: InventorySettings = field(default_factory=InventorySettings)
     stores: dict[str, dict[str, Any]] = field(default_factory=dict)
     inventories: dict[str, dict[str, Any]] = field(default_factory=dict)
+    secrets: dict[str, dict[str, Any]] = field(default_factory=dict)
     _plugin_cache: dict[tuple[str, str], Section] = field(default_factory=dict, repr=False)
     _inventory_cache: list[Inventory | None] = field(default_factory=list, repr=False)
 
@@ -354,6 +389,7 @@ def load_settings(
     settings.inventory = parsed.inventory
     settings.stores = parsed.stores
     settings.inventories = parsed.inventories
+    settings.secrets = parsed.secrets
     for section in CORE_SECTIONS:
         model = getattr(settings, section)
         written = raw.get(section, {})
@@ -373,6 +409,9 @@ def load_settings(
             update={"location": _resolve_inventory(settings.inventory, settings.base)}
         )
     _apply_store(settings, store)
+    from .secrets import use_settings
+
+    use_settings(settings)
     models = plugin_models(installed)
     _check_plugins(settings, models)
     _check_plain_secrets(settings, models)

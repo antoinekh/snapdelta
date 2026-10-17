@@ -125,11 +125,16 @@ def test_an_empty_secret_keeps_the_current_one(tmp_path, monkeypatch) -> None:
     (tmp_path / "snapdelta.toml").write_text('[sources.token]\ntoken = { env = "MY_TOKEN" }\n')
     installed = {"token": TokenSource}
     groups = settings_form.form_groups(load_settings(installed=installed), installed)
-    assert settings_form.parse_form({}, groups).values["sources.token"]["token"] == Secret(env="MY_TOKEN")
+    assert settings_form.parse_form({}, groups).values["sources.token"]["token"] == Secret(
+        backend="env", reference="MY_TOKEN"
+    )
     changed = settings_form.parse_form({"sources.token.token.plain": "abc"}, groups)
     assert changed.values["sources.token"]["token"] == Secret(plain="abc")
     removed = settings_form.parse_form({"sources.token.token.clear": "true"}, groups)
     assert removed.values["sources.token"]["token"] is None
+    posted = {"sources.token.token.backend": "file", "sources.token.token.reference": "/run/secrets/token"}
+    from_file = settings_form.parse_form(posted, groups)
+    assert from_file.values["sources.token"]["token"] == Secret(backend="file", reference="/run/secrets/token")
 
 
 def test_a_store_that_cannot_open_keeps_the_running_state(client, settings_file, tmp_path) -> None:

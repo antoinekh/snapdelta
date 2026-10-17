@@ -50,6 +50,10 @@ csv = "snapdelta.render:CSV"
 [project.entry-points."snapdelta.inventories"]
 nornir = "snapdelta.inventory:NornirInventory"
 
+[project.entry-points."snapdelta.secrets"]
+env = "snapdelta.secrets:EnvSecrets"
+file = "snapdelta.secrets:FileSecrets"
+
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"

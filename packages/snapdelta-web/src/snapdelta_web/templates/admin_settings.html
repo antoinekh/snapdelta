@@ -39,7 +39,8 @@
         <input type="checkbox" id="f-{{ field.key }}" name="{{ field.key }}" value="true" {{ "checked" if value == "true" }}>
         {% elif field.kind == "secret" %}
         <div class="secret-inputs">
-          <input id="f-{{ field.key }}" name="{{ field.key }}.env" placeholder="environment variable" autocomplete="off">
+          <select name="{{ field.key }}.backend" aria-label="Secret backend of {{ field.name }}">{% for backend in secret_backends %}<option value="{{ backend }}" {{ "selected" if field.secret and field.secret.backend == backend }}>{{ backend }}</option>{% endfor %}</select>
+          <input id="f-{{ field.key }}" name="{{ field.key }}.reference" placeholder="name or path in the backend" autocomplete="off">
           <input type="password" name="{{ field.key }}.plain" placeholder="or a new value" autocomplete="new-password">
           {% if field.secret %}<label class="check"><input type="checkbox" name="{{ field.key }}.clear" value="true"> Remove</label>{% endif %}
         </div>

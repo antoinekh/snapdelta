@@ -246,7 +246,7 @@ def test_save_removes_a_key_back_at_its_default(tmp_path) -> None:
 
 def test_save_writes_source_tables_and_secrets(tmp_path) -> None:
     path = tmp_path / "new" / "snapdelta.toml"
-    secret = Secret(env="DEMO_PASSWORD")
+    secret = Secret(backend="env", reference="DEMO_PASSWORD")
     save_settings(path, {"sources.demo": {"timeout_s": 5.0, "outputs": None, "password": secret}}, INSTALLED)
     assert stat.S_IMODE(path.stat().st_mode) == 0o600
     reread = load_settings(path, installed=INSTALLED).source(DemoSource)

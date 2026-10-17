@@ -224,9 +224,10 @@ def _kind(annotation: Any) -> Kind:
 
 
 def _secret(form: Mapping[str, str], item: FormField) -> Secret | None:
-    env, plain = form.get(f"{item.key}.env", "").strip(), form.get(f"{item.key}.plain", "")
-    if env:
-        return Secret(env=env)
+    backend, reference = form.get(f"{item.key}.backend", "").strip(), form.get(f"{item.key}.reference", "").strip()
+    plain = form.get(f"{item.key}.plain", "")
+    if reference:
+        return Secret(backend=backend or "env", reference=reference)
     if plain:
         return Secret(plain=plain)
     if form.get(f"{item.key}.clear"):
