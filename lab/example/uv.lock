@@ -634,10 +634,12 @@ dependencies = [
 requires-dist = [
     { name = "diffsync", specifier = ">=2.2,<3" },
     { name = "pydantic", specifier = ">=2.7" },
+    { name = "pytest", marker = "extra == 'testing'", specifier = ">=8" },
     { name = "pyyaml", specifier = ">=6" },
     { name = "tomlkit", specifier = ">=0.15" },
     { name = "typer", specifier = ">=0.12" },
 ]
+provides-extras = ["testing"]
 
 [[package]]
 name = "snapdelta-lab"
