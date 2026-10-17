@@ -56,6 +56,7 @@ The diff page shows the two sides, filters and a search, and **Accept** on each 
 | Compare your own data: models, one source per vendor, an inventory, the web UI | [docs/getting-started.md](docs/getting-started.md), step by step |
 | See it on a live network: two FRR routers and one Nokia SR Linux in containerlab | [lab/example/README.md](lab/example/README.md) |
 | Call it from a pipeline or an AI agent | [docs/api.md](docs/api.md), [docs/mcp.md](docs/mcp.md) |
+| Run a shared server in a container, with your plugins | [docs/container.md](docs/container.md) |
 
 ## How it works
 
@@ -141,6 +142,7 @@ snapdelta reads `snapdelta.toml`: the file given with `--settings`, else `SNAPDE
 | [api.md](docs/api.md) | The JSON API for pipelines and AI agents, the token and the network access |
 | [mcp.md](docs/mcp.md) | The MCP server and the skill for AI agents |
 | [roadmap.md](docs/roadmap.md) | The work planned for the next versions |
+| [container.md](docs/container.md) | The container image, your plugins in an image of your own, a compose file with PostgreSQL |
 | [stores.md](docs/stores.md) | The file and SQLite stores, cleanup, the Python API, plugin backends |
 | [parallel.md](docs/parallel.md) | Several targets at the same time, and parallel fetches inside one target |
 | [settings.md](docs/settings.md) | Every key, secrets, the settings of a source, the web editor |
@@ -192,7 +194,8 @@ make assets         # update htmx, the fonts and Swagger UI in static/vendor; HT
 | `docs/` | The guides above |
 | `skills/snapdelta` | The skill for AI agents that use the CLI |
 | `scripts/` | `update-assets.sh`: download and check the files of `static/vendor`; `test-postgres.sh`: the tests of the PostgreSQL store against a server in a container |
-| `.github/workflows` | `ci.yml`: tests on Python 3.13 and 3.14, and lint; `publish.yml`: publish both packages to PyPI when a GitHub release is published |
+| `Dockerfile`, `docker/` | The container image, its default settings, and a compose file with PostgreSQL |
+| `.github/workflows` | `ci.yml`: tests on Python 3.13 and 3.14, and lint; `publish.yml`: publish the packages to PyPI and the image to ghcr.io when a GitHub release is published |
 
 ## License
 

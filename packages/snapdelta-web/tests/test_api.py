@@ -145,3 +145,8 @@ def test_a_pipeline_compares_many_targets_at_once(api, store) -> None:
     [first, second] = result["diffs"]
     assert first["diff"]["title"] == "CHG-8" and first["diff"]["output"] is None and second["diff"] is None
     assert api.post("/api/v1/diffs/targets", json={"targets": ["R1"], "left": "before"}).status_code == 400
+
+
+def test_the_health_check_needs_no_login(guarded) -> None:
+    assert guarded.get("/healthz").json() == {"status": "ok"}
+    assert guarded.get("/api/v1/targets").status_code == 401

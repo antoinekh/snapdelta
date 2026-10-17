@@ -183,6 +183,11 @@ def create_app(state: AppState) -> FastAPI:
             "fields": backend.login_fields,
         }
 
+    @app.get("/healthz")
+    def healthz() -> dict[str, str]:
+        """For a container or a load balancer: the server answers; it needs no login and reads no store."""
+        return {"status": "ok"}
+
     @app.get("/login", response_model=None)
     def login_page(request: Request, next: str = "") -> HTMLResponse | RedirectResponse:
         if not backend.login_fields or backend.access != Access.LOGIN:

@@ -27,8 +27,8 @@ from snapdelta.settings import Section, Settings, SettingsError, WebSettings
 
 SESSION_COOKIE = "snapdelta_session"
 SESSION_TTL_S = 12 * 3600
-# The login page and the files that it needs; everything else needs a user when the backend asks for one.
-OPEN_PATHS = ("/login", "/static/", "/favicon.ico")
+# The login page, the files that it needs and the health check; everything else needs a user when the backend asks.
+OPEN_PATHS = ("/login", "/static/", "/favicon.ico", "/healthz")
 
 
 class Access(StrEnum):

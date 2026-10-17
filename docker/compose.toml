@@ -1,0 +1,10 @@
+# The settings of docker/compose.yaml: the web UI on the network, the store in PostgreSQL.
+[web]
+host = "0.0.0.0"
+token = { env = "SNAPDELTA_TOKEN" }
+
+[store]
+location = "postgresql://snapdelta@postgres:5432/snapdelta"
+
+[stores.postgresql]
+password = { env = "SNAPDELTA_DB_PASSWORD" }

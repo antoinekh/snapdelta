@@ -1,0 +1,4 @@
+# The settings of the container: mount your own file over this one to change them.
+[web]
+host = "0.0.0.0"
+token = { env = "SNAPDELTA_TOKEN" }   # required: docker run -e SNAPDELTA_TOKEN=...
