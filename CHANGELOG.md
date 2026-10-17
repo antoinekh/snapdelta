@@ -7,6 +7,7 @@
 - `snapdelta prune` and the admin page refuse a negative keep or age, which used to delete every snapshot.
 - `snapdelta prune` and the admin page refuse an age too big for a date, which used to raise `OverflowError` (a traceback in the CLI, a 500 page in the web UI).
 - MCP tools refuse a page out of range: `offset` below 0, and `limit` below 1 or above 500.
+- A malformed Nornir inventory reports which entry is wrong and why (a host that is not a mapping, a port that is not a number, groups that are not a list) instead of a `TypeError`, `AttributeError` or `ValueError` traceback.
 
 ## v0.1.0
 

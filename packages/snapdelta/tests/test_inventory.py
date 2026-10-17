@@ -52,6 +52,35 @@ def test_a_bad_inventory_says_why(tmp_path) -> None:
         inventory_format("netbox")
 
 
+def test_a_malformed_entry_says_which_host_and_why(tmp_path) -> None:
+    (tmp_path / "hosts.yaml").write_text("R1: oops\n")
+    with pytest.raises(InventoryError, match="hosts.yaml: the entry of 'R1' must be a mapping"):
+        load_nornir(tmp_path)
+    (tmp_path / "hosts.yaml").write_text("R1:\n  port: not-a-port\n")
+    with pytest.raises(InventoryError, match="R1: the port 'not-a-port' is not a number"):
+        load_nornir(tmp_path)
+    (tmp_path / "hosts.yaml").write_text("R1:\n  port: .inf\n")
+    with pytest.raises(InventoryError, match="R1: the port inf is not a number"):
+        load_nornir(tmp_path)
+    (tmp_path / "hosts.yaml").write_text("R1:\n  groups: core\n")
+    with pytest.raises(InventoryError, match="R1: groups must be a list of group names, not 'core'"):
+        load_nornir(tmp_path)
+    (tmp_path / "hosts.yaml").write_text("R1:\n  data: oops\n")
+    with pytest.raises(InventoryError, match="R1: data must be a mapping of keys to values, not 'oops'"):
+        load_nornir(tmp_path)
+    (tmp_path / "hosts.yaml").write_text("R1:\n  groups: [core]\n")
+    (tmp_path / "groups.yaml").write_text("core: oops\n")
+    with pytest.raises(InventoryError, match="groups.yaml: the entry of 'core' must be a mapping"):
+        load_nornir(tmp_path)
+    (tmp_path / "groups.yaml").write_text("core:\n  groups: lab\n")
+    with pytest.raises(InventoryError, match="core: groups must be a list of group names, not 'lab'"):
+        load_nornir(tmp_path)
+    # An entry with no keys at all is a host with the defaults, not a mistake.
+    (tmp_path / "groups.yaml").unlink()
+    (tmp_path / "hosts.yaml").write_text("R1:\n")
+    assert load_nornir(tmp_path).hosts["R1"].groups == ()
+
+
 def test_a_plugin_format_reads_its_location_with_its_settings(tmp_path, monkeypatch) -> None:
     from types import SimpleNamespace
 

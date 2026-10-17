@@ -108,10 +108,10 @@ def load_nornir(location: Path) -> Inventory:
     hosts_file = location / "hosts.yaml"
     if not hosts_file.is_file():
         raise InventoryError(f"{location}: no hosts.yaml (a Nornir inventory is a directory with hosts.yaml)")
-    raw_hosts = _yaml_mapping(hosts_file)
-    raw_groups = _yaml_mapping(location / "groups.yaml")
+    raw_hosts = _checked_entries(hosts_file, _yaml_mapping(hosts_file))
+    raw_groups = _checked_entries(location / "groups.yaml", _yaml_mapping(location / "groups.yaml"))
     defaults = _yaml_mapping(location / "defaults.yaml")
-    hosts = {str(name): _nornir_host(str(name), entry or {}, raw_groups, defaults) for name, entry in raw_hosts.items()}
+    hosts = {str(name): _nornir_host(str(name), entry, raw_groups, defaults) for name, entry in raw_hosts.items()}
     warnings = []
     has_password = any(host.password for host in hosts.values())
     files = [path for path in (hosts_file, location / "groups.yaml", location / "defaults.yaml") if path.is_file()]
@@ -134,19 +134,38 @@ def _yaml_mapping(path: Path) -> dict[str, Any]:
     return value
 
 
-def _nornir_host(name: str, entry: Mapping[str, Any], groups: Mapping[str, Any], defaults: Mapping[str, Any]) -> Host:
-    lineage = _lineage(name, entry.get("groups") or [], groups)
+def _checked_entries(path: Path, value: dict[str, Any]) -> dict[str, Mapping[str, Any]]:
+    """The entries of hosts.yaml or groups.yaml: each a mapping of keys to values, never a bare value."""
+    entries: dict[str, Mapping[str, Any]] = {}
+    for name, entry in value.items():
+        if entry is not None and not isinstance(entry, Mapping):
+            raise InventoryError(f"{path}: the entry of {name!r} must be a mapping of keys to values, not {entry!r}")
+        entries[name] = entry or {}
+    return entries
+
+
+def _nornir_host(
+    name: str, entry: Mapping[str, Any], groups: Mapping[str, Mapping[str, Any]], defaults: Mapping[str, Any]
+) -> Host:
+    lineage = _lineage(name, _group_names(name, entry), groups)
     # Nornir looks a value up in the host, then in its groups in order, then in the defaults.
-    layers = [entry, *(groups.get(group) or {} for group in lineage), defaults]
+    layers = [entry, *(groups[group] for group in lineage), defaults]
     values = {key: next((layer[key] for layer in layers if layer.get(key) is not None), None) for key in NORNIR_KEYS}
     data: dict[str, Any] = {}
     for layer in reversed(layers):
-        data |= layer.get("data") or {}
+        found = layer.get("data")
+        if found is not None and not isinstance(found, Mapping):
+            raise InventoryError(f"{name}: data must be a mapping of keys to values, not {found!r}")
+        data |= found or {}
     port = values["port"]
+    try:
+        number = int(port) if port is not None else None
+    except (TypeError, ValueError, OverflowError) as error:
+        raise InventoryError(f"{name}: the port {port!r} is not a number") from error
     return Host(
         name=name,
         hostname=_text(values["hostname"]),
-        port=int(port) if port is not None else None,
+        port=number,
         username=_text(values["username"]),
         password=_text(values["password"]),
         platform=_text(values["platform"]),
@@ -155,7 +174,17 @@ def _nornir_host(name: str, entry: Mapping[str, Any], groups: Mapping[str, Any],
     )
 
 
-def _lineage(owner: str, direct: Iterable[str], groups: Mapping[str, Any]) -> list[str]:
+def _group_names(owner: str, entry: Mapping[str, Any]) -> list[str]:
+    """The `groups` of a host or group entry; a string is a mistake of the file, not a list of one group."""
+    value = entry.get("groups")
+    if value is None:
+        return []
+    if not isinstance(value, list):
+        raise InventoryError(f"{owner}: groups must be a list of group names, not {value!r}")
+    return [str(name) for name in value]
+
+
+def _lineage(owner: str, direct: Iterable[str], groups: Mapping[str, Mapping[str, Any]]) -> list[str]:
     """The groups of an entry, each followed by its own parent groups, depth first, without repeats."""
     found: list[str] = []
 
@@ -165,11 +194,11 @@ def _lineage(owner: str, direct: Iterable[str], groups: Mapping[str, Any]) -> li
         if group not in groups:
             raise InventoryError(f"{owner}: group {group!r} is not in groups.yaml")
         found.append(group)
-        for parent in (groups.get(group) or {}).get("groups") or []:
-            visit(str(parent))
+        for parent in _group_names(group, groups[group]):
+            visit(parent)
 
     for group in direct:
-        visit(str(group))
+        visit(group)
     return found
 
 
