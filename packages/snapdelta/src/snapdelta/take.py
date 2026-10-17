@@ -136,7 +136,7 @@ def take_snapshots(
     }
     if progress is not None:
         tasks = {target: functools.partial(_reported, target, task, progress) for target, task in tasks.items()}
-    with recorded(store, "snapshot", origin, list(plan)) as run:
+    with recorded(store, "snapshot", origin, list(plan), chosen) as run:
         taken, errors = run_parallel(tasks, jobs)
         failures = {target: _message(target, error) for target, error in errors.items()}
         run.saved = [item.reference for item in taken.values()]
@@ -245,7 +245,7 @@ def diff_snapshots(
     if (right is None) == (not live):
         raise SnapdeltaError("give right, or live, not both")
     left_adapter = store.load_snapshot(store.resolve_snapshot(left))
-    run = recorded(store, "diff", origin, [left_adapter.target or left]) if save else contextlib.nullcontext()
+    run = recorded(store, "diff", origin, [left_adapter.target or left], settings) if save else contextlib.nullcontext()
     with run as record:
         live_reference = None
         if isinstance(right, Source):
@@ -263,6 +263,7 @@ def diff_snapshots(
             record.targets = list(dict.fromkeys([output.left.target, output.right.target]))
             record.saved = [live_reference] if live_reference else []
             record.output = name
+            record.has_differences = output.has_differences()
     return Compared(output, name, live_reference)
 
 

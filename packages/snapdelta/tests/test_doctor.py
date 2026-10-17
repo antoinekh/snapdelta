@@ -35,6 +35,7 @@ def test_the_installed_plugins_are_healthy() -> None:
         "snapdelta.renderers",
         "snapdelta.inventories",
         "snapdelta.secrets",
+        "snapdelta.notifiers",
     }
     assert all(report.severity == Severity.OK for report in reports), [r for r in reports if r.problems]
 

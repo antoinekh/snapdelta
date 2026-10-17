@@ -200,9 +200,10 @@ def abstract_problems(value: type) -> list[Problem]:
 def extension_points() -> list[ExtensionPoint[Any]]:
     """Every extension point of snapdelta, in the order of the docs."""
     from .inventory import INVENTORIES
+    from .notify import NOTIFIERS
     from .render import RENDERERS
     from .secrets import SECRETS
     from .source import SOURCES
     from .store import STORES
 
-    return [SOURCES, STORES, RENDERERS, INVENTORIES, SECRETS]
+    return [SOURCES, STORES, RENDERERS, INVENTORIES, SECRETS, NOTIFIERS]

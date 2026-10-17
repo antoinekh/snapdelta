@@ -190,6 +190,11 @@ class WebSettings(Section):
             "For an isolated network only."
         ),
     )
+    public_url: str | None = Field(
+        default=None,
+        description="The address of the web UI that a person opens, for the links of the notifiers.",
+        examples=["https://snapdelta.example.net"],
+    )
     allowed_hosts: list[str] = Field(
         default=[],
         description=(
@@ -288,6 +293,7 @@ class FileSettings(Section):
     stores: dict[str, dict[str, Any]] = {}
     inventories: dict[str, dict[str, Any]] = {}
     secrets: dict[str, dict[str, Any]] = {}
+    notifiers: dict[str, dict[str, Any]] = {}
     profiles: dict[ProfileName, Profile] = {}
 
 
@@ -306,6 +312,7 @@ class Settings:
     stores: dict[str, dict[str, Any]] = field(default_factory=dict)
     inventories: dict[str, dict[str, Any]] = field(default_factory=dict)
     secrets: dict[str, dict[str, Any]] = field(default_factory=dict)
+    notifiers: dict[str, dict[str, Any]] = field(default_factory=dict)
     _plugin_cache: dict[tuple[str, str], Section] = field(default_factory=dict, repr=False)
     _inventory_cache: list[Inventory | None] = field(default_factory=list, repr=False)
 
@@ -384,12 +391,13 @@ def load_settings(
     try:
         parsed = FileSettings.model_validate(raw)
     except ValidationError as error:
-        raise _settings_error(path, [], error) from error
+        raise settings_error(path, [], error) from error
     settings = Settings(parsed.store, parsed.snapshot, parsed.web, parsed.sources, path, profiles=parsed.profiles)
     settings.inventory = parsed.inventory
     settings.stores = parsed.stores
     settings.inventories = parsed.inventories
     settings.secrets = parsed.secrets
+    settings.notifiers = parsed.notifiers
     for section in CORE_SECTIONS:
         model = getattr(settings, section)
         written = raw.get(section, {})
@@ -415,6 +423,10 @@ def load_settings(
     models = plugin_models(installed)
     _check_plugins(settings, models)
     _check_plain_secrets(settings, models)
+    from .notify import notifier_settings
+
+    # A wrong notifier table must fail at the start, not in silence after the first run.
+    notifier_settings(settings)
     return settings
 
 
@@ -461,6 +473,12 @@ def setting_rows(settings: Settings, installed: Mapping[str, type[Source]] | Non
             for key in model.model_fields:
                 origin = Origin.FILE if key in written else Origin.DEFAULT
                 rows.append(SettingRow(f"{table}.{name}.{key}", format_setting(getattr(typed, key)), origin))
+    from .notify import notifier_settings
+
+    for name, (_, chosen) in sorted(notifier_settings(settings).items()):
+        for key in type(chosen).model_fields:
+            origin = Origin.FILE if key in chosen.model_fields_set else Origin.DEFAULT
+            rows.append(SettingRow(f"notifiers.{name}.{key}", format_setting(getattr(chosen, key)), origin))
     for name, profile in sorted(settings.profiles.items()):
         for key in profile.model_fields_set:
             rows.append(SettingRow(f"profiles.{name}.{key}", format_setting(getattr(profile, key)), Origin.FILE))
@@ -547,7 +565,7 @@ def _plugin_settings[S: Section](settings: Settings, table: str, name: str, mode
     try:
         typed = model.model_validate(written)
     except ValidationError as error:
-        raise _settings_error(settings.file, [table, name], error) from error
+        raise settings_error(settings.file, [table, name], error) from error
     paths = {
         key: _resolve_path(value, settings.base) for key, value in typed if isinstance(value, Path) and key in written
     }
@@ -582,7 +600,7 @@ def _check_plain_secrets(settings: Settings, models: Mapping[str, Mapping[str, t
         settings.warnings.append(f"{path} holds a plain secret and other users can read it: chmod 600 {path}")
 
 
-def _settings_error(path: Path | None, prefix: list[str], error: ValidationError) -> SettingsError:
+def settings_error(path: Path | None, prefix: list[str], error: ValidationError) -> SettingsError:
     errors = {".".join([*prefix, *(str(part) for part in item["loc"])]): item["msg"] for item in error.errors()}
     where = path or "settings"
     return SettingsError("\n".join(f"{where}: {key}: {message}" for key, message in errors.items()), errors)
@@ -619,7 +637,7 @@ def save_settings(
                 {key: value for key, value in table_values.items() if value is not None}
             )
         except ValidationError as error:
-            errors |= _settings_error(path, table.split("."), error).errors
+            errors |= settings_error(path, table.split("."), error).errors
     if errors:
         raise SettingsError("\n".join(f"{path}: {key}: {message}" for key, message in errors.items()), errors)
     document = tomlkit.parse(path.read_text()) if path.is_file() else tomlkit.document()

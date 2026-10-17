@@ -145,6 +145,8 @@ class RunItem(BaseModel):
     saved: list[str]
     output: str | None
     errors: dict[str, str]
+    has_differences: bool | None
+    notified: dict[str, str]
     log_lines: int
 
     @classmethod

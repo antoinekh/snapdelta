@@ -25,6 +25,7 @@ port = 8765
 # tls_key = "tls/key.pem"
 # auth = "token"                        # "none": no login at all, on an isolated network only
 # allowed_hosts = []                    # the host names of the server; with a token, empty: any
+# public_url = "https://snapdelta.example.net"   # the address that a person opens, for the links of the notifiers
 
 [sources.example-live]                  # one table per installed source, typed by its plugin
 data_dir = "devices"
@@ -35,6 +36,14 @@ platforms = { junos = "junos-netconf" }
 
 [inventories.netbox]                    # one table per inventory format that has settings, typed by its plugin
 token = { env = "NETBOX_TOKEN" }
+
+[secrets.vault]                         # one table per secret backend that has settings, typed by its plugin
+token = { env = "VAULT_TOKEN" }
+
+[notifiers.ops-chat]                    # one table per notifier, named as you like; none by default
+type = "webhook"                        # the notifier plugin: webhook, command, or one of a plugin
+url = { env = "OPS_CHAT_WEBHOOK" }
+on = ["failure", "differences"]         # the runs to send
 
 [profiles.change-window]                # compare profiles, see profiles.md; none by default
 ignore = ["*.description"]
@@ -156,6 +165,59 @@ token = { env = "VAULT_TOKEN" }
 ```
 
 The names `plain`, `backend` and `reference` are the keys of the table form of a secret, so no backend can take them.
+
+## Notifiers
+
+After each snapshot and each saved diff, from the CLI, the web UI, the API or MCP, snapdelta sends the run to every notifier whose filter matches it. Each notifier is a `[notifiers.NAME]` table with a name of your choice, so two chat channels are two tables with the same `type`.
+
+```toml
+[web]
+public_url = "https://snapdelta.example.net"   # the link of each message goes to the diff, or to the run
+
+[notifiers.ops-chat]
+type = "webhook"
+url = { env = "OPS_CHAT_WEBHOOK" }             # a Slack, Teams or Mattermost incoming webhook, or your service
+on = ["failure", "differences"]
+kinds = ["snapshot", "diff"]
+groups = ["core"]                              # only the runs on a host of these inventory groups
+
+[notifiers.change-ticket]
+type = "command"
+command = ["/usr/local/bin/comment-ticket"]    # gets the run as JSON on its input
+on = ["success"]
+kinds = ["diff"]
+```
+
+| Key | Default | Meaning |
+|---|---|---|
+| `type` | required | The notifier plugin: `webhook`, `command`, or a notifier of a plugin (`snapdelta plugins`) |
+| `on` | `["failure", "differences"]` | `failure`: a target or the run failed; `differences`: a diff found one; `success`: a run with no error |
+| `kinds` | `["snapshot", "diff"]` | The kinds of run |
+| `groups` | `[]`, every run | Only the runs on a host of one of these inventory groups |
+
+- `webhook` sends a POST with the JSON `{"text": ..., "url": ..., "run": {...}}`: `text` is the line that a chat shows, such as `snapdelta diff of R1 from cli: differences found`. Its other keys are `headers` (a table of secrets, such as `Authorization`) and `timeout_s` (10).
+- `command` runs a program with the same JSON on its input; exit code 0 means sent. Its other key is `timeout_s` (10).
+- A notifier that fails never fails the run: the run records `sent` or the error of each notifier, which `snapdelta activity RUN` and the run page of **Activity** show. A wrong table (an unknown `type`, a missing key) stops snapdelta at the start, with the key.
+
+### Add a notifier
+
+A plugin adds a notifier, such as an email or a ticket system, with a subclass of `snapdelta.notify.Notifier` in the entry point group `snapdelta.notifiers`. Its class method `send(event, settings)` gets a `snapdelta.notify.RunEvent` (`run`, `text`, `url`, and `payload()`, the JSON of the webhook) and the settings of one table, typed by its `settings_class`, a subclass of `snapdelta.notify.NotifierSettings`; it raises an exception when the message cannot be sent.
+
+```python
+from snapdelta.notify import Notifier, NotifierSettings, RunEvent
+
+
+class MailSettings(NotifierSettings):
+    to: list[str]
+
+
+class Mail(Notifier):
+    settings_class = MailSettings
+
+    @classmethod
+    def send(cls, event: RunEvent, settings: NotifierSettings) -> None:
+        ...
+```
 
 ## Settings of a source
 

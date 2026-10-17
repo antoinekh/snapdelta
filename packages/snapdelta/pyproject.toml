@@ -54,6 +54,10 @@ nornir = "snapdelta.inventory:NornirInventory"
 env = "snapdelta.secrets:EnvSecrets"
 file = "snapdelta.secrets:FileSecrets"
 
+[project.entry-points."snapdelta.notifiers"]
+webhook = "snapdelta.notify:Webhook"
+command = "snapdelta.notify:Command"
+
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"

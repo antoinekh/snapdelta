@@ -21,6 +21,7 @@ from pydantic import BaseModel, Field
 from .errors import SnapdeltaError
 
 if TYPE_CHECKING:
+    from .settings import Settings
     from .store import Store
 
 _log = logging.getLogger(__name__)
@@ -59,6 +60,8 @@ class Run(BaseModel):
     saved: list[str] = Field(default=[], description="The references of the saved snapshots.")
     output: str | None = Field(default=None, description="The name of the saved diff.")
     errors: dict[str, str] = Field(default={}, description="The error of each failed target, or of the run under `*`.")
+    has_differences: bool | None = Field(default=None, description="For a diff: whether it found a difference.")
+    notified: dict[str, str] = Field(default={}, description="`sent`, or the error, by the name of each notifier.")
     log: list[LogLine] = []
 
     @property
@@ -132,6 +135,7 @@ class RunRecord:
         self.saved: list[str] = []
         self.output: str | None = None
         self.errors: dict[str, str] = {}
+        self.has_differences: bool | None = None
         self.log: list[LogLine] = []
 
     def finished(self) -> Run:
@@ -151,14 +155,20 @@ class RunRecord:
             saved=self.saved,
             output=self.output,
             errors=self.errors,
+            has_differences=self.has_differences,
             # The loads add their lines when they end: the time gives back the order of the events.
             log=sorted(self.log, key=lambda line: line.at),
         )
 
 
 @contextmanager
-def recorded(store: Store, kind: str, origin: str, targets: list[str]) -> Iterator[RunRecord]:
-    """Record the block as a run of the store; an error fails the run and goes on to the caller."""
+def recorded(
+    store: Store, kind: str, origin: str, targets: list[str], settings: Settings | None = None
+) -> Iterator[RunRecord]:
+    """Record the block as a run of the store, then send it to the notifiers of `settings`.
+
+    An error fails the run and goes on to the caller.
+    """
     record = RunRecord(kind, origin, targets)
     try:
         with collecting(loading=False) as lines:
@@ -168,11 +178,20 @@ def recorded(store: Store, kind: str, origin: str, targets: list[str]) -> Iterat
         record.errors["*"] = str(error) if isinstance(error, SnapdeltaError) else f"{type(error).__name__}: {error}"
         raise
     finally:
-        try:
-            store.save_run(record.finished())
-        except (OSError, SnapdeltaError) as error:
-            # The command itself went well: a run that cannot be saved must not turn it into an error.
-            _log.warning("the run was not saved: %s", error)
+        run = record.finished()
+        _save(store, run)
+        if settings is not None and settings.notifiers:
+            from .notify import deliver
+
+            _save(store, run.model_copy(update={"notified": dict(deliver(run, settings))}))
+
+
+def _save(store: Store, run: Run) -> None:
+    try:
+        store.save_run(run)
+    except (OSError, SnapdeltaError) as error:
+        # The command itself went well: a run that cannot be saved must not turn it into an error.
+        _log.warning("the run was not saved: %s", error)
 
 
 def _user() -> str | None:

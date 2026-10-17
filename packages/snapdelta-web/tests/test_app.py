@@ -708,5 +708,6 @@ def test_the_activity_lists_the_runs_and_shows_their_log(client, store, monkeypa
     assert "No message at warning or above" in client.get(f"/activity/{run.id}", params={"level": "warning"}).text
     snapshot = client.get(f"/snapshots/{run.saved[0]}").text
     assert "Load log" in snapshot and "read R1.json" in snapshot
-    assert client.get("/api/v1/runs").json()[0]["log_lines"] == 1
+    listed = client.get("/api/v1/runs").json()[0]
+    assert listed["log_lines"] == 1 and listed["notified"] == {} and listed["has_differences"] is None
     assert client.get(f"/api/v1/runs/{run.id}").json()["log"][0]["target"] == "R1"

@@ -420,6 +420,8 @@ def show_activity(
             typer.echo(f"saved: {reference}")
         if run.output:
             typer.echo(f"diff: {run.output}")
+        for name, result in sorted(run.notified.items()):
+            typer.echo(f"notifier {name}: {result}")
         for target, error in sorted(run.errors.items()):
             typer.echo(f"error: {'the run' if target == '*' else target}: {error}")
         for line in run.log:

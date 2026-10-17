@@ -109,6 +109,8 @@ def diagnose(settings_file: Path | None = None, store_option: str | None = None)
     checks.append(Check("settings", where, [Problem(Severity.WARNING, warning) for warning in settings.warnings]))
     checks.append(_store_check(settings))
     checks.append(_inventory_check(settings))
+    names = ", ".join(sorted(settings.notifiers)) or "none"
+    checks.append(Check("notifiers", names))
     return Diagnosis(reports, checks)
 
 
