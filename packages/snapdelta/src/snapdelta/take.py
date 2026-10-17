@@ -198,7 +198,10 @@ def take_live(
     """A fresh fetch of the target of `left` (or of `target`) with the source of `left`, saved as a snapshot."""
     cls = require_source(left.source)
     if not cls.fetches:
-        raise SnapdeltaError(f"source {left.source!r} reads input files, so it cannot fetch: give --source and --file")
+        raise SnapdeltaError(
+            f"source {left.source!r} reads input files, so it cannot fetch: take a snapshot of the new files, "
+            "then compare the two snapshots"
+        )
     name = target or left.target
     inventory = settings.hosts()
     host = inventory.host(name) if inventory and name else None

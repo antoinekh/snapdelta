@@ -25,7 +25,7 @@ A compare gives an output: a JSON document (schema 2) that the store keeps and t
 
 | Key | Content |
 |---|---|
-| `left`, `right` | The two sides; `snapshot` is the reference of the snapshot in the store, `null` for a load that was not saved (`--file`, `--live --no-save`) |
+| `left`, `right` | The two sides; `snapshot` is the reference of the snapshot in the store, `null` for a load that was not saved (`--live --no-save`, or a source given in Python) |
 | `compared` | The top-level models of the compare |
 | `skipped` | The top-level models that only one side loaded |
 | `not_selected` | The models of both sides that `--model` left out |

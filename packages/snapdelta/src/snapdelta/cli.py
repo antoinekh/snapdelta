@@ -41,7 +41,6 @@ Files = Annotated[
     typer.Argument(exists=True, dir_okay=False, help="Input files of one target; none for a source that fetches."),
 ]
 SourceName = Annotated[str, typer.Option(help="Source, see `snapdelta sources`.")]
-Target = Annotated[str | None, typer.Option(help="Target name, needed when the files hold no config.")]
 Label = Annotated[str | None, typer.Option(help="Label of the snapshot, for example before-swap.")]
 Json = Annotated[bool, typer.Option("--json", help="Print JSON instead of text.")]
 # The options of the three commands snapdelta, snapdelta-web and snapdelta-mcp.
@@ -364,11 +363,9 @@ def diff(
     ctx: typer.Context,
     left: Annotated[str, typer.Argument(help="Left snapshot (before).")],
     right: Annotated[str | None, typer.Argument(help="Right snapshot (after).")] = None,
-    source: Annotated[str | None, typer.Option(help="Source of the --file inputs.")] = None,
-    file: Annotated[
-        list[Path] | None, typer.Option(exists=True, dir_okay=False, help="Load these files as the right side.")
+    target: Annotated[
+        str | None, typer.Option(help="With --live: fetch this target in place of the target of LEFT.")
     ] = None,
-    target: Target = None,
     label: Label = None,
     models: Annotated[
         list[str] | None, typer.Option("--model", help="Compare only this model; repeat it for several.")
@@ -386,18 +383,22 @@ def diff(
     description: Annotated[str | None, typer.Option(help="What the diff is about: the change, the ticket.")] = None,
     output_format: Format = "text",
 ) -> None:
-    """Compare a snapshot with another, with a fresh load, or with its target now; exit code 1 on a difference."""
+    """Compare a snapshot with another, or with its target now (--live); exit code 1 on a difference.
+
+    To compare with input files, take a snapshot of them first: `snapdelta snapshot FILES --source S --label after`.
+    """
     store = ctx.obj.store
     chosen = renderer(output_format)
-    if (right is not None) + bool(file) + live != 1 or (file and source is None):
-        raise SnapdeltaError("give one right side: a RIGHT snapshot, --source with --file, or --live")
+    if (right is not None) == live:
+        raise SnapdeltaError("give one right side: a RIGHT snapshot, or --live")
+    if target is not None and not live:
+        raise SnapdeltaError("--target goes with --live: a RIGHT snapshot names its target")
     settings: Settings = ctx.obj.settings
-    loaded = _load(settings, source or "", file, target, label, None) if file else None
     done = diff_snapshots(
         store,
         settings,
         left,
-        loaded or right,
+        right,
         live=live,
         target=target,
         live_label=label or "live",

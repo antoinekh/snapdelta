@@ -90,7 +90,7 @@ uv run snapdelta --store /tmp/snapdelta-demo diff R1@demo R2@demo
 | Command | What it does |
 |---|---|
 | `snapshot` | Load input files (`FILES --source S`), or fetch targets (`--target`, `--group`, `--all-targets`, `--jobs N`); `--label`, `--captured-at` |
-| `diff LEFT RIGHT` | Compare two snapshots; or a snapshot and fresh files (`--source S --file F`), or a snapshot and its target now (`--live`); `--model`, `--profile`, `--title`, `--description`, `--format`, `--no-save` |
+| `diff LEFT RIGHT` | Compare two snapshots, or a snapshot and its target now (`--live`); `--model`, `--profile`, `--title`, `--description`, `--format`, `--no-save` |
 | `output NAME`, `describe NAME` | Print a saved output again (`--format text`, `json`, `markdown`, `csv`); give it a title and a description |
 | `accept NAME KEY...` | Accept changes after a review (`--all`, `--comment`, `--undo`); the Markdown report lists them |
 | `list`, `show REF` | List the snapshots and outputs; print the data of a snapshot |
