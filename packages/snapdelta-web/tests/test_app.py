@@ -721,3 +721,14 @@ def test_the_activity_lists_the_runs_and_shows_their_log(client, store, monkeypa
     listed = client.get("/api/v1/runs").json()[0]
     assert listed["log_lines"] == 1 and listed["notified"] == {} and listed["has_differences"] is None
     assert client.get(f"/api/v1/runs/{run.id}").json()["log"][0]["target"] == "R1"
+
+
+def test_the_new_diff_page_compares_many_targets(client, store) -> None:
+    page = client.get("/new").text
+    assert 'action="/diffs/targets"' in page and 'name="live"' in page
+    result = client.post("/diffs/targets", data={"left": "before", "right": "after", "title": "CHG-9"})
+    assert result.status_code == 200
+    assert "<h1>CHG-9</h1>" in result.text and "1 changed, 0 unchanged, 0 failed" in result.text
+    assert 'href="/diffs/' in result.text
+    refused = client.post("/diffs/targets", data={"left": "nope", "right": "after"})
+    assert refused.status_code == 400 and "give targets, groups or all_targets" in refused.text

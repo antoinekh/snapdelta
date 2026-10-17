@@ -49,6 +49,8 @@ The metadata of the load (time, models, inputs, warnings), then one table per mo
 
 Choose a target, then a snapshot, for each side; with an inventory, a group list filters the targets. Then the models in common, a title, a description and a profile. **⇄** between the two sides swaps them; **Before → after** selects the newest snapshots labelled `before` and `after` of the target of the left side.
 
+**Many targets**, under the form, compares `TARGET@LEFT` with `TARGET@RIGHT` for each host of a group, or for each target of the store that has a left snapshot; **With the targets now** takes the right side from the targets, at the same time. The page that follows lists each target as changed, unchanged or failed, with the link of its diff.
+
 ## Activity
 
 Each command is a run: a snapshot of one or more targets, or a saved diff, from the web UI, the CLI, the API or MCP. **Activity** lists the newest runs with their origin, their targets, their result (OK, Partial when some targets failed, Failed) and the size of their log; a run page shows its snapshots, its diff, the error of each failed target and the log of its loads, from a chosen level.

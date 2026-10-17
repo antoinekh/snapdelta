@@ -1,0 +1,19 @@
+{% extends "base.html" %}
+{% block title %}Diffs of many targets · snapdelta{% endblock %}
+{% block content %}
+<nav class="crumbs" aria-label="Breadcrumb"><a href="/diffs">Diffs</a></nav>
+<div class="title-row"><h1>{{ title or "Diffs of many targets" }}</h1><span class="tag label">{{ left }} → {{ right }}</span></div>
+<p class="muted">{{ changed | length }} changed, {{ unchanged | length }} unchanged, {{ failed | length }} failed.</p>
+<table class="list">
+  <thead><tr><th>Target</th><th>Result</th><th>Diff or error</th></tr></thead>
+  <tbody>
+    {% for item in results %}
+    <tr>
+      <td class="mono strong">{{ item.target }}</td>
+      <td>{% if item.error %}<span class="error">failed</span>{% elif item.changed %}<span class="warn-text">changed</span>{% else %}<span class="tag">unchanged</span>{% endif %}</td>
+      <td>{% if item.name %}<a class="mono" href="/diffs/{{ item.name }}">{{ item.name }}</a>{% else %}<span class="small">{{ item.error }}</span>{% endif %}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% endblock %}

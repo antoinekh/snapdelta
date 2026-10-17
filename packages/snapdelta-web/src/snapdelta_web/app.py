@@ -31,7 +31,7 @@ from snapdelta.settings import Settings, SettingsError, save_settings, user_sett
 from snapdelta.snapshot import top_level_models
 from snapdelta.source import Source, broken_sources, source_classes
 from snapdelta.store import LATEST, PrunePlan, Store, age_cutoff
-from snapdelta.take import diff_snapshots, plan_sources, platform_source, target_names
+from snapdelta.take import diff_snapshots, diff_targets, plan_sources, platform_source, target_names
 
 from . import views
 from .access import LruCache, SnapshotCache
@@ -350,6 +350,42 @@ def create_app(state: AppState) -> FastAPI:
             origin="web",
         )
         return RedirectResponse(f"/diffs/{done.name}", status_code=303)
+
+    @app.post("/diffs/targets", response_class=HTMLResponse)
+    def run_target_diffs(
+        request: Request,
+        left: Annotated[str, Form()],
+        right: Annotated[str, Form()] = "",
+        group: Annotated[str, Form()] = "",
+        live: Annotated[bool, Form()] = False,
+        profile: Annotated[str, Form()] = "",
+        title: Annotated[str, Form()] = "",
+    ) -> HTMLResponse:
+        """For each host of the group, or each target of the store, TARGET@LEFT with TARGET@RIGHT or the target now."""
+        results = diff_targets(
+            state.store,
+            state.settings,
+            left.strip(),
+            None if live else right.strip() or None,
+            groups=[group] if group else [],
+            all_targets=not group,
+            live=live,
+            profile=profile or None,
+            title=title,
+            origin="web",
+        )
+        items = list(results.values())
+        context = {
+            "tab": "new",
+            "results": items,
+            "left": left.strip(),
+            "right": "now" if live else right.strip(),
+            "title": title.strip(),
+            "changed": [item for item in items if item.changed],
+            "unchanged": [item for item in items if item.output is not None and not item.changed],
+            "failed": [item for item in items if item.error],
+        }
+        return render(request, "diffs_targets.html", context)
 
     @app.post("/diffs/{name}/describe")
     def describe_diff(
