@@ -24,7 +24,7 @@ from snapdelta.source import source_classes
 from snapdelta.store import open_store_from
 from snapdelta.take import diff_snapshots, snapshot_targets
 
-from .api import DiffItem, ReviewState, RunItem, SnapshotInfo, SnapshotResult, SourceInfo, review_state
+from .api import MAX_LIMIT, DiffItem, ReviewState, RunItem, SnapshotInfo, SnapshotResult, SourceInfo, review_state
 from .state import AppState
 
 GUIDE = (Path(__file__).parent / "mcp_guide.md").read_text(encoding="utf-8")
@@ -147,7 +147,10 @@ def create_mcp(state: AppState) -> MCPServer:
         return items
 
     @tool(READ_ONLY)
-    def list_snapshots(target: str, limit: int = 20) -> list[SnapshotInfo]:
+    def list_snapshots(
+        target: str,
+        limit: Annotated[int, Field(ge=1, le=MAX_LIMIT, description="How many snapshots, newest first.")] = 20,
+    ) -> list[SnapshotInfo]:
         """The snapshots of one target, newest first."""
         return [
             SnapshotInfo(
@@ -210,15 +213,18 @@ def create_mcp(state: AppState) -> MCPServer:
     def read_diff(
         name: DiffName,
         model: Annotated[str | None, Field(description="Only the changes of this model.")] = None,
-        offset: Annotated[int, Field(description="Where the page starts: next_offset of the page before.")] = 0,
-        limit: Annotated[int, Field(description="How many changes per page.")] = PAGE,
+        offset: Annotated[int, Field(ge=0, description="Where the page starts: next_offset of the page before.")] = 0,
+        limit: Annotated[int, Field(ge=1, le=MAX_LIMIT, description="How many changes per page.")] = PAGE,
     ) -> ChangePage:
         """One page of the changes of a saved diff, of one model when given."""
         resolved = state.store.resolve_output(name)
         return _page(resolved, state.store.load_output(resolved), model, offset, limit)
 
     @tool(READ_ONLY)
-    def list_diffs(query: str = "", limit: int = 20) -> list[DiffItem]:
+    def list_diffs(
+        query: str = "",
+        limit: Annotated[int, Field(ge=1, le=MAX_LIMIT, description="How many diffs, newest first.")] = 20,
+    ) -> list[DiffItem]:
         """The newest saved diffs whose left or right target contains `query`."""
         return [
             DiffItem.of(entry.name, state.store.load_output(entry.name))
@@ -278,7 +284,10 @@ def create_mcp(state: AppState) -> MCPServer:
         return items
 
     @tool(READ_ONLY)
-    def list_runs(kind: str | None = None, limit: int = 20) -> list[RunItem]:
+    def list_runs(
+        kind: str | None = None,
+        limit: Annotated[int, Field(ge=1, le=MAX_LIMIT, description="How many runs, newest first.")] = 20,
+    ) -> list[RunItem]:
         """The newest runs (snapshot or diff) from the CLI, the web UI, the API and MCP, without their log."""
         return [RunItem.of(run) for run in state.store.runs(limit, kind)]
 
@@ -311,8 +320,9 @@ def create_mcp(state: AppState) -> MCPServer:
 
 
 def _page(name: str, output: Any, model: str | None, offset: int, limit: int) -> ChangePage:
+    """One page of `output`; the tools check offset >= 0 and limit >= 1 before they call this."""
     rows = [row for row in change_rows(output) if model is None or row.model == model]
-    window = rows[offset : offset + max(limit, 1)]
+    window = rows[offset : offset + limit]
     end = offset + len(window)
     return ChangePage(
         name=name,

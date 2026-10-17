@@ -21,6 +21,8 @@ from .access import LruCache
 from .state import AppState
 
 PREFIX = "/api/v1"
+# One call returns a page, not the whole store; the MCP tools use the same bound.
+MAX_LIMIT = 500
 
 
 class Component(BaseModel):
@@ -267,7 +269,7 @@ def create_api(state: AppState, row_cache: LruCache[Any, Any]) -> FastAPI:
         )
 
     @api.get("/diffs")
-    def diffs(q: str = "", limit: Annotated[int, Query(ge=1, le=500)] = 50) -> list[DiffItem]:
+    def diffs(q: str = "", limit: Annotated[int, Query(ge=1, le=MAX_LIMIT)] = 50) -> list[DiffItem]:
         """The newest saved diffs, whose left or right target contains q."""
         return [
             DiffItem.of(entry.name, state.store.load_output(entry.name))
@@ -295,7 +297,7 @@ def create_api(state: AppState, row_cache: LruCache[Any, Any]) -> FastAPI:
         return DiffItem.of(resolved, output)
 
     @api.get("/runs")
-    def runs(kind: str | None = None, limit: Annotated[int, Query(ge=1, le=500)] = 50) -> list[RunItem]:
+    def runs(kind: str | None = None, limit: Annotated[int, Query(ge=1, le=MAX_LIMIT)] = 50) -> list[RunItem]:
         """The newest runs (snapshot or diff), from the CLI, the web UI, the API and MCP."""
         return [RunItem.of(run) for run in state.store.runs(limit, kind)]
 

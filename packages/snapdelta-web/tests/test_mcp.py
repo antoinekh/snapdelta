@@ -79,6 +79,19 @@ def test_an_error_comes_back_as_a_tool_error(store) -> None:
     assert result.is_error and "nope" in result.content[0].text
 
 
+def test_a_page_out_of_range_comes_back_as_a_tool_error(store) -> None:
+    async def steps(client: Client) -> tuple[Any, Any, Any]:
+        offset = await client.call_tool("read_diff", {"name": "20260925T110000Z-R1-vs-R1", "offset": -5})
+        limit = await client.call_tool("list_snapshots", {"target": "R1", "limit": 0})
+        above_max = await client.call_tool("list_runs", {"limit": 501})
+        return offset, limit, above_max
+
+    offset, limit, above_max = call(store, steps)
+    assert offset.is_error and "offset" in offset.content[0].text
+    assert limit.is_error and "limit" in limit.content[0].text
+    assert above_max.is_error and "limit" in above_max.content[0].text
+
+
 def test_the_web_app_serves_mcp_behind_its_token(store, make_app) -> None:
     settings = Settings(store=StoreSettings(location=store.location), web=WebSettings(token=Secret(plain="t0ken")))
     request = {"jsonrpc": "2.0", "id": 1, "method": "tools/list", "params": {}}
