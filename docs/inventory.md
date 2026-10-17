@@ -93,6 +93,24 @@ def load(self) -> None:
     ...
 ```
 
+## Models by group
+
+Some models belong to some hosts only: the BGP sessions to the peers exist on the edge routers, not on the core. Give such a top-level model the inventory groups of its hosts, next to `_modelname` and `_identifiers`:
+
+```python
+class BgpSession(DiffSyncModel):
+    _modelname = "bgp_session"
+    _identifiers = ("peer",)
+    _groups = ("edge",)  # only the hosts of the group edge, or of a group under it, load this model
+    peer: str
+    state: str
+```
+
+- Before the load, snapdelta gives the source the models of its host, in `self.wanted`: the models with no `_groups`, the models of one of the groups of the host, and their children. In `load()`, check `self.wants("bgp_session")` before a fetch that only some hosts need.
+- The snapshot records the models of its host only, even when `load()` fills more, so a compare keeps the models that both sides loaded, as always: an edge router compares with a core router on their common models.
+- With no inventory, or for a target that is not in it, a load fills every model.
+- `snapdelta models` and **Admin > Models** show the groups of each model; `snapdelta doctor` warns when a model names a group that the inventory does not have, and when a child model has `_groups`, which a child does not use: it follows its parent.
+
 ## Other formats
 
 A plugin adds a format with a subclass of `snapdelta.inventory.InventoryFormat`. Its class method `load(location, settings)` returns a `snapdelta.inventory.Inventory`. `location` is `[inventory] location` as written, and `settings` is the `[inventories.NAME]` table of the format, typed by its `settings_class`, a subclass of `snapdelta.settings.InventoryFormatSettings`. A secret field takes a `Secret`, as for a source ([settings.md](settings.md#secrets)).

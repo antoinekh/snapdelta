@@ -11,7 +11,7 @@ from .catalog import catalog
 from .errors import SnapdeltaError
 from .plugins import ExtensionPoint, Problem, Severity, discover, extension_points
 from .settings import Settings, load_settings
-from .source import SOURCES, source_classes
+from .source import SOURCES, model_groups, source_classes
 from .store import open_store_from
 from .take import platform_source
 
@@ -152,4 +152,12 @@ def _inventory_check(settings: Settings) -> Check:
                 Severity.WARNING, f"no source for the platform of {', '.join(lost)}: map it in [inventory.platforms]"
             )
         )
+    for name, cls in sorted(source_classes().items()):
+        for model in cls.top_level:
+            unknown = [group for group in model_groups(getattr(cls, model)) if group not in inventory.groups]
+            if unknown:
+                message = (
+                    f"source {name}: the model {model} is for groups that the inventory has not: {', '.join(unknown)}"
+                )
+                problems.append(Problem(Severity.WARNING, message))
     return Check("inventory", f"{where}, {len(inventory.hosts)} hosts", problems)

@@ -11,6 +11,7 @@ from typing import Any, ClassVar
 from diffsync import Adapter, DiffSyncModel
 from diffsync.exceptions import ObjectAlreadyExists
 from pydantic import BaseModel
+from pydantic.fields import ModelPrivateAttr
 
 from .activity import LogLine
 from .errors import LoadError
@@ -28,6 +29,18 @@ from .plugins import (
     settings_problems,
 )
 from .settings import SourceSettings
+
+
+def model_groups(model: type[DiffSyncModel]) -> tuple[str, ...]:
+    """The inventory groups of the hosts that load a top-level model, from its `_groups`; empty: every host."""
+    value = _raw_groups(model)
+    return tuple(value) if isinstance(value, tuple | list) else ()
+
+
+def _raw_groups(model: type[DiffSyncModel]) -> Any:
+    value = getattr(model, "_groups", ())
+    # pydantic keeps an underscore class attribute that has no ClassVar annotation as a private attribute.
+    return value.default if isinstance(value, ModelPrivateAttr) else value
 
 
 class InputRef(BaseModel):
@@ -70,6 +83,8 @@ class Source(Adapter):
         self.settings = settings if settings is not None else self.default_settings()
         # The inventory entry of the target, when there is an inventory: address, port, login, platform, data.
         self.host = host
+        # The models of this host, top-level models and their children: a load fetches only these.
+        self.wanted = self.models_for(host)
 
     @classmethod
     def default_settings(cls) -> SourceSettings:
@@ -79,6 +94,34 @@ class Source(Adapter):
     def targets(cls, settings: SourceSettings | None = None) -> list[str]:
         """The targets that a fetching source can reach, for the pickers; empty when unknown."""
         return []
+
+    @classmethod
+    def models_for(cls, host: Host | None) -> list[str]:
+        """The models that a load of `host` fills, in model order; with no host, every model.
+
+        A top-level model with `_groups` is for the hosts of one of these inventory groups only, with its children.
+        """
+        groups = set(host.groups) if host is not None else None
+        tops = [
+            name
+            for name in cls.top_level
+            if groups is None or not model_groups(getattr(cls, name)) or groups & set(model_groups(getattr(cls, name)))
+        ]
+        order: list[str] = []
+
+        def visit(name: str) -> None:
+            if name not in order:
+                order.append(name)
+                for child in getattr(cls, name).get_children_mapping():
+                    visit(child)
+
+        for name in tops:
+            visit(name)
+        return [name for name in cls.model_order() if name in order]
+
+    def wants(self, model: str) -> bool:
+        """Whether this load fills `model`: check it before a fetch that only some hosts need."""
+        return model in self.wanted
 
     @classmethod
     def model_order(cls) -> list[str]:
@@ -142,7 +185,7 @@ class Source(Adapter):
         self.name = self.target
 
     def set_loaded(self, models: Iterable[str]) -> None:
-        wanted = set(models)
+        wanted = set(models) & set(self.wanted)
         self.loaded = [name for name in self.model_order() if name in wanted]
         # diffsync reads `top_level` from the instance, so this limits a compare to the models that both loads filled;
         # setattr because diffsync types it as a ClassVar.
@@ -193,6 +236,14 @@ def _inspect_source(name: str, cls: type[Source]) -> list[Problem]:
         problems.append(Problem(Severity.ERROR, "load() has no code: it must fill the models of one target"))
     if not cls.top_level:
         problems.append(Problem(Severity.ERROR, "top_level is empty: a compare would have no model"))
+    for name in cls.top_level:
+        model = getattr(cls, name, None)
+        if isinstance(model, type) and issubclass(model, DiffSyncModel):
+            groups = _raw_groups(model)
+            if groups and not (
+                isinstance(groups, tuple | list) and all(isinstance(item, str) and item for item in groups)
+            ):
+                problems.append(Problem(Severity.ERROR, f"{name}: _groups must be a tuple of inventory group names"))
     seen = set(cls.top_level)
     parents: list[tuple[str, str | None]] = [(model, None) for model in cls.top_level]
     while parents:
@@ -203,6 +254,9 @@ def _inspect_source(name: str, cls: type[Source]) -> list[Problem]:
             where = f"{parent}: its child" if parent else "top_level names"
             problems.append(Problem(Severity.ERROR, f"{where} {model_name!r}, which is not a model of the source"))
             continue
+        if parent is not None and model_groups(model):
+            message = f"{model_name}: _groups of a child model are not used, the child follows its parent"
+            problems.append(Problem(Severity.WARNING, message))
         for child in model.get_children_mapping():
             if child not in seen:
                 seen.add(child)

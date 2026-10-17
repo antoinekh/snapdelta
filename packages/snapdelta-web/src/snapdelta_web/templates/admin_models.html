@@ -17,6 +17,7 @@
         <tr id="model-{{ found.names[0] }}-{{ model.name }}" class="{{ 'child-model' if model.parent }}">
           <td>
             <span class="mono strong">{% if model.parent %}<span class="muted" aria-label="child of {{ model.parent }}">{{ model.parent }} › </span>{% endif %}{{ model.name }}</span>
+            {% if model.groups %}<div class="small">{% for group in model.groups %}<span class="tag" title="Loaded on the hosts of this inventory group only">{{ group }}</span> {% endfor %}</div>{% endif %}
             {% if model.doc %}<div class="muted small">{{ model.doc | ticks }}</div>{% endif %}
           </td>
           <td>{% for item in model.identifiers %}<div class="field-line"><span class="mono">{{ item.name }}</span> <span class="field-type mono">{{ item.type }}</span></div>{% endfor %}</td>

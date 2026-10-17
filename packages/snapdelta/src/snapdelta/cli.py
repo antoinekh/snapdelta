@@ -238,7 +238,8 @@ def list_models(
             typer.echo(f"warning: {conflict}")
         for model in found.models:
             place = f"  child of {model.parent}" if model.parent else ""
-            typer.echo(f"  {model.name}{place}  id: {model.unique_id}")
+            groups = f"  groups: {', '.join(model.groups)}" if model.groups else ""
+            typer.echo(f"  {model.name}{place}  id: {model.unique_id}{groups}")
             for item in model.attributes:
                 typer.echo(f"    {item.name}: {item.type}")
             for item in model.context:

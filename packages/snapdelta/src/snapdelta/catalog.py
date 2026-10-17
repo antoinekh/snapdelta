@@ -11,7 +11,7 @@ from typing import Any, get_args
 from diffsync import DiffSyncModel
 
 from .plugins import package_of
-from .source import SOURCES, Source
+from .source import SOURCES, Source, model_groups
 
 # diffsync joins the identifiers of an object with this into its unique id.
 ID_SEPARATOR = "__"
@@ -34,6 +34,8 @@ class ModelInfo:
     parent: str | None
     # Kept in the snapshot, never compared.
     context: list[ModelField] = field(default_factory=list)
+    # The inventory groups of the hosts that load this top-level model; empty: every host.
+    groups: list[str] = field(default_factory=list)
 
     @property
     def unique_id(self) -> str:
@@ -138,6 +140,7 @@ def _model_info(name: str, model: type[DiffSyncModel], parent: str | None) -> Mo
         children=list(model.get_children_mapping()),
         parent=parent,
         context=[ModelField(key, _type_name(fields[key].annotation)) for key in context_fields(model)],
+        groups=list(model_groups(model)) if parent is None else [],
     )
 
 
