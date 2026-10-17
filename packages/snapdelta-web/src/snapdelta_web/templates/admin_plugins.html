@@ -5,7 +5,7 @@
 {% include "_admin_nav.html" %}
 {% for point, reports in points %}
 <section class="panel" id="plugins-{{ point.table or point.group }}">
-  <h2>{{ point.kind | capitalize }}s <span class="tag mono">{{ point.group }}</span></h2>
+  <h2>{{ point.kind | capitalize }}s <span class="tag mono">{{ point.group }}</span> <span class="muted small mono">{{ point.interface }}</span></h2>
   <div class="scroll">
     <table class="list dense">
       <thead><tr><th>Name</th><th>Package</th><th>Version</th><th>Status</th><th>Problems</th></tr></thead>
