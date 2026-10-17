@@ -10,7 +10,8 @@ from typing import Any, get_args
 
 from diffsync import DiffSyncModel
 
-from .source import Source
+from .plugins import package_of
+from .source import SOURCES, Source
 
 # diffsync joins the identifiers of an object with this into its unique id.
 ID_SEPARATOR = "__"
@@ -85,7 +86,7 @@ def describe(cls: type[Source], source: str | None = None) -> SourceModels:
     models = [_model_info(name, _model(cls, name), parents.get(name)) for name in order]
     return SourceModels(
         source=source or cls.source,
-        distribution=cls.distribution,
+        distribution=package_of(SOURCES, source or cls.source),
         fetches=cls.fetches,
         doc=inspect.getdoc(cls),
         models=models,

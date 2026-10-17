@@ -18,7 +18,6 @@ MODELS = ("interface", "bgp_peer", "bgp_route")
 class LabSource(Source):
     """One router of the lab; with `outputs` in its settings, the saved outputs of that router instead."""
 
-    distribution = "snapdelta-lab"
     fetches = True
     settings_class = RouterSettings
 

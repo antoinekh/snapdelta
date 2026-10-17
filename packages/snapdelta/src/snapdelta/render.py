@@ -7,15 +7,14 @@ import io
 import json
 from collections.abc import Callable, Iterator
 from dataclasses import dataclass
-from importlib.metadata import entry_points
 from typing import Any
 
 from .errors import SnapdeltaError
 from .output import Output, Side
+from .plugins import ExtensionPoint, plugins, require
 from .source import Source
 
 OWN = ("-", "+")
-RENDERER_GROUP = "snapdelta.renderers"
 
 
 @dataclass(frozen=True)
@@ -232,26 +231,29 @@ def _cell(text: str) -> str:
     return text.replace("|", "\\|").replace("\n", " ")
 
 
-BUILT_IN = {
-    "text": Renderer("text/plain", "txt", render_output),
-    "json": Renderer("application/json", "json", render_json),
-    "markdown": Renderer("text/markdown", "md", render_markdown),
-    "csv": Renderer("text/csv", "csv", render_csv),
-}
+TEXT = Renderer("text/plain", "txt", render_output)
+JSON = Renderer("application/json", "json", render_json)
+MARKDOWN = Renderer("text/markdown", "md", render_markdown)
+CSV = Renderer("text/csv", "csv", render_csv)
+
+
+def _check_renderer(name: str, value: Any) -> str | None:
+    return None if isinstance(value, Renderer) else f"not a snapdelta.render.Renderer: {value!r}"
+
+
+RENDERERS: ExtensionPoint[Renderer] = ExtensionPoint(
+    group="snapdelta.renderers",
+    kind="output format",
+    interface="snapdelta.render.Renderer",
+    table=None,
+    check=_check_renderer,
+)
 
 
 def renderers() -> dict[str, Renderer]:
-    """The formats by name: the built-in ones, then the installed plugins."""
-    found = dict(BUILT_IN)
-    for entry in entry_points(group=RENDERER_GROUP):
-        loaded = entry.load()
-        if isinstance(loaded, Renderer):
-            found[entry.name] = loaded
-    return found
+    """The formats by name, the built-in ones included; a broken one is left out."""
+    return plugins(RENDERERS)
 
 
 def renderer(name: str) -> Renderer:
-    found = renderers()
-    if name not in found:
-        raise SnapdeltaError(f"unknown format {name!r}; formats: {', '.join(sorted(found))}")
-    return found[name]
+    return require(RENDERERS, name)

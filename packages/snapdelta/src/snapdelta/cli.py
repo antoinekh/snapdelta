@@ -17,9 +17,10 @@ from .activity import configure_logging
 from .catalog import catalog
 from .errors import SnapdeltaError
 from .output import Output, new_review
+from .plugins import package_of
 from .render import Renderer, render_snapshot, renderer
 from .settings import Settings, load_settings, setting_rows
-from .source import Source, broken_sources, require_source, source_classes
+from .source import SOURCES, Source, broken_sources, require_source, source_classes
 from .store import Store, age_cutoff, open_store_from
 from .take import diff_snapshots, load_source, platform_source, snapshot_targets, target_names
 
@@ -132,7 +133,7 @@ def show_settings(ctx: typer.Context, as_json: Json = False) -> None:
 def list_sources() -> None:
     """List the installed sources, and whether each reads input files or fetches its data."""
     for name, cls in sorted(source_classes().items()):
-        typer.echo(f"{name}\t{cls.distribution}\t{'fetches' if cls.fetches else 'files'}")
+        typer.echo(f"{name}\t{package_of(SOURCES, name)}\t{'fetches' if cls.fetches else 'files'}")
     for name, error in sorted(broken_sources().items()):
         typer.echo(f"warning: source {name} cannot load: {error}", err=True)
 

@@ -49,10 +49,10 @@ def test_sources_with_the_same_models_form_one_set() -> None:
     assert OtherInterface.__doc__ and sets[1].models[0].doc == "An interface with other attributes than the example."
 
 
-def test_the_models_command(monkeypatch) -> None:
-    from snapdelta import source
+def test_the_models_command() -> None:
+    from snapdelta.source import register_source
 
-    monkeypatch.setitem(source._REGISTERED, "other", OtherSource)
+    register_source(OtherSource)
     result = CliRunner().invoke(app, ["models", "--source", "other"])
     assert result.exit_code == 0, result.output
     assert result.output.startswith("other (files)\ncompares with: example, example-live\nwarning: interface:")

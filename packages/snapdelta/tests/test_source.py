@@ -1,6 +1,6 @@
 import pytest
 
-from snapdelta.errors import LoadError
+from snapdelta.errors import LoadError, SnapdeltaError
 from snapdelta.settings import SourceSettings
 from snapdelta.source import Source, register_source, source_classes
 from snapdelta_example import ExampleSource
@@ -88,7 +88,7 @@ def test_registered_adapters_join_the_entry_points() -> None:
     class Extra(ExampleSource):
         source = "extra"
 
-    register_source("extra", Extra)
+    register_source(Extra)
     classes = source_classes()
     assert classes["extra"] is Extra
     assert classes["example"] is ExampleSource
@@ -109,33 +109,54 @@ def test_a_source_gets_its_settings_or_the_defaults() -> None:
     assert WithSettings(settings=Timeout(timeout_s=2)).settings.timeout_s == 2
 
 
-def test_a_broken_plugin_does_not_stop_the_other_sources(monkeypatch) -> None:
-    from types import SimpleNamespace
-
-    import pytest
-
-    from snapdelta import source as source_module
-    from snapdelta.errors import LoadError, SnapdeltaError
-    from snapdelta.source import broken_sources, require_source
-    from snapdelta_example import ExampleSource
+def test_a_broken_plugin_does_not_stop_the_other_sources(fake_entry_points) -> None:
+    from snapdelta.errors import PluginError
+    from snapdelta.source import SOURCES, broken_sources, require_source
 
     def broken() -> type:
         raise ImportError("no module named vendor_sdk")
 
-    entries = [SimpleNamespace(name="good", load=lambda: ExampleSource), SimpleNamespace(name="bad", load=broken)]
-    monkeypatch.setattr(source_module, "entry_points", lambda group: entries)
+    fake_entry_points(SOURCES.group, "good", lambda: Good, "good-plugin")
+    fake_entry_points(SOURCES.group, "bad", broken, "bad-plugin")
     assert "good" in source_classes() and "bad" not in source_classes()
     assert broken_sources() == {"bad": "ImportError: no module named vendor_sdk"}
-    with pytest.raises(LoadError, match=r"bad: the plugin of this source cannot load \(ImportError"):
+    with pytest.raises(PluginError, match=r"the source 'bad' cannot be used: ImportError: no module named vendor_sdk"):
         require_source("bad")
     with pytest.raises(SnapdeltaError, match="no source 'nope' is installed"):
         require_source("nope")
 
 
-def test_a_missing_distribution_has_an_unknown_version(make_adapter) -> None:
-    adapter = make_adapter()
-    adapter.distribution = "no-such-distribution"
-    assert adapter.versions()["no-such-distribution"] == "unknown"
+def test_a_source_must_carry_the_name_of_its_entry_point(fake_entry_points) -> None:
+    from snapdelta.source import SOURCES, broken_sources
+
+    fake_entry_points(SOURCES.group, "renamed", lambda: Good)
+    fake_entry_points(SOURCES.group, "not-a-source", lambda: object)
+    assert broken_sources() == {
+        "not-a-source": "not a snapdelta.source.Source subclass: <class 'object'>",
+        "renamed": "its class attribute source is 'good': it must be 'renamed', the name of its entry point",
+    }
+
+
+def test_two_packages_with_the_same_name_are_both_left_out(fake_entry_points) -> None:
+    from snapdelta.source import SOURCES, broken_sources
+
+    fake_entry_points(SOURCES.group, "good", lambda: Good, "one")
+    fake_entry_points(SOURCES.group, "good", lambda: Good, "two")
+    assert "good" not in source_classes()
+    assert broken_sources() == {"good": "two packages give this name: one, two; uninstall one"}
+
+
+class Good(ExampleSource):
+    source = "good"
+
+
+def test_the_version_of_a_source_comes_from_its_package(make_adapter) -> None:
+    assert make_adapter().versions()["snapdelta-example"] != "unknown"
+
+
+def test_a_registered_source_has_no_package_version() -> None:
+    register_source(Good)
+    assert set(Good(target="R1").versions()) == {"diffsync", "snapdelta"}
 
 
 def test_a_file_given_twice_is_read_once(tmp_path) -> None:

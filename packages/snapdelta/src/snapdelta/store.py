@@ -11,7 +11,6 @@ from collections.abc import Iterator
 from contextlib import closing, contextmanager
 from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
-from importlib.metadata import entry_points
 from pathlib import Path
 from typing import ClassVar
 
@@ -22,6 +21,7 @@ from .errors import NotFoundError, SnapdeltaError
 from .jsonfile import write_json
 from .output import SCHEMA as OUTPUT_SCHEMA
 from .output import Output, Review, described, load_output, reviewed, save_output
+from .plugins import ExtensionPoint, plugins, require, subclass_check
 from .settings import Settings, StoreBackendSettings
 from .snapshot import SCHEMA as SNAPSHOT_SCHEMA
 from .snapshot import (
@@ -47,7 +47,6 @@ SCHEME_SEPARATOR = "://"
 SQLITE_PREFIX = "sqlite://"
 # A location without a scheme is a directory of the file store.
 DEFAULT_SCHEME = "file"
-STORE_GROUP = "snapdelta.stores"
 BUSY_TIMEOUT_S = 30.0
 
 
@@ -56,26 +55,13 @@ def default_store_path() -> Path:
     return Path(base) / "snapdelta"
 
 
-def store_classes() -> dict[str, type[Store]]:
-    """The store backends by the scheme of their location: the built-in ones, then the installed plugins."""
-    found: dict[str, type[Store]] = {"file": FileStore, "sqlite": SqliteStore}
-    for entry in entry_points(group=STORE_GROUP):
-        loaded = entry.load()
-        if isinstance(loaded, type) and issubclass(loaded, Store):
-            found[entry.name] = loaded
-    return found
-
-
 def open_store(location: str, settings: Settings | None = None) -> Store:
     """`SCHEME://ADDRESS` opens the backend of that scheme, with its `[stores.SCHEME]` settings.
 
     A location without a scheme is a directory. The settings choose the location of `SNAPDELTA_STORE` and the default.
     """
     scheme, address = split_location(location)
-    classes = store_classes()
-    if scheme not in classes:
-        raise SnapdeltaError(f"no store backend for {scheme}:// (installed: {', '.join(sorted(classes))})")
-    cls = classes[scheme]
+    cls = require(STORES, scheme)
     chosen = settings.plugin("stores", scheme, cls.settings_class) if settings else cls.settings_class()
     return cls.open(address, chosen)
 
@@ -404,6 +390,20 @@ class Store(ABC):
 
     @abstractmethod
     def _delete_run(self, run_id: str) -> None: ...
+
+
+STORES: ExtensionPoint[type[Store]] = ExtensionPoint(
+    group="snapdelta.stores",
+    kind="store backend",
+    interface="snapdelta.store.Store",
+    table="stores",
+    check=subclass_check(Store),
+)
+
+
+def store_classes() -> dict[str, type[Store]]:
+    """The store backends by the scheme of their location, the built-in ones included; a broken one is left out."""
+    return plugins(STORES)
 
 
 class FileStore(Store):

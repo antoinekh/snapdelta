@@ -6,16 +6,15 @@ import stat
 from abc import ABC, abstractmethod
 from collections.abc import Iterable, Mapping
 from dataclasses import dataclass, field
-from importlib.metadata import entry_points
 from pathlib import Path
 from typing import Any, ClassVar
 
 import yaml
 
 from .errors import SnapdeltaError
+from .plugins import ExtensionPoint, plugins, require, subclass_check
 from .settings import InventoryFormatSettings
 
-INVENTORY_GROUP = "snapdelta.inventories"
 # The keys of a Nornir host, group or defaults entry, besides `groups` and `data`.
 NORNIR_KEYS = ("hostname", "port", "username", "password", "platform")
 
@@ -86,21 +85,22 @@ class NornirInventory(InventoryFormat):
         return load_nornir(Path(location))
 
 
+INVENTORIES: ExtensionPoint[type[InventoryFormat]] = ExtensionPoint(
+    group="snapdelta.inventories",
+    kind="inventory format",
+    interface="snapdelta.inventory.InventoryFormat",
+    table="inventories",
+    check=subclass_check(InventoryFormat),
+)
+
+
 def inventory_formats() -> dict[str, type[InventoryFormat]]:
-    """The inventory formats by name: Nornir, then the formats of the installed plugins."""
-    found: dict[str, type[InventoryFormat]] = {"nornir": NornirInventory}
-    for entry in entry_points(group=INVENTORY_GROUP):
-        loaded = entry.load()
-        if isinstance(loaded, type) and issubclass(loaded, InventoryFormat):
-            found[entry.name] = loaded
-    return found
+    """The inventory formats by name, Nornir included; a broken one is left out."""
+    return plugins(INVENTORIES)
 
 
 def inventory_format(name: str) -> type[InventoryFormat]:
-    formats = inventory_formats()
-    if name not in formats:
-        raise InventoryError(f"no inventory format {name!r} (formats: {', '.join(sorted(formats))})")
-    return formats[name]
+    return require(INVENTORIES, name)
 
 
 def load_nornir(location: Path) -> Inventory:

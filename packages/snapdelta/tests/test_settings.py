@@ -135,11 +135,9 @@ def test_a_tilde_of_an_unknown_user_in_a_settings_file_says_so(tmp_path) -> None
         load_settings(path, installed={})
 
 
-def test_a_plugin_backend_gets_the_path_resolution_of_its_kind(tmp_path, monkeypatch) -> None:
-    from types import SimpleNamespace
-
-    from snapdelta import store as store_module
-    from snapdelta.store import FileStore
+def test_a_plugin_backend_gets_the_path_resolution_of_its_kind(tmp_path) -> None:
+    from snapdelta.plugins import register_plugin
+    from snapdelta.store import STORES, FileStore
 
     class LocalStore(FileStore):
         backend = "local"
@@ -148,11 +146,8 @@ def test_a_plugin_backend_gets_the_path_resolution_of_its_kind(tmp_path, monkeyp
         backend = "remote"
         local_path = False
 
-    plugins = [
-        SimpleNamespace(name="local", load=lambda: LocalStore),
-        SimpleNamespace(name="s3", load=lambda: RemoteStore),
-    ]
-    monkeypatch.setattr(store_module, "entry_points", lambda group: plugins if group == "snapdelta.stores" else [])
+    register_plugin(STORES, "local", LocalStore)
+    register_plugin(STORES, "s3", RemoteStore)
     write(tmp_path / "local.toml", '[store]\nlocation = "local://data"\n')
     assert load_settings(tmp_path / "local.toml", installed=INSTALLED).store.location == f"local://{tmp_path / 'data'}"
     write(tmp_path / "s3.toml", '[store]\nlocation = "s3://bucket/data"\n')

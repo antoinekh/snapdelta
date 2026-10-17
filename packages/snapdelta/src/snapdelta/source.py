@@ -4,23 +4,20 @@ from __future__ import annotations
 
 from collections.abc import Iterable, Sequence
 from datetime import UTC, datetime
-from importlib.metadata import PackageNotFoundError, entry_points, version
+from importlib.metadata import PackageNotFoundError, version
 from pathlib import Path
-from typing import ClassVar
+from typing import Any, ClassVar
 
 from diffsync import Adapter, DiffSyncModel
 from diffsync.exceptions import ObjectAlreadyExists
 from pydantic import BaseModel
 
 from .activity import LogLine
-from .errors import LoadError, SnapdeltaError
+from .errors import LoadError
 from .inputs import InputFile
 from .inventory import Host
+from .plugins import ExtensionPoint, discover, package_of, plugins, register_plugin, require
 from .settings import SourceSettings
-
-SOURCE_GROUP = "snapdelta.sources"
-
-_REGISTERED: dict[str, type[Source]] = {}
 
 
 class InputRef(BaseModel):
@@ -35,7 +32,6 @@ class Source(Adapter):
 
     # Must equal the entry point name, because a snapshot finds its models again by this name.
     source: str = ""
-    distribution: ClassVar[str | None] = None
     # True: load() gets the data itself from `self.target` (target access), with no input file.
     fetches: ClassVar[bool] = False
     # The typed settings that snapdelta reads for this source from the [sources.NAME] table.
@@ -148,8 +144,9 @@ class Source(Adapter):
         return self.target, self.captured_at
 
     def versions(self) -> dict[str, str]:
-        """The versions of diffsync, snapdelta and the plugin; a plugin run from a source tree has no version."""
-        names = ["diffsync", "snapdelta", *([self.distribution] if self.distribution else [])]
+        """The versions of diffsync, snapdelta and the package of the source; a registered source has no package."""
+        package = package_of(SOURCES, self.source)
+        names = ["diffsync", "snapdelta", *([package] if package else [])]
         return {name: _version(name) for name in names}
 
 
@@ -171,43 +168,39 @@ def _version(distribution: str) -> str:
         return "unknown"
 
 
-def register_source(name: str, cls: type[Source]) -> None:
-    """Add a source without an entry point, for tests and for code that embeds snapdelta."""
-    _REGISTERED[name] = cls
+def _check_source(name: str, value: Any) -> str | None:
+    if not (isinstance(value, type) and issubclass(value, Source)):
+        return f"not a snapdelta.source.Source subclass: {value!r}"
+    if value.source != name:
+        # A snapshot records `source` and finds its models again by it, so another name makes it unreadable.
+        return f"its class attribute source is {value.source!r}: it must be {name!r}, the name of its entry point"
+    return None
+
+
+SOURCES: ExtensionPoint[type[Source]] = ExtensionPoint(
+    group="snapdelta.sources",
+    kind="source",
+    interface="snapdelta.source.Source",
+    table="sources",
+    check=_check_source,
+)
+
+
+def register_source(cls: type[Source]) -> None:
+    """Add a source without an entry point, under its `source` name, for tests and for code that embeds snapdelta."""
+    register_plugin(SOURCES, cls.source, cls)
 
 
 def source_classes() -> dict[str, type[Source]]:
-    """The installed sources by entry point name, then the registered ones; a plugin that cannot load is left out."""
-    return _load_sources()[0] | _REGISTERED
+    """The installed sources by entry point name, and the registered ones; a broken plugin is left out."""
+    return plugins(SOURCES)
 
 
 def broken_sources() -> dict[str, str]:
-    """The sources whose plugin cannot load, with the error of the import."""
-    return _load_sources()[1]
+    """The sources whose plugin cannot be used, with the error."""
+    return {name: broken.error for name, broken in sorted(discover(SOURCES).broken.items())}
 
 
 def require_source(name: str) -> type[Source]:
     """The class of one source; the error tells a source that is not installed from one that cannot load."""
-    found, broken = _load_sources()
-    classes = found | _REGISTERED
-    if name in classes:
-        return classes[name]
-    if name in broken:
-        raise LoadError(name, f"the plugin of this source cannot load ({broken[name]}): fix or reinstall it")
-    installed = ", ".join(sorted(classes)) or "none"
-    raise SnapdeltaError(f"no source {name!r} is installed (installed: {installed}): install its plugin package")
-
-
-def _load_sources() -> tuple[dict[str, type[Source]], dict[str, str]]:
-    found: dict[str, type[Source]] = {}
-    broken: dict[str, str] = {}
-    for entry in entry_points(group=SOURCE_GROUP):
-        try:
-            loaded = entry.load()
-        except Exception as error:
-            # One broken plugin must not stop the other sources, nor the commands that need no source.
-            broken[entry.name] = f"{type(error).__name__}: {error}"
-            continue
-        if isinstance(loaded, type) and issubclass(loaded, Source):
-            found[entry.name] = loaded
-    return found, broken
+    return require(SOURCES, name)

@@ -10,7 +10,6 @@ from pydantic import BaseModel
 
 from snapdelta.settings import (
     CORE_SECTIONS,
-    PLUGIN_TABLES,
     PROFILE_NAME_RE,
     Origin,
     Profile,
@@ -19,6 +18,7 @@ from snapdelta.settings import (
     SettingsError,
     format_setting,
     plugin_models,
+    plugin_tables,
     read_settings_file,
 )
 from snapdelta.source import Source
@@ -71,11 +71,12 @@ def form_groups(settings: Settings, installed: Mapping[str, type[Source]]) -> li
         _group(section, section, getattr(settings, section), raw.get(section, {}), settings)
         for section in CORE_SECTIONS
     ]
+    kinds = plugin_tables()
     for table, models in plugin_models(installed).items():
         for name, model in sorted(models.items()):
             if model.model_fields:
                 written = raw.get(table, {}).get(name, {})
-                title = f"{PLUGIN_TABLES[table].capitalize()} {name}"
+                title = f"{kinds[table].capitalize()} {name}"
                 groups.append(_group(f"{table}.{name}", title, settings.plugin(table, name, model), written, settings))
     return groups
 

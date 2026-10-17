@@ -5,7 +5,7 @@ from typer.testing import CliRunner
 
 from snapdelta.cli import app
 from snapdelta.errors import SnapdeltaError
-from snapdelta.inventory import INVENTORY_GROUP, InventoryError, inventory_format, load_nornir
+from snapdelta.inventory import InventoryError, inventory_format, load_nornir
 from snapdelta.settings import InventorySettings, Settings
 from snapdelta.store import FileStore
 from snapdelta.take import plan_sources, take_snapshots, target_names
@@ -48,7 +48,7 @@ def test_a_bad_inventory_says_why(tmp_path) -> None:
     (tmp_path / "hosts.yaml").write_text("R1: [\n")
     with pytest.raises(InventoryError, match="not valid YAML"):
         load_nornir(tmp_path)
-    with pytest.raises(InventoryError, match=r"no inventory format 'netbox' \(formats: nornir\)"):
+    with pytest.raises(SnapdeltaError, match=r"no inventory format 'netbox' is installed \(installed: nornir\)"):
         inventory_format("netbox")
 
 
@@ -82,10 +82,8 @@ def test_a_malformed_entry_says_which_host_and_why(tmp_path) -> None:
 
 
 def test_a_plugin_format_reads_its_location_with_its_settings(tmp_path, monkeypatch) -> None:
-    from types import SimpleNamespace
-
-    from snapdelta import inventory as inventory_module
-    from snapdelta.inventory import Host, Inventory, InventoryFormat
+    from snapdelta.inventory import INVENTORIES, Host, Inventory, InventoryFormat
+    from snapdelta.plugins import register_plugin
     from snapdelta.settings import InventoryFormatSettings, Secret, load_settings
 
     class NetboxSettings(InventoryFormatSettings):
@@ -99,8 +97,7 @@ def test_a_plugin_format_reads_its_location_with_its_settings(tmp_path, monkeypa
             assert isinstance(settings, NetboxSettings) and settings.token is not None
             return Inventory({"R1": Host("R1", hostname=f"{location} {settings.token.value()}")}, [], location)
 
-    plugin = SimpleNamespace(name="netbox", load=lambda: NetboxInventory)
-    monkeypatch.setattr(inventory_module, "entry_points", lambda group: [plugin] if group == INVENTORY_GROUP else [])
+    register_plugin(INVENTORIES, "netbox", NetboxInventory)
     monkeypatch.setenv("NETBOX_TOKEN", "t0ken")
     (tmp_path / "snapdelta.toml").write_text(
         '[inventory]\nformat = "netbox"\nlocation = "https://netbox.example.net"\n'
@@ -162,11 +159,14 @@ def test_the_cli_takes_a_group_by_platform_and_lists_the_inventory(tmp_path) -> 
     assert none.exit_code == 2 and "no inventory" in none.output
 
 
-def test_a_platform_with_the_name_of_a_source_needs_no_mapping(monkeypatch) -> None:
-    from snapdelta import source as source_module
+def test_a_platform_with_the_name_of_a_source_needs_no_mapping() -> None:
+    from snapdelta.source import register_source
     from snapdelta.take import platform_source
 
-    monkeypatch.setitem(source_module._REGISTERED, "example", ExampleLiveSource)
-    assert plan_sources(["R1"], with_inventory()) == {"R1": ExampleLiveSource}
+    class Example(ExampleLiveSource):
+        source = "example"
+
+    register_source(Example)
+    assert plan_sources(["R1"], with_inventory()) == {"R1": Example}
     assert platform_source(with_inventory(example="example-live"), "example") == "example-live"
     assert platform_source(with_inventory(), "nope") is None

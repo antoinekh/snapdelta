@@ -12,9 +12,10 @@ from snapdelta.about import components, package_version, plugins
 from snapdelta.activity import Run, RunStatus
 from snapdelta.errors import NotFoundError, SnapdeltaError
 from snapdelta.output import Output, Review, Side, new_review
+from snapdelta.plugins import package_of
 from snapdelta.render import renderer
 from snapdelta.snapshot import SnapshotFile
-from snapdelta.source import source_classes
+from snapdelta.source import SOURCES, source_classes
 from snapdelta.take import diff_snapshots, snapshot_targets
 
 from .access import LruCache
@@ -28,7 +29,7 @@ MAX_LIMIT = 500
 class Component(BaseModel):
     name: str
     version: str
-    sources: list[str] = []
+    plugins: list[str] = []
 
 
 class VersionInfo(BaseModel):
@@ -198,7 +199,7 @@ def create_api(state: AppState, row_cache: LruCache[Any, Any]) -> FastAPI:
     def sources() -> list[SourceInfo]:
         """The installed sources."""
         return [
-            SourceInfo(name=name, distribution=cls.distribution, fetches=cls.fetches)
+            SourceInfo(name=name, distribution=package_of(SOURCES, name), fetches=cls.fetches)
             for name, cls in sorted(source_classes().items())
         ]
 

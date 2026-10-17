@@ -587,7 +587,7 @@ def test_every_page_links_the_project_and_the_about_tab_shows_the_versions(clien
     assert 'href="https://github.com/antoinekh/snapdelta"' in page and ">snapdelta 0.1.0</a>" in page
     about = client.get("/admin/about").text
     assert "snapdelta-web" in about and "diffsync" in about and "Python" in about
-    assert "snapdelta-example" in about and "example, example-live" in about
+    assert "snapdelta-example" in about and "source example, source example-live" in about
     assert "Apache 2.0" in about
 
 

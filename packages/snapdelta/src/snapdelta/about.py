@@ -7,7 +7,7 @@ from collections.abc import Iterable
 from dataclasses import dataclass, field
 from importlib.metadata import PackageNotFoundError, version
 
-from .source import broken_sources, source_classes
+from .plugins import discover, extension_points
 
 PROJECT_URL = "https://github.com/antoinekh/snapdelta"
 DOCS_URL = f"{PROJECT_URL}/tree/main/docs"
@@ -19,7 +19,8 @@ ISSUES_URL = f"{PROJECT_URL}/issues"
 class Component:
     name: str
     version: str
-    sources: list[str] = field(default_factory=list)
+    # What a package gives, one plugin each: "source example", "store backend file".
+    plugins: list[str] = field(default_factory=list)
 
 
 def package_version(distribution: str) -> str:
@@ -36,13 +37,16 @@ def components(extra: Iterable[str] = ()) -> list[Component]:
 
 
 def plugins() -> list[Component]:
-    """The installed plugins with their sources; a source with no distribution is listed under its own name."""
-    by_plugin: dict[str, list[str]] = {}
-    for name, cls in sorted(source_classes().items()):
-        by_plugin.setdefault(cls.distribution or name, []).append(name)
-    for name in sorted(broken_sources()):
-        by_plugin.setdefault(f"{name} (cannot load)", []).append(name)
-    return [Component(plugin, package_version(plugin), names) for plugin, names in sorted(by_plugin.items())]
+    """The packages that give plugins, snapdelta and its built-ins included, with the plugins of each."""
+    by_package: dict[str, list[str]] = {}
+    for point in extension_points():
+        found = discover(point)
+        for name, plugin in found.plugins.items():
+            by_package.setdefault(plugin.distribution or "registered in code", []).append(f"{point.kind} {name}")
+        for name, broken in found.broken.items():
+            package = broken.distribution or "unknown package"
+            by_package.setdefault(package, []).append(f"{point.kind} {name} (cannot load)")
+    return [Component(name, package_version(name), sorted(given)) for name, given in sorted(by_package.items())]
 
 
 def version_line() -> str:

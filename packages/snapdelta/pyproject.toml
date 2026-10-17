@@ -32,6 +32,20 @@ Changelog = "https://github.com/antoinekh/snapdelta/blob/main/CHANGELOG.md"
 [project.scripts]
 snapdelta = "snapdelta.cli:app"
 
+# The built-ins are plugins too: the core finds them as it finds the plugins of other packages.
+[project.entry-points."snapdelta.stores"]
+file = "snapdelta.store:FileStore"
+sqlite = "snapdelta.store:SqliteStore"
+
+[project.entry-points."snapdelta.renderers"]
+text = "snapdelta.render:TEXT"
+json = "snapdelta.render:JSON"
+markdown = "snapdelta.render:MARKDOWN"
+csv = "snapdelta.render:CSV"
+
+[project.entry-points."snapdelta.inventories"]
+nornir = "snapdelta.inventory:NornirInventory"
+
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"

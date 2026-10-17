@@ -222,8 +222,8 @@ def test_store_and_jobs_come_from_the_settings(tmp_path, monkeypatch) -> None:
     assert (tmp_path / "here" / "snapshots" / "R1").is_dir()
 
 
-def test_a_plugin_bug_is_an_error_message_not_a_traceback(tmp_path, monkeypatch) -> None:
-    from snapdelta import source
+def test_a_plugin_bug_is_an_error_message_not_a_traceback(tmp_path) -> None:
+    from snapdelta.source import register_source
     from snapdelta_example import ExampleLiveSource
 
     class Broken(ExampleLiveSource):
@@ -232,7 +232,7 @@ def test_a_plugin_bug_is_an_error_message_not_a_traceback(tmp_path, monkeypatch)
         def load(self) -> None:
             raise KeyError("interfaces")
 
-    monkeypatch.setitem(source._REGISTERED, "broken", Broken)
+    register_source(Broken)
     result = runner.invoke(app, ["--store", str(tmp_path), "snapshot", "--source", "broken", "--target", "R1"])
     assert result.exit_code == 2
     assert "error: R1: KeyError: 'interfaces'" in result.output
@@ -257,7 +257,7 @@ def test_diff_and_output_print_any_format(make_adapter, location) -> None:
     table = runner.invoke(app, ["--store", location, "output", name, "--format", "csv"])
     assert 'interface,eth0,,changed,description,"""old""","""new"""' in table.output
     unknown = runner.invoke(app, [*base, "--format", "pdf"])
-    assert unknown.exit_code == 2 and "unknown format 'pdf'" in unknown.output
+    assert unknown.exit_code == 2 and "no output format 'pdf' is installed" in unknown.output
     assert len(store.output_entries()) == 1
 
 

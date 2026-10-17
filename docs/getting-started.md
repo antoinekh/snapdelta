@@ -130,7 +130,6 @@ class DeviceSettings(SourceSettings):
 class DeviceSource(Source):
     """The common part: the models, and the fetch of one export; each vendor parses its own format."""
 
-    distribution = "my-snapdelta"
     fetches = True
     settings_class = DeviceSettings
     suffix = ""

@@ -24,10 +24,9 @@ class ExampleSource(Source):
     """A snapdelta source is a diffsync adapter: it declares its models, and `load()` fills them for one target."""
 
     # The name that users give with `--source`; it must equal the entry point name in pyproject.toml, because a
-    # saved snapshot finds its models again by this name.
+    # saved snapshot finds its models again by this name; snapdelta refuses a source whose name is another one.
+    # snapdelta reads the package of the plugin from its entry point, and saves its version with each snapshot.
     source = "example"
-    # The package of the plugin: snapdelta saves its version with each snapshot.
-    distribution = "snapdelta-example"
 
     # The models, as in any diffsync adapter: one class attribute per model name.
     interface = Interface

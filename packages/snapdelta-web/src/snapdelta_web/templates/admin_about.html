@@ -11,8 +11,8 @@
   <section class="panel">
     <h2>Plugins</h2>
     <table class="list dense">
-      <thead><tr><th>Package</th><th>Version</th><th>Sources</th></tr></thead>
-      <tbody>{% for item in plugins %}<tr><td class="mono strong">{{ item.name }}</td><td class="mono">{{ item.version }}</td><td class="mono">{{ item.sources | join(", ") }}</td></tr>{% else %}<tr><td colspan="3" class="muted">none</td></tr>{% endfor %}</tbody>
+      <thead><tr><th>Package</th><th>Version</th><th>Plugins</th></tr></thead>
+      <tbody>{% for item in plugins %}<tr><td class="mono strong">{{ item.name }}</td><td class="mono">{{ item.version }}</td><td class="mono">{{ item.plugins | join(", ") }}</td></tr>{% else %}<tr><td colspan="3" class="muted">none</td></tr>{% endfor %}</tbody>
     </table>
   </section>
   <section class="panel">

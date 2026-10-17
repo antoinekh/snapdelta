@@ -5,6 +5,10 @@ class SnapdeltaError(Exception):
     """A fault of the input or of the use, not a bug."""
 
 
+class PluginError(SnapdeltaError):
+    """A plugin that cannot load, or that is not of the kind of its entry point group."""
+
+
 class LoadError(SnapdeltaError):
     def __init__(self, source: str, reason: str) -> None:
         super().__init__(f"{source}: {reason}")

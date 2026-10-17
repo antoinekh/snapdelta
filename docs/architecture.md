@@ -6,7 +6,8 @@ snapdelta is a small core with four extension points. A plugin brings what depen
 
 snapdelta is a plugin architecture, by design. The four entry point groups (`snapdelta.sources`, `snapdelta.stores`, `snapdelta.renderers`, `snapdelta.inventories`) are part of the product, not options to remove when only the built-in implementations use them.
 
-- **The built-ins are plugins too.** The core finds `FileStore`, `SqliteStore`, the four formats and the Nornir inventory through the same registry as an installed plugin, and never treats them as a special case.
+- **The built-ins are plugins too.** The `snapdelta` package declares `FileStore`, `SqliteStore`, the four formats and the Nornir inventory as entry points in its own `pyproject.toml`, and the core finds them through the same registry as an installed plugin, never as a special case.
+- **One registry.** `snapdelta.plugins` reads each entry point group once per process. A plugin that cannot load, that is not of the kind of its group, or whose name another package also gives is left out as broken, with its error: the other plugins and the commands that do not need it go on. A source whose `source` attribute is not its entry point name is broken too, because its snapshots could not be read again.
 - **The store stays pluggable.** Users can write their own store backend, and the project will add new ones later. The `Store` class is a public interface: the core, the CLI and the web UI use only its methods, never a backend class or a file on disk.
 - **A plugin gets what a built-in gets.** Each extension point gives its plugins the same means as the built-ins: a registry entry, its own settings, and its place in the CLI, the web UI and the docs.
 - **A new extension point needs a use.** Add one when a second implementation is planned, not before.

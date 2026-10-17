@@ -18,9 +18,10 @@ from snapdelta.catalog import catalog
 from snapdelta.cli import SettingsOption, StoreOption
 from snapdelta.errors import SnapdeltaError
 from snapdelta.output import change_key, new_review
+from snapdelta.plugins import package_of
 from snapdelta.render import change_rows
 from snapdelta.settings import Profile, load_settings
-from snapdelta.source import source_classes
+from snapdelta.source import SOURCES, source_classes
 from snapdelta.store import open_store_from
 from snapdelta.take import diff_snapshots, snapshot_targets
 
@@ -123,7 +124,7 @@ def create_mcp(state: AppState) -> MCPServer:
     def list_sources() -> list[SourceInfo]:
         """The installed sources; a source that fetches can take snapshots of its targets."""
         return [
-            SourceInfo(name=name, distribution=cls.distribution, fetches=cls.fetches)
+            SourceInfo(name=name, distribution=package_of(SOURCES, name), fetches=cls.fetches)
             for name, cls in sorted(source_classes().items())
         ]
 

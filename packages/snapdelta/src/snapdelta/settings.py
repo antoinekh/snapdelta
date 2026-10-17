@@ -26,8 +26,6 @@ FILE_NAME = "snapdelta.toml"
 SETTINGS_ENV = "SNAPDELTA_SETTINGS"
 STORE_ENV = "SNAPDELTA_STORE"
 CORE_SECTIONS = ("store", "snapshot", "web", "inventory")
-# One [TABLE.NAME] per installed plugin, and the word that names one plugin of the table.
-PLUGIN_TABLES = {"sources": "source", "stores": "store backend", "inventories": "inventory format"}
 
 
 class SettingsError(SnapdeltaError):
@@ -381,16 +379,28 @@ def load_settings(
     return settings
 
 
-def plugin_models(installed: Mapping[str, type[Source]] | None = None) -> dict[str, dict[str, type[Section]]]:
-    """The settings model of each installed plugin, by table: `[sources.NAME]`, `[stores.SCHEME]`, and so on."""
-    from .inventory import inventory_formats
-    from .store import store_classes
+def plugin_tables() -> dict[str, str]:
+    """The settings table of each extension point that has one, with the word for one of its plugins."""
+    from .plugins import extension_points
 
-    return {
-        "sources": {name: cls.settings_class for name, cls in _installed(installed).items()},
-        "stores": {scheme: cls.settings_class for scheme, cls in store_classes().items()},
-        "inventories": {name: cls.settings_class for name, cls in inventory_formats().items()},
-    }
+    return {point.table: point.kind for point in extension_points() if point.table is not None}
+
+
+def plugin_models(installed: Mapping[str, type[Source]] | None = None) -> dict[str, dict[str, type[Section]]]:
+    """The settings model of each installed plugin, by table: `[sources.NAME]`, `[stores.SCHEME]`, and so on.
+
+    `installed` replaces the installed sources, for a caller that already holds them.
+    """
+    from .plugins import extension_points, plugins
+    from .source import SOURCES
+
+    models: dict[str, dict[str, type[Section]]] = {}
+    for point in extension_points():
+        if point.table is None:
+            continue
+        found = installed if point is SOURCES and installed is not None else plugins(point)
+        models[point.table] = {name: value.settings_class for name, value in found.items()}
+    return models
 
 
 def setting_rows(settings: Settings, installed: Mapping[str, type[Source]] | None = None) -> list[SettingRow]:
@@ -506,13 +516,13 @@ def _plugin_settings[S: Section](settings: Settings, table: str, name: str, mode
 
 
 def _check_plugins(settings: Settings, models: Mapping[str, Mapping[str, type[Section]]]) -> None:
+    kinds = plugin_tables()
     for table, installed in models.items():
         for name in getattr(settings, table):
             if name not in installed:
                 names = ", ".join(sorted(installed)) or "none"
                 settings.warnings.append(
-                    f"{settings.file}: [{table}.{name}]: no {PLUGIN_TABLES[table]} {name!r} is installed "
-                    f"(installed: {names})"
+                    f"{settings.file}: [{table}.{name}]: no {kinds[table]} {name!r} is installed (installed: {names})"
                 )
         for name, model in installed.items():
             settings.plugin(table, name, model)
@@ -531,14 +541,6 @@ def _check_plain_secrets(settings: Settings, models: Mapping[str, Mapping[str, t
     if plain:
         path = settings.file
         settings.warnings.append(f"{path} holds a plain secret and other users can read it: chmod 600 {path}")
-
-
-def _installed(installed: Mapping[str, type[Source]] | None) -> Mapping[str, type[Source]]:
-    if installed is not None:
-        return installed
-    from .source import source_classes
-
-    return source_classes()
 
 
 def _settings_error(path: Path | None, prefix: list[str], error: ValidationError) -> SettingsError:
@@ -610,9 +612,10 @@ def save_settings(
 
 def _table(document: Any, parts: list[str], created: list[tuple[Any, str]]) -> Any:
     current = document
+    super_tables = (*plugin_tables(), "profiles")
     for part in parts:
         if part not in current:
-            current[part] = tomlkit.table(is_super_table=part in (*PLUGIN_TABLES, "profiles"))
+            current[part] = tomlkit.table(is_super_table=part in super_tables)
             created.append((current, part))
         current = current[part]
     return current

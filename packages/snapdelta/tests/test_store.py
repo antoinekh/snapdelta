@@ -194,15 +194,14 @@ def test_a_row_deleted_after_the_check_is_not_found(tmp_path, make_adapter) -> N
 def test_a_location_with_a_scheme_opens_its_backend(tmp_path) -> None:
     assert isinstance(open_store(f"file://{tmp_path}/files"), FileStore)
     assert isinstance(open_store(f"sqlite://{tmp_path}/store.db"), SqliteStore)
-    with pytest.raises(SnapdeltaError, match=r"no store backend for s3:// \(installed: file, sqlite\)"):
+    with pytest.raises(SnapdeltaError, match=r"no store backend 's3' is installed \(installed: file, sqlite\)"):
         open_store("s3://bucket/snapdelta")
 
 
-def test_a_plugin_backend_opens_by_its_scheme(tmp_path, monkeypatch) -> None:
-    from types import SimpleNamespace
-
-    from snapdelta import store as store_module
+def test_a_plugin_backend_opens_by_its_scheme(tmp_path) -> None:
+    from snapdelta.plugins import register_plugin
     from snapdelta.settings import StoreBackendSettings
+    from snapdelta.store import STORES
 
     class MemoryStore(FileStore):
         backend = "memory"
@@ -211,8 +210,7 @@ def test_a_plugin_backend_opens_by_its_scheme(tmp_path, monkeypatch) -> None:
         def open(cls, address: str, settings: StoreBackendSettings) -> FileStore:
             return cls(tmp_path / address)
 
-    plugin = SimpleNamespace(name="mem", load=lambda: MemoryStore)
-    monkeypatch.setattr(store_module, "entry_points", lambda group: [plugin] if group == "snapdelta.stores" else [])
+    register_plugin(STORES, "mem", MemoryStore)
     opened = open_store("mem://one")
     assert isinstance(opened, MemoryStore) and opened.root == tmp_path / "one"
 
