@@ -117,7 +117,11 @@ def diagnose(settings_file: Path | None = None, store_option: str | None = None)
 def _store_check(settings: Settings) -> Check:
     location = settings.store.location or ""
     try:
-        info = open_store_from(settings).info()
+        store = open_store_from(settings)
+        try:
+            info = store.info()
+        finally:
+            store.close()
     except (SnapdeltaError, OSError, sqlite3.Error) as error:
         return Check("store", location, [Problem(Severity.ERROR, f"{type(error).__name__}: {error}")])
     detail = (

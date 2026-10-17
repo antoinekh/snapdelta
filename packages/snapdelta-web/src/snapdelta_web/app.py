@@ -96,8 +96,11 @@ def create_app(state: AppState) -> FastAPI:
 
     @asynccontextmanager
     async def lifespan(_: FastAPI) -> AsyncIterator[None]:
-        async with mcp.session_manager.run():
-            yield
+        try:
+            async with mcp.session_manager.run():
+                yield
+        finally:
+            state.store.close()
 
     app = FastAPI(title="snapdelta", docs_url=None, redoc_url=None, openapi_url=None, lifespan=lifespan)
     app.router.routes.extend(mcp_routes)

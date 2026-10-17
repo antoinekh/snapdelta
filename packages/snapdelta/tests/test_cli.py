@@ -358,3 +358,27 @@ def test_the_activity_lists_the_runs_and_shows_one(make_adapter, tmp_path) -> No
     shown = runner.invoke(app, [*base, "activity", run_id])
     assert shown.output.startswith(f"{run_id}: diff from cli, ok") and "diff: " in shown.output
     assert '"kind": "diff"' in runner.invoke(app, [*base, "activity", "--json"]).output
+
+
+def test_a_command_closes_the_store_that_it_opened(tmp_path) -> None:
+    from snapdelta.plugins import register_plugin
+    from snapdelta.settings import StoreBackendSettings
+    from snapdelta.store import STORES, FileStore
+
+    closed: list[str] = []
+
+    class ClosingStore(FileStore):
+        backend = "closing"
+
+        @classmethod
+        def open(cls, address: str, settings: StoreBackendSettings) -> FileStore:
+            return cls(tmp_path / address)
+
+        def close(self) -> None:
+            closed.append(str(self.root))
+
+    register_plugin(STORES, "closing", ClosingStore)
+    assert runner.invoke(app, ["--store", "closing://one", "info"]).exit_code == 0
+    assert closed == [str(tmp_path / "one")]
+    assert runner.invoke(app, ["--store", "closing://one", "sources"]).exit_code == 0
+    assert closed == [str(tmp_path / "one")]

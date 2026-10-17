@@ -369,4 +369,7 @@ def main(
     except SnapdeltaError as error:
         typer.echo(f"error: {error}", err=True)
         raise typer.Exit(2) from error
-    create_mcp(state).run()
+    try:
+        create_mcp(state).run()
+    finally:
+        state.store.close()

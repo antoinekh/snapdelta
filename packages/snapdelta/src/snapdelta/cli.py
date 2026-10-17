@@ -94,6 +94,10 @@ class Runtime:
         """Opened on first use, so that a command without a store never creates a SQLite file."""
         return open_store_from(self.settings)
 
+    def close(self) -> None:
+        if "store" in self.__dict__:
+            self.store.close()
+
 
 def _print_version(value: bool) -> None:
     if value:
@@ -114,6 +118,7 @@ def main(
     # diffsync logs debug lines on stdout unless the application sets a level.
     enable_console_logging(verbosity=0)
     ctx.obj = Runtime(settings_file, store)
+    ctx.call_on_close(ctx.obj.close)
 
 
 @app.command("settings")
