@@ -11,10 +11,11 @@
   {% if file %}Settings file in use: <code>{{ file }}</code>.{% else %}No settings file: the defaults apply. A save creates <code>{{ target_file }}</code>.{% endif %}
   An empty field takes its default.{% if section == "profiles" %} The names of the models and attributes are in <a href="/admin/models">Models</a>.{% endif %}
 </p>
+{% if section == "settings" %}<nav class="section-links" aria-label="Sections">{% for group in groups %}<a href="#group-{{ group.table | replace('.', '-') }}">{{ group.title }}</a>{% endfor %}</nav>{% endif %}
 <form method="post" action="/admin/{{ section }}" class="settings-form" data-track-changes>
   {% for group in groups %}
   {% set new_profile = group.table == "profiles.+" %}
-  <fieldset class="settings-group" {% if group.table.startswith("profiles.") %}id="{{ 'new-profile' if new_profile else 'profile-' ~ group.table.removeprefix('profiles.') }}"{% endif %}>
+  <fieldset class="settings-group" id="{% if group.table.startswith('profiles.') %}{{ 'new-profile' if new_profile else 'profile-' ~ group.table.removeprefix('profiles.') }}{% else %}group-{{ group.table | replace('.', '-') }}{% endif %}">
     <legend>{{ group.title }}</legend>
     {% if group.removable %}<label class="check remove-group"><input type="checkbox" name="{{ group.table }}.remove" value="true"> Remove profile</label>{% endif %}
     {% if new_profile %}
@@ -45,6 +46,8 @@
           {% if field.secret %}<label class="check"><input type="checkbox" name="{{ field.key }}.clear" value="true"> Remove</label>{% endif %}
         </div>
         <span class="muted small">Now: {{ field.secret.describe() if field.secret else "not set" }}. Both empty keeps it.</span>
+        {% elif field.kind == "choice" %}
+        <select id="f-{{ field.key }}" name="{{ field.key }}"><option value="">{{ field.default }} (default)</option>{% for choice in field.choices %}<option{{ " selected" if value == choice }}>{{ choice }}</option>{% endfor %}</select>
         {% elif field.kind == "list" %}
         <textarea id="f-{{ field.key }}" name="{{ field.key }}" rows="{{ [value.count("\n") + 2, 3] | max }}" placeholder="{{ field.example or 'one per line' }}" class="mono">{{ value }}</textarea>
         {% elif field.kind == "table" %}

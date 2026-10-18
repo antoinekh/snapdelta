@@ -40,6 +40,7 @@
 - The diff page has no **Your name** field when a login gives the user.
 - **Take snapshot** has the style of **New diff > Many targets**: one **Targets** box, then the label and the button.
 - **Diffs** and the page of a target show a bar fixed at the bottom of the screen when rows are ticked, with their count, **Clear** and **Delete**, in place of a button under the list; a delete on the page of a target keeps its period.
+- **Admin > Settings** has links to its sections, and a menu for a field with known values: `log_level`, and the installed runners, auth backends and inventory formats.
 
 ### Fixed
 

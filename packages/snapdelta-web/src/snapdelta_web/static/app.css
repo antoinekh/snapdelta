@@ -346,6 +346,7 @@ form:not(:has(tbody .pick input:checked)) .bulk { display: none; }
 .subnav a:hover { color: var(--ink); text-decoration: none; background: var(--sunken); }
 .subnav a[aria-current="page"] { background: var(--ink); color: var(--canvas); }
 .title-row .subnav, .panel-head .subnav { margin: 0; }
+.section-links { display: flex; flex-wrap: wrap; gap: 6px 16px; margin: 0 0 16px; font-size: 14px; }
 .period { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; }
 .period .inline-field { margin: 0; }
 
@@ -428,7 +429,7 @@ table.list.model-list td { vertical-align: top; }
 .hint::after { content: attr(data-hint); position: absolute; left: 26px; top: -6px; z-index: 20; width: max-content; max-width: 340px; padding: 8px 12px; border-radius: var(--radius-small); background: var(--ink); color: var(--canvas); font: 400 13px/1.45 var(--font); white-space: normal; box-shadow: 0 8px 24px rgb(15 23 42 / 0.18); opacity: 0; visibility: hidden; transition: opacity 120ms; pointer-events: none; }
 .hint:hover::after, .hint:focus-visible::after { opacity: 1; visibility: visible; }
 .setting-input { display: flex; flex-direction: column; gap: 6px; }
-.setting-input > input:not([type="checkbox"]) { width: 100%; max-width: 520px; }
+.setting-input > input:not([type="checkbox"]), .setting-input > select { width: 100%; max-width: 520px; }
 .setting-input > input[type="checkbox"] { margin-top: 11px; }
 .setting-input > textarea { width: 100%; max-width: 520px; padding: 8px 12px; border-radius: var(--radius-small); border: 1px solid var(--line-strong); background: var(--surface); color: var(--ink); font-size: 14px; resize: vertical; }
 .setting-input > textarea:focus { outline: none; border-color: var(--cobalt); box-shadow: 0 0 0 3px var(--cobalt-soft); }

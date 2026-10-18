@@ -23,9 +23,11 @@ from snapdelta.activity import acting_user, configure_logging
 from snapdelta.catalog import catalog
 from snapdelta.doctor import plugin_reports
 from snapdelta.errors import NotFoundError, SnapdeltaError
+from snapdelta.inventory import INVENTORIES
 from snapdelta.output import Output, common_models, new_review, skipped_models
 from snapdelta.plugins import discover, extension_points
 from snapdelta.render import renderer, renderers
+from snapdelta.runners import RUNNERS
 from snapdelta.secrets import SECRETS
 from snapdelta.settings import Settings, SettingsError, save_settings, user_settings_path
 from snapdelta.snapshot import top_level_models
@@ -38,6 +40,7 @@ from .access import LruCache, SnapshotCache
 from .api import PREFIX as API_PREFIX
 from .api import create_api
 from .auth import (
+    AUTH,
     OPEN_PATHS,
     SESSION_COOKIE,
     SESSION_TTL_S,
@@ -784,7 +787,12 @@ def create_app(state: AppState) -> FastAPI:
     def section_groups(section: str) -> list[FormGroup]:
         if section == PROFILES:
             return profile_groups(state.settings)
-        return form_groups(state.settings, source_classes())
+        plugin_choices = {
+            "snapshot.runner": sorted(discover(RUNNERS).plugins),
+            "web.auth": sorted(discover(AUTH).plugins),
+            "inventory.format": sorted(discover(INVENTORIES).plugins),
+        }
+        return form_groups(state.settings, source_classes(), plugin_choices)
 
     async def save_section(request: Request, section: str) -> HTMLResponse | RedirectResponse:
         """Save the tables of one Admin tab; the other tables and the comments of the file stay."""

@@ -64,7 +64,7 @@ The log holds the messages that the source plugins write with the standard `logg
 | Tab | Content |
 |---|---|
 | Store | The backend, the counts (snapshots, outputs, runs) and the size of the store; pruning with a preview |
-| Settings | The settings file, with the origin of each value |
+| Settings | The settings file, with the origin of each value; links to its sections, and a menu for a field with known values (`log_level`, and the installed runners, auth backends and inventory formats) |
 | Profiles | One group per profile, with help on each field |
 | Inventory | The groups, and each host with its platform, source and data |
 | Models | The models of the installed sources: identifiers, attributes, fields not compared, children |

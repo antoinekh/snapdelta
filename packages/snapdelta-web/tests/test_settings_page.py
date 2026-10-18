@@ -240,3 +240,15 @@ def test_a_saved_access_setting_waits_for_the_next_start(settings_file) -> None:
     assert 'auth = "none"' in settings_file.read_text()
     client.post("/logout")
     assert client.get("/api/v1/targets").status_code == 401
+
+
+def test_a_field_with_known_values_is_a_menu(client, settings_file) -> None:
+    page = client.get("/admin/settings").text
+    assert '<a href="#group-snapshot">snapshot</a>' in page and 'id="group-snapshot"' in page
+    log_level = '<option value="">info (default)</option><option>debug</option><option>info</option>'
+    assert f'<select id="f-snapshot.log_level" name="snapshot.log_level">{log_level}' in page
+    assert '<option value="">threads (default)</option><option>processes</option><option>threads</option>' in page
+    assert '<option value="">token (default)</option><option>header</option><option>none</option>' in page
+    saved = client.post("/admin/settings", data=form(**{"snapshot.log_level": "debug"}), follow_redirects=False)
+    assert saved.status_code == 303 and 'log_level = "debug"' in settings_file.read_text()
+    assert "<option selected>debug</option>" in client.get("/admin/settings").text

@@ -1,6 +1,6 @@
 """The forms of the Admin tabs Settings and Profiles: one group per table, built from the settings models."""
 
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
 from types import NoneType, UnionType
@@ -24,7 +24,7 @@ from snapdelta.settings import (
 from snapdelta.source import Source
 from snapdelta.store import default_store_path
 
-Kind = Literal["text", "number", "bool", "secret", "list", "table"]
+Kind = Literal["text", "number", "bool", "secret", "list", "table", "choice"]
 # The group of the form that adds a profile; its name comes from the field NEW_PROFILE_NAME.
 NEW_PROFILE = "profiles.+"
 NEW_PROFILE_NAME = "new_profile"
@@ -45,6 +45,8 @@ class FormField:
     # From the `description` and the `examples` of the field in its settings model.
     help: str | None = None
     example: str | None = None
+    # The values of a menu.
+    choices: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -64,11 +66,16 @@ class FormValues:
     removed: list[str] = field(default_factory=list)
 
 
-def form_groups(settings: Settings, installed: Mapping[str, type[Source]]) -> list[FormGroup]:
-    """The core tables, then one table per installed plugin that declares settings; the profiles have their own tab."""
+def form_groups(
+    settings: Settings, installed: Mapping[str, type[Source]], plugin_choices: Mapping[str, Sequence[str]] | None = None
+) -> list[FormGroup]:
+    """The core tables, then one table per installed plugin that declares settings; the profiles have their own tab.
+
+    `plugin_choices` gives the menu of a field that names an installed plugin, such as `snapshot.runner`.
+    """
     raw = read_settings_file(settings.file)
     groups = [
-        _group(section, section, getattr(settings, section), raw.get(section, {}), settings)
+        _group(section, section, getattr(settings, section), raw.get(section, {}), settings, plugin_choices or {})
         for section in CORE_SECTIONS
     ]
     kinds = plugin_tables()
@@ -157,7 +164,14 @@ def _table(text: str) -> tuple[dict[str, str] | None, str | None]:
     return found or None, None
 
 
-def _group(table: str, title: str, model: BaseModel, written: Mapping[str, Any], settings: Settings) -> FormGroup:
+def _group(
+    table: str,
+    title: str,
+    model: BaseModel,
+    written: Mapping[str, Any],
+    settings: Settings,
+    plugin_choices: Mapping[str, Sequence[str]] | None = None,
+) -> FormGroup:
     defaults = type(model)()
     fields = []
     for name, info in type(model).model_fields.items():
@@ -165,6 +179,9 @@ def _group(table: str, title: str, model: BaseModel, written: Mapping[str, Any],
         origin = settings.origins.get(key, Origin.FILE if name in written else Origin.DEFAULT)
         kind = _kind(info.annotation)
         value = getattr(model, name)
+        choices = _choices(key, info.annotation, value, plugin_choices or {}) if kind == "text" else ()
+        if choices:
+            kind = "choice"
         secret = value if isinstance(value, Secret) else None
         shown = _shown(written.get(name), kind)
         fields.append(
@@ -181,9 +198,16 @@ def _group(table: str, title: str, model: BaseModel, written: Mapping[str, Any],
                 secret,
                 info.description,
                 str(info.examples[0]) if info.examples else None,
+                choices,
             )
         )
     return FormGroup(table, title, fields)
+
+
+def _choices(key: str, annotation: Any, value: Any, plugin_choices: Mapping[str, Sequence[str]]) -> tuple[str, ...]:
+    found = tuple(plugin_choices.get(key, ())) or (get_args(annotation) if get_origin(annotation) is Literal else ())
+    # A value of a plugin that is not installed stays in the menu, so that a save keeps it.
+    return found if not found or value in found else (*found, str(value))
 
 
 def _default_text(key: str, default: Any) -> str:
