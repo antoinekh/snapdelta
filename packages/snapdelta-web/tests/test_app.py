@@ -719,12 +719,51 @@ def test_new_diff_keeps_the_title_and_tells_a_missing_label(client, names) -> No
     assert 'value="Change 7"' in page and "data-swap-sides" in page and 'data-preset-labels="before after"' in page
 
 
-def test_the_diffs_of_one_change_are_grouped(client, names, store) -> None:
-    for name, title in ((names.same, "CHG-9: first"), (names.partial, "CHG-9: second")):
-        store.describe_output(name, title, None, None)
+def test_the_diffs_list_shows_the_change_column(client, names, store) -> None:
+    store.describe_output(names.same, "CHG-9: first", None, "CHG-9")
     page = client.get("/diffs").text
-    assert page.count('<tr class="group-day">') == 1 and '<span class="group-name">CHG-9</span>' in page
-    assert '<a class="row-link" href="/diffs/' in page and ">first</a>" in page and ">second</a>" in page
+    assert "<th>Change</th>" in page and page.count('<span class="change-chip">CHG-9</span>') == 1
+    assert ">CHG-9: first</a>" in page and "group-change" not in page and "in-change" not in page
+    assert page.count('<td class="change-cell"></td>') == len(store.output_entries()) - 1
+    assert 'placeholder="Filter by target or change"' in page
+
+
+def test_the_diffs_list_filters_by_change(client, names, store) -> None:
+    store.describe_output(names.same, None, None, "CHG-9")
+    page = client.get("/diffs", params={"q": "chg-9"}).text
+    assert f"/diffs/{names.same}" in page and f"/diffs/{names.partial}" not in page
+
+
+def test_a_change_is_escaped_in_the_list_and_on_the_diff_page(client, names, store) -> None:
+    store.describe_output(names.same, None, None, "<b>&")
+    assert '<span class="change-chip">&lt;b&gt;&amp;</span>' in client.get("/diffs").text
+    assert '<span class="change-chip">&lt;b&gt;&amp;</span>' in client.get(f"/diffs/{names.same}").text
+
+
+def test_a_diff_gets_a_change_at_the_compare_and_later(client, store, names) -> None:
+    data = {"left": names.before, "right": names.after, "title": "r1", "change": "CHG-9"}
+    name = client.post("/diffs", data=data, follow_redirects=False).headers["location"].removeprefix("/diffs/")
+    assert store.load_output(name).change == "CHG-9"
+    page = client.get(f"/diffs/{name}").text
+    assert '<span class="change-chip">CHG-9</span>' in page and ">Edit</summary>" in page
+    assert page.index('name="change"') < page.index('name="title"')
+    client.post(f"/diffs/{name}/describe", data={"change": "", "title": "r1", "description": ""})
+    assert store.load_output(name).change is None
+
+
+def test_many_targets_get_the_change(client, store) -> None:
+    data = {"left": "before", "right": "after", "live": "false", "title": "VLAN 20", "change": "CHG-9"}
+    result = client.post("/diffs/targets", data=data).text
+    assert '<span class="change-chip">CHG-9</span>' in result
+    newest = max(store.output_entries(), key=lambda entry: entry.created_at)
+    assert store.load_output(newest.name).change == "CHG-9"
+
+
+def test_the_new_diff_forms_have_a_change_field(client) -> None:
+    for params in ({"change": "CHG-9"}, {"change": "CHG-9", "many": "true"}):
+        page = client.get("/new", params=params).text
+        assert 'name="change" maxlength="80"' in page and 'value="CHG-9"' in page
+        assert page.index('name="change"') < page.index('name="title"')
 
 
 def wait_for_runs(store, count: int = 1) -> None:

@@ -2,6 +2,7 @@
 {% block title %}New diff · snapdelta{% endblock %}
 {% macro profile_field() %}{% if profiles %}<label class="field profile-field">Profile<select name="profile"><option value="">None</option>{% for name, text in profiles %}<option value="{{ name }}"{% if name == profile %} selected{% endif %}>{{ text }}</option>{% endfor %}</select></label>{% endif %}{% endmacro %}
 {% macro describe_fields(placeholder="") %}
+    <label class="field change-field">Change<input name="change" maxlength="80" autocomplete="off" value="{{ change }}"></label>
     <label class="field title-field">Title<input name="title" maxlength="120" placeholder="{{ placeholder }}" autocomplete="off" value="{{ title }}"></label>
     <label class="field description-field">Description<input name="description" maxlength="2000" autocomplete="off" value="{{ description }}"></label>
 {% endmacro %}

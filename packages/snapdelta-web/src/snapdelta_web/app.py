@@ -336,6 +336,7 @@ def create_app(state: AppState) -> FastAPI:
         models: Annotated[list[str] | None, Form()] = None,
         pick_models: Annotated[bool, Form()] = False,
         profile: Annotated[str, Form()] = "",
+        change: Annotated[str, Form()] = "",
         title: Annotated[str, Form()] = "",
         description: Annotated[str, Form()] = "",
     ) -> RedirectResponse:
@@ -350,6 +351,7 @@ def create_app(state: AppState) -> FastAPI:
             right,
             models=models,
             profile=profile or None,
+            change=change,
             title=title,
             description=description,
             origin="web",
@@ -364,6 +366,7 @@ def create_app(state: AppState) -> FastAPI:
         group: Annotated[str, Form()] = "",
         live: Annotated[bool, Form()] = False,
         profile: Annotated[str, Form()] = "",
+        change: Annotated[str, Form()] = "",
         title: Annotated[str, Form()] = "",
         description: Annotated[str, Form()] = "",
     ) -> HTMLResponse:
@@ -377,6 +380,7 @@ def create_app(state: AppState) -> FastAPI:
             all_targets=not group,
             live=live,
             profile=profile or None,
+            change=change,
             title=title,
             description=description,
             origin="web",
@@ -388,6 +392,7 @@ def create_app(state: AppState) -> FastAPI:
             "left": left.strip(),
             "right": "now" if live else right.strip(),
             "title": title.strip(),
+            "change": change.strip(),
             "changed": [item for item in items if item.changed],
             "unchanged": [item for item in items if item.output is not None and not item.changed],
             "failed": [item for item in items if item.error],
@@ -396,10 +401,13 @@ def create_app(state: AppState) -> FastAPI:
 
     @app.post("/diffs/{name}/describe")
     def describe_diff(
-        name: str, title: Annotated[str, Form()] = "", description: Annotated[str, Form()] = ""
+        name: str,
+        change: Annotated[str, Form()] = "",
+        title: Annotated[str, Form()] = "",
+        description: Annotated[str, Form()] = "",
     ) -> RedirectResponse:
         resolved = state.store.resolve_output(name)
-        state.store.describe_output(resolved, title, description, state.store.load_output(resolved).change)
+        state.store.describe_output(resolved, title, description, change)
         row_cache.discard((state.store.location, resolved))
         return RedirectResponse(f"/diffs/{resolved}", status_code=303)
 
@@ -585,6 +593,7 @@ def create_app(state: AppState) -> FastAPI:
         request: Request,
         left: str | None = None,
         right: str | None = None,
+        change: str = "",
         title: str = "",
         description: str = "",
         profile: str = "",
@@ -611,7 +620,13 @@ def create_app(state: AppState) -> FastAPI:
         groups = inventory.groups if inventory else []
         members = {group: inventory.members(group) for group in groups} if inventory else {}
         context = {"tab": "new", "pickers": pickers, "profiles": profile_choices(), "groups": groups, "many": many}
-        context |= {"missing": missing, "title": title, "description": description, "profile": profile}
+        context |= {
+            "missing": missing,
+            "change": change,
+            "title": title,
+            "description": description,
+            "profile": profile,
+        }
         context |= {"group_members": members}
         return render(request, "new.html", context)
 

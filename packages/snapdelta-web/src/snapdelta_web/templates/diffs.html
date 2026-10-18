@@ -2,7 +2,7 @@
 {% from "_macros.html" import side_label, strip, counts, pager as pages, search %}
 {% block title %}Diffs · snapdelta{% endblock %}
 {% block content %}
-<div class="title-row"><h1>Diffs</h1>{{ search("/diffs", q, "Filter by target") }}<a class="button primary" href="/new">New diff</a></div>
+<div class="title-row"><h1>Diffs</h1>{{ search("/diffs", q, "Filter by target or change") }}<a class="button primary" href="/new">New diff</a></div>
 <div id="results">
 {% if deleted %}<p class="notice">Deleted {{ deleted }}.</p>{% endif %}
 {% if unreadable %}<p class="notice warn">Unreadable: {{ unreadable | join(", ") }}</p>{% endif %}
@@ -10,18 +10,15 @@
 <form method="post" action="/diffs/delete" data-confirm-selected="names">
 <input type="hidden" name="q" value="{{ q }}"><input type="hidden" name="page" value="{{ pager.number }}">
 <table class="list diffs">
-  <thead><tr><th class="pick"><input type="checkbox" data-select-all aria-label="Select all on this page"></th><th>Compared</th><th>Left</th><th>Right</th><th>Delta</th></tr></thead>
+  <thead><tr><th class="pick"><input type="checkbox" data-select-all aria-label="Select all on this page"></th><th>Change</th><th>Compared</th><th>Left</th><th>Right</th><th>Delta</th></tr></thead>
   <tbody>
     {% for group in groups %}
-    {% if group.new_day %}<tr class="group-day"><th colspan="5">{{ group.day }}</th></tr>{% endif %}
-    {% if group.change and group.rows | length > 1 %}
-    <tr class="group-change"><th colspan="5"><span class="group-name">{{ group.change }}</span><span class="muted">{{ group.rows | length }} diffs</span>{% if group.reviewed[0] %}<span class="reviewed-tag{{ ' complete' if group.reviewed[0] == group.reviewed[1] }}">✓ {{ group.reviewed[0] }}/{{ group.reviewed[1] }}</span>{% endif %}</th></tr>
-    {% endif %}
-    {% set grouped = group.change and group.rows | length > 1 %}
+    <tr class="group-day"><th colspan="6">{{ group.day }}</th></tr>
     {% for row in group.rows %}
-    <tr class="{{ 'in-change' if grouped }}">
+    <tr>
       <td class="pick"><input type="checkbox" name="names" value="{{ row.name }}" aria-label="Select"></td>
-      <td>{% if row.title %}<a class="row-link" href="/diffs/{{ row.name }}" title="{{ row.title }}">{{ row.title.split(": ", 1)[1] if grouped else row.title }}</a><div class="muted small">{{ row.created_at | when }}</div>{% else %}<a class="row-link" href="/diffs/{{ row.name }}">{{ row.created_at | when }}</a>{% endif %}</td>
+      <td class="change-cell">{% if row.change %}<span class="change-chip">{{ row.change }}</span>{% endif %}</td>
+      <td>{% if row.title %}<a class="row-link" href="/diffs/{{ row.name }}" title="{{ row.title }}">{{ row.title }}</a><div class="muted small">{{ row.created_at | when }}</div>{% else %}<a class="row-link" href="/diffs/{{ row.name }}">{{ row.created_at | when }}</a>{% endif %}</td>
       <td>{{ side_label(row.left) }}</td>
       <td>{{ side_label(row.right) }}</td>
       <td><span class="delta-wrap">{{ strip(row.delta) }}{{ counts(row.delta) }}{% if row.reviewed[0] %}<span class="reviewed-tag{{ ' complete' if row.reviewed[0] == row.reviewed[1] }}" title="Changes accepted">✓ {{ row.reviewed[0] }}/{{ row.reviewed[1] }}</span>{% endif %}</span></td>

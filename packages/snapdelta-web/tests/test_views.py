@@ -230,20 +230,15 @@ def test_marked_values_show_the_changed_words_and_items() -> None:
     )
 
 
-def test_diffs_group_by_day_and_by_change(store, names) -> None:
+def test_diffs_group_by_day(store, names) -> None:
     from dataclasses import replace
 
     row = views.output_rows(store)[0][0]
     rows = [
-        replace(row, title="CHG-1: r1"),
-        replace(row, title="CHG-1: r2"),
+        replace(row, change="CHG-1"),
+        replace(row, change="CHG-1"),
         replace(row, title="other"),
-        replace(row, title="CHG-1: r3", created_at=datetime(2026, 9, 24, 9, 0, tzinfo=UTC)),
+        replace(row, change="CHG-1", created_at=datetime(2026, 9, 24, 9, 0, tzinfo=UTC)),
     ]
     groups = views.output_groups(rows)
-    assert [(group.day, group.new_day, group.change, len(group.rows)) for group in groups] == [
-        ("25 Sep 2026", True, "CHG-1", 2),
-        ("25 Sep 2026", False, None, 1),
-        ("24 Sep 2026", True, "CHG-1", 1),
-    ]
-    assert views.change_of("CHG-1042: VLAN 20") == "CHG-1042" and views.change_of("no change here") is None
+    assert [(group.day, len(group.rows)) for group in groups] == [("25 Sep 2026", 3), ("24 Sep 2026", 1)]

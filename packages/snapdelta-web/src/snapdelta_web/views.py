@@ -128,6 +128,7 @@ class OutputRow:
     right: Side
     delta: Delta
     title: str | None = None
+    change: str | None = None
     # Accepted changes, and all the changes.
     reviewed: tuple[int, int] = (0, 0)
 
@@ -507,7 +508,7 @@ def palette(store: Store, query: str, cache: RowCache | None = None) -> list[Pal
     diffs = [
         PaletteItem(row.title or f"{row.left.target} vs {row.right.target}", f"/diffs/{row.name}", when(row.created_at))
         for row in rows
-        if hit(row.title, row.left.target, row.right.target, row.left.label, row.right.label)
+        if hit(row.change, row.title, row.left.target, row.right.target, row.left.label, row.right.label)
     ]
     pages = [PaletteItem(label, url) for label, url in PALETTE_PAGES if hit(label)]
     groups = [
@@ -518,47 +519,32 @@ def palette(store: Store, query: str, cache: RowCache | None = None) -> list[Pal
     return [group for group in groups if group.items]
 
 
-# The change of a diff is the start of its title, before ": ", as in "CHG-1042: VLAN 20 on the trunk".
-CHANGE_RE = re.compile(r"^([^:]{1,40}):\s")
-
-
 @dataclass(frozen=True)
-class OutputGroup:
-    """Rows in a row of the list with the same day, and the same change when they have one."""
+class DayGroup:
+    """The rows of the list that were made on one day."""
 
     day: str
-    new_day: bool
-    change: str | None
     rows: list[OutputRow]
 
-    @property
-    def reviewed(self) -> tuple[int, int]:
-        return sum(row.reviewed[0] for row in self.rows), sum(row.reviewed[1] for row in self.rows)
 
-
-def change_of(title: str | None) -> str | None:
-    found = CHANGE_RE.match(title or "")
-    return found.group(1).strip() if found else None
-
-
-def output_groups(rows: list[OutputRow]) -> list[OutputGroup]:
-    """The rows by day, newest first, and inside a day the rows of one change together under its name."""
-    groups: list[OutputGroup] = []
+def output_groups(rows: list[OutputRow]) -> list[DayGroup]:
+    """The rows by day, newest first."""
+    groups: list[DayGroup] = []
     for row in rows:
         day = row.created_at.astimezone(UTC).strftime("%d %b %Y")
-        change = change_of(row.title)
-        last = groups[-1] if groups else None
-        if last is not None and last.day == day and change is not None and last.change == change:
-            last.rows.append(row)
+        if groups and groups[-1].day == day:
+            groups[-1].rows.append(row)
         else:
-            groups.append(OutputGroup(day, last is None or last.day != day, change, [row]))
+            groups.append(DayGroup(day, [row]))
     return groups
 
 
 def _output_row(store: Store, name: str) -> OutputRow:
     output = store.load_output(name)
     delta = output_delta(output)
-    return OutputRow(name, output.created_at, output.left, output.right, delta, output.title, output.review_counts())
+    return OutputRow(
+        name, output.created_at, output.left, output.right, delta, output.title, output.change, output.review_counts()
+    )
 
 
 def target_rows(store: Store, query: str = "", page: int = 1, size: int = 50) -> tuple[list[TargetRow], Pager]:
