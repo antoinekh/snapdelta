@@ -31,6 +31,8 @@ Every saved diff, newest first, with its title, its two sides and a delta strip;
 
 ## The snapshots of a target
 
+![The page of r1: the timeline of its snapshots for one period, then the table](images/screenshots/target.png)
+
 The page of a target starts with its **timeline**: the 40 newest snapshots as dots on one line, oldest on the left, each with its time (a link to the snapshot) and its label. Between two dots, a capsule shows the delta from one snapshot to the next, in red (removed), green (added) and amber (changed), with its count; its height grows with the square root of the count, so a small change stays visible. A profile hides the changes that it accepts. Click a capsule to select its two snapshots, or click any two dots: the older one becomes the left side (red), the newer one the right side (green), then **Compare** opens the diff. When the timeline holds more snapshots than the page shows, the edge on that side fades: scroll to see them. The table under the timeline lists every snapshot. **From** and **To**, in UTC, keep the snapshots of one period, in the timeline and in the table. Tick rows of the table, or of the list of diffs, and a bar at the bottom of the screen gives their count, **Clear** and **Delete**; a delete keeps the period.
 
 ## Take snapshots
@@ -45,7 +47,7 @@ The metadata of the load (time, models, inputs, warnings), then one table per mo
 
 ## A new diff
 
-![The new diff form: target and snapshot of each side, models, title, profile](images/screenshots/new-diff.png)
+![The new diff form, One target: a target and a snapshot for Before and After, the models, then title, description and profile](images/screenshots/new-diff.png)
 
 A switch at the top gives **One target** (the default) or **Many targets**.
 
