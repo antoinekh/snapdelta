@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## v0.2.0
 
 ### Added
 
@@ -20,7 +20,6 @@
 - Expected changes: `snapdelta diff --expect FILE` (and `expected` in the API and the MCP tools) checks a diff against what the change must do; the output keeps the expected changes done, the missing ones and the unexpected changes, the formats and the diff page show them, and the exit code is `0` only when the diff is the expected changes.
 - A container image, `ghcr.io/antoinekh/snapdelta`, published at each release: `snapdelta-web` with the PostgreSQL store, the settings in `/etc/snapdelta/snapdelta.toml`, the store on the volume `/data`, a health check, and plugins added in a derived image; `docker/compose.yaml` runs it with PostgreSQL. `GET /healthz` answers with no login.
 - `snapdelta plugins`, **Admin > Plugins** and `GET /api/v1/plugins` list the plugins of every extension point, the built-ins and the broken ones included, with their package, version and problems, and where the settings use each one (the store, the runner, a secret, a notifier, a profile); each extension point says it with `in_use`.
-
 - `snapdelta-postgres`, a third package: the PostgreSQL store backend, `--store postgresql://USER@HOST/DATABASE`, with its password in `[stores.postgresql]` (any secret backend), a pool of connections, and the documents as `json`; it passes `StoreContract` against a server in CI and with `make test-postgres`.
 - `docs/plugins.md`: the plug-in architecture, each extension point, how to write, check and test a plugin, and how to add an extension point; the README says it on its front page.
 
@@ -29,8 +28,7 @@
 - A snapshot has no `unmapped` list any more, nor the web UI and `snapdelta snapshot` its count: no source filled it. snapdelta still reads the snapshots that hold one; snapdelta 0.1 cannot read the snapshots that this version saves.
 - A run lists its diffs in `outputs`, in place of `output` (the runs saved by 0.1 still read); `--target` of `snapdelta diff` now selects targets, and `--live` fetches the target of the left snapshot.
 - `snapdelta diff` has no `--source` and `--file` any more: take a snapshot of the files (`snapdelta snapshot FILES --source S --label after`), then compare two snapshots, the one way to give the right side. `diff_snapshots(right=SOURCE)` stays in Python.
-
-- One plugin registry, `snapdelta.plugins`, for the four entry point groups, and the built-in stores, formats and Nornir inventory are entry points of the `snapdelta` package. A store backend, a format or an inventory format that cannot load is left out with its error, as a source already was, instead of a traceback; so is a plugin of the wrong kind, a name that two packages give, and a source whose `source` is not its entry point name.
+- One plugin registry, `snapdelta.plugins`, for every entry point group, and the built-in stores, formats and Nornir inventory are entry points of the `snapdelta` package. A store backend, a format or an inventory format that cannot load is left out with its error, as a source already was, instead of a traceback; so is a plugin of the wrong kind, a name that two packages give, and a source whose `source` is not its entry point name.
 - `snapdelta.settings.Auth` is gone: `[web] auth` names an auth backend. The functions `token_of()`, `access_text()` and `valid_session()` of `snapdelta_web.auth` are now the `TokenAuth` backend, `describe()` and `session_user()`; a session cookie also holds the user name, so the sessions of a server before this version end.
 - `Secret(env="NAME")` is `Secret(backend="env", reference="NAME")` in Python; the file keeps `{ env = "NAME" }`.
 - `take_snapshots()` and `snapshot_targets()` give each saved snapshot as a `Taken` of data (`reference`, `loaded`, `warnings`) in place of the loaded source, and refuse a source class that is not the one of the registry; `Progress` moves to `snapdelta.runners`.
