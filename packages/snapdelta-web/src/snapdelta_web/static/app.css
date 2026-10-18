@@ -259,7 +259,7 @@ form:not(:has(tbody .pick input:checked)) .bulk { display: none; }
 .count-check { padding: 1px 8px; border-radius: 999px; }
 .count-check.within { background: var(--right-soft); color: var(--right-text); }
 .count-check.over { background: var(--left-soft); color: var(--left-text); }
-.inline-field { flex-direction: row; align-items: center; gap: 10px; margin-right: auto; }
+.inline-field { display: inline-flex; flex-direction: row; align-items: center; gap: 10px; margin-right: auto; }
 .inline-field select { width: auto; min-width: 200px; max-width: 360px; }
 .inline-form { display: flex; gap: 6px; }
 .inline-form select { width: auto; max-width: 280px; }

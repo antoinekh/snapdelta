@@ -46,6 +46,7 @@
 
 ### Fixed
 
+- A label next to its field (**From**, **To**, **Result**, **Profile**, **Your name**) has a space before the field.
 - A command of the lab that fails in its container gives its exit code and its reason, which `docker exec` writes on stdout when the program is missing; the error was empty.
 - In **Admin > Settings**, the new value of a secret has the style of the other fields.
 - `snapdelta prune` and the admin page refuse a negative keep or age, which used to delete every snapshot.
