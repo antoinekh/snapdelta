@@ -164,11 +164,12 @@ All the commands run in `lab/example`, so snapdelta reads the settings file of t
 5. Compare before and after for r1 (`r1@before` is the newest snapshot of r1 with the label `before`):
 
    ```bash
-   uv run snapdelta diff r1@before r1@after --title "CHG-1042: VLAN 20, r1"
+   uv run snapdelta diff r1@before r1@after --change CHG-1042 --title "VLAN 20, r1"
    ```
 
    ```
-   title: CHG-1042: VLAN 20, r1
+   change: CHG-1042
+   title: VLAN 20, r1
 
    left:  r1 [before] frr 2026-10-13T18:30:26+00:00
    right: r1 [after] frr 2026-10-13T18:30:31+00:00

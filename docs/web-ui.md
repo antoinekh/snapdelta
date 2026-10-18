@@ -6,13 +6,13 @@
 snapdelta-web                         # http://127.0.0.1:8765
 ```
 
-**Ctrl+K** (Cmd+K on a Mac), or **Go to** in the top bar, opens a search of the targets, the diffs (by title or target) and the pages; the arrows choose, Enter opens. **?**, or **Shortcuts** in the footer, lists every keyboard shortcut.
+**Ctrl+K** (Cmd+K on a Mac), or **Go to** in the top bar, opens a search of the targets, the diffs (by change, title or target) and the pages; the arrows choose, Enter opens. **?**, or **Shortcuts** in the footer, lists every keyboard shortcut.
 
 ## A diff
 
 ![A diff: two sides, delta strip, filters, cards](images/screenshots/diff.png)
 
-- The title and the description say what the diff is about; **Edit title** changes them.
+- The change (the ticket or issue that the diff belongs to), the title and the description; **Edit** changes them.
 - The two sides, left in red and right in green, then the delta strip: only left, only right, changed, unchanged. **All models** gives the counts of the whole diff.
 - The chips filter the cards of the selected model; the search finds names and values; both stay in the URL, so a link opens the same view. **Only changed attributes** hides the values that did not change.
 - From the keyboard: `j` and `k` go to the next and the previous object, `a` accepts it, `c` copies its link, `o` and `h` switch **Only changed attributes** and **Hide accepted**.
@@ -27,7 +27,7 @@ snapdelta-web                         # http://127.0.0.1:8765
 
 ![The list of diffs with their titles and delta strips](images/screenshots/diffs.png)
 
-Every saved diff, newest first, with its title, its two sides and a delta strip; the search filters by target. The rows come by day, and the diffs of one change sit together under its name: the start of the title before `: `, so `CHG-1042: VLAN 20, r1` and `CHG-1042: VLAN 20, r2` group under `CHG-1042`.
+Every saved diff, newest first and by day, with its change, its title, its two sides and a delta strip; the search filters by target or change, so `CHG-1042` lists every diff of that change. The change is any reference of the work (a ticket, an issue): give it in **New diff**, with `--change`, or later on the page of the diff.
 
 ## The snapshots of a target
 
@@ -51,9 +51,9 @@ The metadata of the load (time, models, inputs, warnings), then one table per mo
 
 A switch at the top gives **One target** (the default) or **Many targets**.
 
-**One target**: choose a target, then a snapshot, for **Before** and **After**; with an inventory, a group list filters the targets. The After side takes the target of the Before side until you choose another one for it. Then the models in common, a title, a description and a profile. **⇄** between the two sides swaps them; **Before → after** selects the newest snapshots labelled `before` and `after` of the target of the Before side.
+**One target**: choose a target, then a snapshot, for **Before** and **After**; with an inventory, a group list filters the targets. The After side takes the target of the Before side until you choose another one for it. Then the models in common, a change, a title, a description and a profile. **⇄** between the two sides swaps them; **Before → after** selects the newest snapshots labelled `before` and `after` of the target of the Before side.
 
-**Many targets** compares `TARGET@BEFORE` with `TARGET@AFTER` for each host of a group (the page lists its hosts), or for each target of the store that has a Before snapshot; **Now** on the After side takes it from the targets, at the same time. It has the same title, description and profile as One target. The page that follows lists each target as changed, unchanged or failed, with the link of its diff.
+**Many targets** compares `TARGET@BEFORE` with `TARGET@AFTER` for each host of a group (the page lists its hosts), or for each target of the store that has a Before snapshot; **Now** on the After side takes it from the targets, at the same time. It has the same change, title, description and profile as One target, and gives them to each diff. The page that follows lists each target as changed, unchanged or failed, with the link of its diff.
 
 ## Activity
 

@@ -29,7 +29,8 @@ The output then keeps `expectations`: the expected changes `done`, the `missing`
   "summary": {"create": 65, "update": 30, "delete": 31, "no-change": 10, "skip": 0},
   "diff": {"...": "see below"},
   "profile": null,
-  "title": "CHG-1042 on PE1",
+  "change": "CHG-1042",
+  "title": "Swap of PE1 to PE2",
   "description": null,
   "reviews": {"interface:ge-0/0/6": {"by": "alice", "at": "2026-10-13T07:40:02Z", "comment": "planned"}}
 }
@@ -44,6 +45,7 @@ The output then keeps `expectations`: the expected changes `done`, the `missing`
 | `summary` | The diffsync counts: `create` = only right, `delete` = only left, `update` = changed, `no-change` = unchanged; children included |
 | `diff` | The diffsync `Diff.dict()`, below |
 | `profile` | The profile of the compare, its rules and its count checks, or `null`; see [profiles.md](profiles.md) |
+| `change` | The work that the diff belongs to (a ticket, an issue, any reference), or `null`; given at the compare or later (`snapdelta describe`), and found by the searches of diffs |
 | `title`, `description` | What the diff is about, given at the compare or later (`snapdelta describe`) |
 | `reviews` | The changes that a person accepted, by `MODEL:UNIQUE_ID` of the changed object: who, when, and an optional comment (`snapdelta accept`, **Accept** in the web UI) |
 
