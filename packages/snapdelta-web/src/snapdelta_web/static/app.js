@@ -164,6 +164,28 @@
     reloadNewDiff(form, target + "@" + labels[0], target + "@" + labels[1]);
   });
 
+  // The After side follows the target of the Before side, until the user picks another target for it.
+  document.addEventListener("click", function (event) {
+    var option = event.target.closest("#left-targets [data-target-option]");
+    var form = document.querySelector("form.new-diff");
+    if (!option || !form) return;
+    var before = sideValue(form, "left").split(/[@/]/)[0];
+    var after = sideValue(form, "right").split(/[@/]/)[0];
+    if (after && after !== before) return;
+    var name = option.textContent.trim();
+    htmx.ajax("GET", "/targets/" + encodeURIComponent(name) + "/snapshots?side=right", "#right-snapshots");
+    document.querySelectorAll("#right-targets [data-target-option]").forEach(function (item) {
+      item.classList.toggle("active", item.textContent.trim() === name);
+    });
+  });
+
+  document.addEventListener("change", function (event) {
+    if (!event.target.matches('.targets-picker [name="group"]')) return;
+    document.querySelectorAll("[data-members]").forEach(function (line) {
+      line.hidden = line.dataset.members !== event.target.value;
+    });
+  });
+
   // The clipboard API needs a secure context; over plain HTTP on the network, a hidden text area copies instead.
   function copyText(text, element) {
     function done() {

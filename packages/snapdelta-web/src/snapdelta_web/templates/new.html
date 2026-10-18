@@ -1,18 +1,59 @@
 {% extends "base.html" %}
 {% block title %}New diff · snapdelta{% endblock %}
+{% macro profile_field() %}{% if profiles %}<label class="field profile-field">Profile<select name="profile"><option value="">None</option>{% for name, text in profiles %}<option value="{{ name }}"{% if name == profile %} selected{% endif %}>{{ text }}</option>{% endfor %}</select></label>{% endif %}{% endmacro %}
+{% macro describe_fields(placeholder="") %}
+    <label class="field title-field">Title<input name="title" maxlength="120" placeholder="{{ placeholder }}" autocomplete="off" value="{{ title }}"></label>
+    <label class="field description-field">Description<input name="description" maxlength="2000" autocomplete="off" value="{{ description }}"></label>
+{% endmacro %}
 {% block content %}
-<div class="title-row"><h1>New diff</h1><button type="button" class="button quiet" data-preset-labels="before after" title="The newest snapshots labelled before and after of the target of the left side">Before → after</button></div>
+<div class="title-row">
+  <h1>New diff</h1>
+  <nav class="subnav" aria-label="Kind">
+    <a href="/new" {{ 'aria-current=page' if not many }}>One target</a><a href="/new?many=true" {{ 'aria-current=page' if many }}>Many targets</a>
+  </nav>
+</div>
+{% if many %}
+<form method="post" action="/diffs/targets" class="new-diff many-form">
+  {% if groups %}
+  <section class="picker targets-picker">
+    <h2>Targets</h2>
+    <div class="picks">
+      <label class="group-pick"><input type="radio" name="group" value="" checked> Every target</label>
+      {% for group in groups %}<label class="group-pick mono"><input type="radio" name="group" value="{{ group }}"> {{ group }}</label>{% endfor %}
+    </div>
+    {% for group, members in group_members.items() %}<p class="muted small mono" data-members="{{ group }}" hidden>{{ members | join(", ") }}</p>{% endfor %}
+  </section>
+  {% endif %}
+  <section class="picker left-picker">
+    <h2>Before</h2>
+    <label class="field">Label<input name="left" value="before" required autocomplete="off" aria-label="Before label"></label>
+  </section>
+  <section class="picker right-picker">
+    <h2>After</h2>
+    <div class="picks">
+      <label class="group-pick"><input type="radio" name="live" value="false" checked> Label</label>
+      <label class="group-pick"><input type="radio" name="live" value="true"> Now</label>
+    </div>
+    <label class="field right-label">Label<input name="right" value="after" autocomplete="off" aria-label="After label"></label>
+  </section>
+  <div class="form-foot">
+    {{ describe_fields() }}
+    {{ profile_field() }}
+    <button type="submit" class="button primary" data-busy="Comparing…">Compare</button>
+  </div>
+</form>
+{% else %}
 {% for message in missing %}<p class="notice warn">{{ message }}: the newest snapshot is selected.</p>{% endfor %}
 <form method="post" action="/diffs" class="new-diff">
-  <button type="button" class="swap-sides" data-swap-sides title="Swap left and right" aria-label="Swap left and right">⇄</button>
-  {% for side in ("left", "right") %}
+  <button type="button" class="swap-sides" data-swap-sides title="Swap before and after" aria-label="Swap before and after">⇄</button>
+  {% for side, heading in (("left", "Before"), ("right", "After")) %}
   {% set picker = pickers[side] %}
   <section class="picker {{ side }}-picker">
-    <h2>{{ side | capitalize }}</h2>
+    <h2>{{ heading }}</h2>
     <div class="target-search">
-      <input type="search" name="q" placeholder="Search a target" aria-label="{{ side | capitalize }} target" autocomplete="off"
+      <input type="search" name="q" placeholder="Search a target" aria-label="{{ heading }} target" autocomplete="off"
              hx-get="/targets?side={{ side }}" hx-include="next [name=group]" hx-trigger="input changed delay:200ms, search" hx-target="#{{ side }}-targets" hx-sync="this:replace">
-      {% if groups %}<select name="group" aria-label="{{ side | capitalize }} group" hx-get="/targets?side={{ side }}" hx-include="previous [name=q]" hx-trigger="change" hx-target="#{{ side }}-targets"><option value="">All groups</option>{% for group in groups %}<option>{{ group }}</option>{% endfor %}</select>{% endif %}
+      {% if groups %}<select name="group" aria-label="{{ heading }} group" hx-get="/targets?side={{ side }}" hx-include="previous [name=q]" hx-trigger="change" hx-target="#{{ side }}-targets"><option value="">All groups</option>{% for group in groups %}<option>{{ group }}</option>{% endfor %}</select>{% endif %}
     </div>
     <div id="{{ side }}-targets" class="target-options">
       {% with targets = picker.targets, more = 0, current = picker.options.target if picker.options else None %}{% include "_target_options.html" %}{% endwith %}
@@ -23,25 +64,12 @@
   </section>
   {% endfor %}
   <div id="models" class="models-section" hx-get="/new/models" hx-trigger="load, change[target.type==='radio'] from:closest form, htmx:afterSettle[detail.target.classList.contains('snapshot-options')] from:closest form" hx-include="[name='left'], [name='right']"></div>
-  <div class="describe-new">
-    <label class="field">Title<input name="title" maxlength="120" placeholder="Change 42 on the core" autocomplete="off" value="{{ title }}"></label>
-    <label class="field">Description<input name="description" maxlength="2000" autocomplete="off" value="{{ description }}"></label>
-  </div>
-  <div class="actions">
-    {% if profiles %}<label class="field inline-field">Profile<select name="profile"><option value="">None</option>{% for name, text in profiles %}<option value="{{ name }}"{% if name == profile %} selected{% endif %}>{{ text }}</option>{% endfor %}</select></label>{% endif %}
-    <button type="submit" class="button primary large" data-busy="Comparing…">Compare</button>
+  <div class="form-foot">
+    {{ describe_fields("Change 42 on the core") }}
+    {{ profile_field() }}
+    <button type="button" class="button" data-preset-labels="before after" title="The newest snapshots labelled before and after of the target of the Before side">Before → after</button>
+    <button type="submit" class="button primary" data-busy="Comparing…">Compare</button>
   </div>
 </form>
-<section class="panel many-targets">
-  <h2>Many targets</h2>
-  <form method="post" action="/diffs/targets" class="many-targets-form">
-    {% if groups %}<label class="field">Group<select name="group"><option value="">Every target</option>{% for group in groups %}<option>{{ group }}</option>{% endfor %}</select></label>{% endif %}
-    <label class="field">Left label<input name="left" value="before" required autocomplete="off"></label>
-    <label class="field">Right label<input name="right" value="after" autocomplete="off"></label>
-    <label class="check"><input type="checkbox" name="live" value="true"> With the targets now</label>
-    {% if profiles %}<label class="field">Profile<select name="profile"><option value="">None</option>{% for name, text in profiles %}<option value="{{ name }}">{{ text }}</option>{% endfor %}</select></label>{% endif %}
-    <label class="field">Title<input name="title" maxlength="120" autocomplete="off"></label>
-    <button type="submit" class="button primary" data-busy="Comparing…">Compare each target</button>
-  </form>
-</section>
+{% endif %}
 {% endblock %}

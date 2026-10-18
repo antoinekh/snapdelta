@@ -360,6 +360,7 @@ def create_app(state: AppState) -> FastAPI:
         live: Annotated[bool, Form()] = False,
         profile: Annotated[str, Form()] = "",
         title: Annotated[str, Form()] = "",
+        description: Annotated[str, Form()] = "",
     ) -> HTMLResponse:
         """For each host of the group, or each target of the store, TARGET@LEFT with TARGET@RIGHT or the target now."""
         results = diff_targets(
@@ -372,6 +373,7 @@ def create_app(state: AppState) -> FastAPI:
             live=live,
             profile=profile or None,
             title=title,
+            description=description,
             origin="web",
         )
         items = list(results.values())
@@ -565,6 +567,7 @@ def create_app(state: AppState) -> FastAPI:
         title: str = "",
         description: str = "",
         profile: str = "",
+        many: bool = False,
     ) -> HTMLResponse:
         pickers = {}
         missing = []
@@ -585,8 +588,10 @@ def create_app(state: AppState) -> FastAPI:
             }
         inventory = state.settings.hosts()
         groups = inventory.groups if inventory else []
-        context = {"tab": "new", "pickers": pickers, "profiles": profile_choices(), "groups": groups}
+        members = {group: inventory.members(group) for group in groups} if inventory else {}
+        context = {"tab": "new", "pickers": pickers, "profiles": profile_choices(), "groups": groups, "many": many}
         context |= {"missing": missing, "title": title, "description": description, "profile": profile}
+        context |= {"group_members": members}
         return render(request, "new.html", context)
 
     @app.post("/diffs/delete")

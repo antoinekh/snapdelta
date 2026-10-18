@@ -171,10 +171,8 @@ table.list .num-col { text-align: right; width: 1%; white-space: nowrap; }
 .describe summary { list-style: none; height: 30px; padding: 0 10px; font-size: 13px; }
 .describe summary::-webkit-details-marker { display: none; }
 .describe-form { display: flex; flex-direction: column; gap: 10px; width: min(560px, 90vw); margin-top: 10px; padding: 16px; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); }
-.describe-form textarea, .describe-new input { padding: 8px 12px; border-radius: var(--radius-small); border: 1px solid var(--line-strong); background: var(--surface); font: inherit; color: var(--ink); }
+.describe-form textarea { padding: 8px 12px; border-radius: var(--radius-small); border: 1px solid var(--line-strong); background: var(--surface); font: inherit; color: var(--ink); }
 .describe-form .button { align-self: flex-end; }
-.describe-new { grid-column: 1 / -1; display: grid; grid-template-columns: 1fr 2fr; gap: 16px; }
-.describe-new input { width: 100%; }
 .versus { display: grid; grid-template-columns: 1fr 1fr auto; gap: 16px; align-items: end; }
 .side { display: flex; flex-direction: column; gap: 4px; padding-left: 14px; border-left: 3px solid; }
 .side .side-label b { font-size: 26px; font-weight: 700; letter-spacing: -0.02em; font-family: var(--font); }
@@ -273,11 +271,15 @@ table.list .num-col { text-align: right; width: 1%; white-space: nowrap; }
 
 /* New diff */
 .new-diff { position: relative; display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
-.many-targets { margin-top: 28px; }
-.many-targets-form { display: flex; flex-wrap: wrap; gap: 14px 16px; align-items: end; }
-.many-targets-form input, .many-targets-form select { padding: 8px 12px; border-radius: var(--radius-small); border: 1px solid var(--line-strong); background: var(--surface); font: inherit; color: var(--ink); }
-.many-targets-form .check { height: 40px; }
-.many-targets-form .button { margin-left: auto; }
+.picker.targets-picker { grid-column: 1 / -1; border-top: 1px solid var(--line); }
+.targets-picker p { margin: 0; }
+.picker .field input { width: 100%; }
+.right-picker:has([name="live"][value="true"]:checked) .right-label { display: none; }
+.form-foot { grid-column: 1 / -1; display: flex; flex-wrap: wrap; align-items: flex-end; gap: 16px; }
+.form-foot .field input, .form-foot .field select { width: 100%; }
+.title-field { flex: 1 1 220px; }
+.description-field { flex: 2 1 320px; }
+.profile-field { flex: 0 1 280px; }
 .result-tags .tag.changed { background: var(--change-soft); color: var(--change-text); }
 .result-tags .tag.failed { background: var(--left-soft); color: var(--left-text); }
 .plugins-table { table-layout: fixed; }
@@ -300,7 +302,7 @@ table.list .num-col { text-align: right; width: 1%; white-space: nowrap; }
 .target-option { height: 32px; padding: 0 12px; border-radius: 999px; border: 1px solid var(--line); background: var(--canvas); color: var(--ink); cursor: pointer; }
 .target-option:hover { border-color: var(--line-strong); }
 .target-option.active { background: var(--ink); border-color: var(--ink); color: var(--canvas); }
-.snapshot-options { display: flex; flex-direction: column; gap: 2px; max-height: 420px; overflow-y: auto; }
+.snapshot-options { display: flex; flex-direction: column; gap: 2px; max-height: 300px; overflow-y: auto; }
 .picked { margin: 4px 0 6px; font-weight: 600; }
 .choice { display: flex; align-items: center; gap: 10px; padding: 8px 10px; border-radius: var(--radius-small); cursor: pointer; }
 .choice:hover { background: var(--sunken); }
@@ -311,7 +313,6 @@ table.list .num-col { text-align: right; width: 1%; white-space: nowrap; }
 .model-picks { margin: 0; padding: 18px 20px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); }
 .model-picks legend { padding: 0 6px; font-weight: 650; }
 .model-picks .muted { margin: 10px 0 0; }
-.actions { grid-column: 1 / -1; display: flex; justify-content: flex-end; }
 
 /* Take snapshot */
 .take { display: flex; flex-direction: column; align-items: flex-start; gap: 16px; max-width: 680px; }

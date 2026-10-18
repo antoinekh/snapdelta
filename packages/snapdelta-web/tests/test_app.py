@@ -115,6 +115,7 @@ def test_snapshot_pages(client, names) -> None:
 def test_new_diff_form_and_post(client, store, names) -> None:
     form = client.get("/new")
     assert 'hx-get="/targets?side=left"' in form.text and 'hx-get="/targets?side=right"' in form.text
+    assert 'href="/new?many=true"' in form.text and 'action="/diffs/targets"' not in form.text
     response = client.post("/diffs", data={"left": "R1@latest", "right": names.before}, follow_redirects=False)
     assert response.status_code == 303
     target = response.headers["location"]
@@ -572,6 +573,8 @@ def test_take_a_group_by_platform(store, make_app) -> None:
 def test_new_diff_filters_the_targets_by_group(store, make_app) -> None:
     client = inventory_client(store, make_app)
     assert '<option value="">All groups</option><option>core</option>' in client.get("/new").text
+    many = client.get("/new", params={"many": "true"}).text
+    assert 'value="core"> core</label>' in many and 'data-members="core" hidden>R1, R2</p>' in many
     edge = client.get("/targets", params={"side": "left", "group": "edge"}).text
     assert "No target matches." in edge
     core = client.get("/targets", params={"side": "left", "group": "core"}).text
@@ -725,11 +728,14 @@ def test_the_activity_lists_the_runs_and_shows_their_log(client, store, monkeypa
 
 
 def test_the_new_diff_page_compares_many_targets(client, store) -> None:
-    page = client.get("/new").text
-    assert 'action="/diffs/targets"' in page and 'name="live"' in page
-    result = client.post("/diffs/targets", data={"left": "before", "right": "after", "title": "CHG-9"})
+    page = client.get("/new", params={"many": "true"}).text
+    assert 'action="/diffs/targets"' in page and 'name="live" value="true"' in page and 'action="/diffs"' not in page
+    data = {"left": "before", "right": "after", "live": "false", "title": "CHG-9", "description": "Swap of the core"}
+    result = client.post("/diffs/targets", data=data)
     assert result.status_code == 200
     assert "<h1>CHG-9</h1>" in result.text and "1 changed, 0 unchanged, 0 failed" in result.text
+    newest = max(store.output_entries(), key=lambda entry: entry.created_at)
+    assert store.load_output(newest.name).description == "Swap of the core"
     assert 'href="/diffs/' in result.text
     refused = client.post("/diffs/targets", data={"left": "nope", "right": "after"})
     assert refused.status_code == 400 and "give targets, groups or all_targets" in refused.text

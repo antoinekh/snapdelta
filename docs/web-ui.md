@@ -47,9 +47,11 @@ The metadata of the load (time, models, inputs, warnings), then one table per mo
 
 ![The new diff form: target and snapshot of each side, models, title, profile](images/screenshots/new-diff.png)
 
-Choose a target, then a snapshot, for each side; with an inventory, a group list filters the targets. Then the models in common, a title, a description and a profile. **⇄** between the two sides swaps them; **Before → after** selects the newest snapshots labelled `before` and `after` of the target of the left side.
+A switch at the top gives **One target** (the default) or **Many targets**.
 
-**Many targets**, under the form, compares `TARGET@LEFT` with `TARGET@RIGHT` for each host of a group, or for each target of the store that has a left snapshot; **With the targets now** takes the right side from the targets, at the same time. The page that follows lists each target as changed, unchanged or failed, with the link of its diff.
+**One target**: choose a target, then a snapshot, for **Before** and **After**; with an inventory, a group list filters the targets. The After side takes the target of the Before side until you choose another one for it. Then the models in common, a title, a description and a profile. **⇄** between the two sides swaps them; **Before → after** selects the newest snapshots labelled `before` and `after` of the target of the Before side.
+
+**Many targets** compares `TARGET@BEFORE` with `TARGET@AFTER` for each host of a group (the page lists its hosts), or for each target of the store that has a Before snapshot; **Now** on the After side takes it from the targets, at the same time. It has the same title, description and profile as One target. The page that follows lists each target as changed, unchanged or failed, with the link of its diff.
 
 ## Activity
 

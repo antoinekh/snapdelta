@@ -34,6 +34,7 @@
 - `Secret(env="NAME")` is `Secret(backend="env", reference="NAME")` in Python; the file keeps `{ env = "NAME" }`.
 - `take_snapshots()` and `snapshot_targets()` give each saved snapshot as a `Taken` of data (`reference`, `loaded`, `warnings`, `unmapped`) in place of the loaded source, and refuse a source class that is not the one of the registry; `Progress` moves to `snapdelta.runners`.
 - The package of a plugin comes from its entry point: `Source.distribution` is gone, `register_source(cls)` takes the class only, and in `GET /api/v1/version` each plugin package lists `plugins` (`source example`) in place of `sources`.
+- **New diff** has a switch, **One target** or **Many targets**, with the same Before and After boxes, fields and **Compare** button; the After side takes the target of the Before side until you choose another one, and Many targets also takes a description.
 
 ### Fixed
 
