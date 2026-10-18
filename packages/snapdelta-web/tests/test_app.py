@@ -735,6 +735,10 @@ def test_the_activity_lists_the_runs_and_shows_their_log(client, store, monkeypa
     listed = client.get("/activity").text
     assert '<span class="tag">snapshot</span>' in listed and '<span class="run-status ok">OK</span>' in listed
     run = store.runs()[0]
+    ok = client.get("/activity", params={"status": "ok"}).text
+    assert '<span class="run-status ok">OK</span>' in ok and 'href="/activity?kind=snapshot&amp;status=ok"' in ok
+    assert "No run matches." in client.get("/activity", params={"status": "failed"}).text
+    assert "No run matches." in client.get("/activity", params={"since": "2099-01-01T00:00"}).text
     detail = client.get(f"/activity/{run.id}").text
     assert f"read R1.json from {devices}" in detail and f'href="/snapshots/{run.saved[0]}"' in detail
     assert "No message at warning or above" in client.get(f"/activity/{run.id}", params={"level": "warning"}).text

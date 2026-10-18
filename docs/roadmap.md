@@ -10,4 +10,3 @@ The work planned for the next versions of snapdelta. Effort: **S** less than one
 | 4 | **Web UI: a diff that reads faster.** Replace the four separate bars of the header with one bar of removed, added and changed. | S | Later |
 | 5 | **Web UI: one way to select snapshots on the page of a target.** Today there are three: the **Compare** button, the dots of the timeline and the check boxes of the table. Select two items, dots or rows, then **Compare**. | M | Later |
 | 6 | **Web UI: less noise in the lists.** Show the source tag only when the two sides differ; in **Diffs**, give only the time under the header of the day; show **Warnings** and **Unmapped** only when they are not zero. | S | Later |
-| 7 | **Web UI: Activity filters.** Filter the runs by result (ok, partial, failed), by target and by time (from and to), and make the rows shorter so that more runs show at once. | S | Later |

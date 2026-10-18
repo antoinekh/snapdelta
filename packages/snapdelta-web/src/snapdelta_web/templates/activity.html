@@ -2,10 +2,20 @@
 {% from "_macros.html" import run_status %}
 {% block title %}Activity · snapdelta{% endblock %}
 {% block content %}
+{% set rest = "&" ~ filters if filters else "" %}
 <div class="title-row">
   <h1>Activity</h1>
+  <form class="period" method="get" action="/activity">
+    <input type="hidden" name="kind" value="{{ kind }}">
+    <label class="inline-field">Result<select name="status"><option value="">Any</option>{% for value, text in [("ok", "OK"), ("partial", "Partial"), ("failed", "Failed")] %}<option value="{{ value }}"{{ " selected" if status == value }}>{{ text }}</option>{% endfor %}</select></label>
+    <label class="inline-field">From<input type="datetime-local" name="since" value="{{ period.since_text }}"></label>
+    <label class="inline-field">To<input type="datetime-local" name="until" value="{{ period.until_text }}"></label>
+    <span class="muted small">UTC</span>
+    <button type="submit" class="button">Apply</button>
+    {% if filtered %}<a class="button quiet" href="/activity?kind={{ kind }}">Clear</a>{% endif %}
+  </form>
   <nav class="subnav" aria-label="Kind">
-    {% for value, text in [("", "All"), ("snapshot", "Snapshots"), ("diff", "Diffs")] %}<a href="/activity{{ '?kind=' ~ value if value }}" {{ 'aria-current=page' if kind == value }}>{{ text }}</a>{% endfor %}
+    {% for value, text in [("", "All"), ("snapshot", "Snapshots"), ("diff", "Diffs")] %}<a href="/activity?kind={{ value }}{{ rest }}" {{ 'aria-current=page' if kind == value }}>{{ text }}</a>{% endfor %}
   </nav>
 </div>
 {% if runs %}
@@ -15,7 +25,7 @@
     {% for run in runs %}
     {% set problems = run.log | selectattr("level", "in", ["warning", "error", "critical"]) | list %}
     <tr>
-      <td><a class="row-link" href="/activity/{{ run.id }}">{{ run.started_at | when }}</a><div class="muted small">{{ "%.1f"|format(run.duration_s) }} s</div></td>
+      <td><a class="row-link" href="/activity/{{ run.id }}">{{ run.started_at | when }}</a> <span class="muted small">{{ "%.1f"|format(run.duration_s) }} s</span></td>
       <td><span class="tag">{{ run.kind }}</span></td>
       <td class="muted">{{ run.origin }}{% if run.user %} · {{ run.user }}{% endif %}</td>
       <td class="mono">{{ run.targets | join(", ") }}</td>
@@ -26,9 +36,11 @@
   </tbody>
 </table>
 <nav class="pager" aria-label="Pages">
-  {% if page > 1 %}<a class="button quiet" href="/activity?{{ 'kind=' ~ kind ~ '&' if kind }}page={{ page - 1 }}">Newer</a>{% endif %}
-  {% if more %}<a class="button quiet" href="/activity?{{ 'kind=' ~ kind ~ '&' if kind }}page={{ page + 1 }}">Older</a>{% endif %}
+  {% if page > 1 %}<a class="button quiet" href="/activity?kind={{ kind }}{{ rest }}&page={{ page - 1 }}">Newer</a>{% endif %}
+  {% if more %}<a class="button quiet" href="/activity?kind={{ kind }}{{ rest }}&page={{ page + 1 }}">Older</a>{% endif %}
 </nav>
+{% elif filtered %}
+<p class="empty">No run matches.</p>
 {% else %}
 <div class="empty-state"><p>No run yet: take a snapshot or compare two, from here, the CLI or the API.</p><a class="button primary" href="/take">Take snapshot</a></div>
 {% endif %}

@@ -63,6 +63,8 @@ HERE = Path(__file__).parent
 BY_PLATFORM = ""
 # The Admin tabs that edit the settings file.
 SETTINGS, PROFILES = "settings", "profiles"
+# A filter of Activity reads this many of the newest runs, since a store lists its runs without a filter of its own.
+ACTIVITY_WINDOW = 1000
 
 
 @functools.cache
@@ -494,12 +496,21 @@ def create_app(state: AppState) -> FastAPI:
         return inventory.members(group) if group and inventory else None
 
     @app.get("/activity", response_class=HTMLResponse)
-    def activity(request: Request, kind: str = "", page: int = 1) -> HTMLResponse:
+    def activity(
+        request: Request, kind: str = "", status: str = "", since: str = "", until: str = "", page: int = 1
+    ) -> HTMLResponse:
         """The newest runs: snapshots and diffs, from the CLI, the web UI, the API and MCP."""
         size = PAGE_SIZE
-        found = state.store.runs(limit=size * page + 1, kind=kind or None)
+        period = views.Period.parse(since, until)
+        filtered = bool(status) or period.active
+        found = state.store.runs(limit=ACTIVITY_WINDOW if filtered else size * page + 1, kind=kind or None)
+        if filtered:
+            found = [run for run in found if (not status or run.status == status) and period.contains(run.started_at)]
         runs = found[size * (page - 1) : size * page]
+        chosen = (("status", status), ("since", period.since_text), ("until", period.until_text))
         context = {"tab": "activity", "runs": runs, "kind": kind, "page": page, "more": len(found) > size * page}
+        context |= {"status": status, "period": period, "filtered": filtered}
+        context["filters"] = urlencode([(name, value) for name, value in chosen if value])
         return render(request, "activity.html", context)
 
     @app.get("/activity/{run_id}", response_class=HTMLResponse)

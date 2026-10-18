@@ -602,14 +602,14 @@ class Period:
         ends = (("since", self.since_text), ("until", self.until_text))
         return urlencode([(name, text) for name, text in ends if text])
 
-    def select(self, entries: list[SnapshotEntry]) -> list[SnapshotEntry]:
+    def contains(self, moment: datetime) -> bool:
         # The fields give minutes: a snapshot of 13:10:45 is in a period that ends at 13:10.
-        return [
-            entry
-            for entry in entries
-            if (self.since is None or entry.captured_at >= self.since)
-            and (self.until is None or entry.captured_at.replace(second=0, microsecond=0) <= self.until)
-        ]
+        return (self.since is None or moment >= self.since) and (
+            self.until is None or moment.replace(second=0, microsecond=0) <= self.until
+        )
+
+    def select(self, entries: list[SnapshotEntry]) -> list[SnapshotEntry]:
+        return [entry for entry in entries if self.contains(entry.captured_at)]
 
 
 ALL_TIME = Period()
