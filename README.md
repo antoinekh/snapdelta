@@ -113,7 +113,7 @@ By default, `snapdelta-web` listens on 127.0.0.1 only, refuses other host names 
 
 ```bash
 curl -s -X POST http://127.0.0.1:8765/api/v1/diffs -H 'Content-Type: application/json' \
-  -d '{"left": "R1@before", "right": "R1@after", "title": "CHG-1234"}' | jq .has_differences
+  -d '{"left": "R1@before", "right": "R1@after", "change": "CHG-1234"}' | jq .has_differences
 ```
 
 ## AI agents

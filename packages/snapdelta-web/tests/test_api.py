@@ -139,15 +139,27 @@ def test_a_pipeline_reads_and_accepts_the_changes(api, names) -> None:
 
 
 def test_a_pipeline_compares_many_targets_at_once(api, store) -> None:
-    body = {"targets": ["R1", "R9"], "left": "before", "right": "after", "title": "CHG-8"}
+    body = {"targets": ["R1", "R9"], "left": "before", "right": "after", "title": "VLAN 20", "change": "CHG-8"}
     result = api.post("/api/v1/diffs/targets", json=body).json()
     assert result["has_differences"] is True and result["changed"] == ["R1"] and result["unchanged"] == []
     assert result["failed"] == {"R9": f"no snapshot labelled 'before' of R9 in {store.location}"}
     [first, second] = result["diffs"]
-    assert first["diff"]["title"] == "CHG-8" and first["diff"]["output"] is None and second["diff"] is None
+    assert first["diff"]["title"] == "VLAN 20" and first["diff"]["output"] is None and second["diff"] is None
+    assert first["diff"]["change"] == "CHG-8"
     assert api.post("/api/v1/diffs/targets", json={"targets": ["R1"], "left": "before"}).status_code == 400
 
 
 def test_the_health_check_needs_no_login(guarded) -> None:
     assert guarded.get("/healthz").json() == {"status": "ok"}
     assert guarded.get("/api/v1/targets").status_code == 401
+
+
+def test_a_pipeline_sets_the_change_of_a_diff_and_finds_it(api) -> None:
+    body = {"left": "R1@before", "right": "R1@after", "title": "r1", "change": "CHG-8"}
+    made = api.post("/api/v1/diffs", json=body).json()
+    assert made["change"] == "CHG-8"
+    kept = api.patch(f"/api/v1/diffs/{made['name']}", json={"title": "r1 uplink"}).json()
+    assert (kept["change"], kept["title"]) == ("CHG-8", "r1 uplink")
+    assert [item["name"] for item in api.get("/api/v1/diffs", params={"q": "chg-8"}).json()] == [made["name"]]
+    removed = api.patch(f"/api/v1/diffs/{made['name']}", json={"change": ""}).json()
+    assert removed["change"] is None and api.get("/api/v1/diffs", params={"q": "chg-8"}).json() == []

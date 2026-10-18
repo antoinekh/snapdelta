@@ -100,11 +100,11 @@ allowed_hosts = ["10.0.0.5", "snapdelta.lab"]   # required on the network; "*" a
 | `GET /api/v1/snapshots?target=R1` | The snapshots of one target, newest first |
 | `GET /api/v1/snapshots/{target}/{name}` | One snapshot: metadata and data |
 | `POST /api/v1/snapshots` | Fetch targets and save a snapshot of each: `source`, `targets`, `groups`, `all_targets`, `label` |
-| `POST /api/v1/diffs` | Compare: `left`, then `right` or `live`, with `models`, `profile`, `title`, `description`, `save`; `?include_output=true` returns the whole output |
-| `POST /api/v1/diffs/targets` | For each target: `targets`, `groups` or `all_targets`, with the labels `left`, then `right` or `live`; one diff per target, and the targets that `changed`, are `unchanged` or `failed` |
-| `GET /api/v1/diffs?q=R1&limit=50` | The newest saved diffs |
+| `POST /api/v1/diffs` | Compare: `left`, then `right` or `live`, with `models`, `profile`, `change`, `title`, `description`, `save`; `?include_output=true` returns the whole output |
+| `POST /api/v1/diffs/targets` | For each target: `targets`, `groups` or `all_targets`, with the labels `left`, then `right` or `live`, and `change`, `title`, `description`; one diff per target, and the targets that `changed`, are `unchanged` or `failed` |
+| `GET /api/v1/diffs?q=R1&limit=50` | The newest saved diffs whose target or change contains `q` |
 | `GET /api/v1/diffs/{name}?format=json` | One saved diff: `json`, `text`, `markdown` or `csv` |
-| `PATCH /api/v1/diffs/{name}` | Change its `title` or `description` |
+| `PATCH /api/v1/diffs/{name}` | Change its `change`, `title` or `description` |
 | `GET /api/v1/runs?kind=snapshot&limit=50` | The newest runs (snapshot or diff) and their result, without their log |
 | `GET /api/v1/runs/{id}` | One run, with the log messages of its loads |
 | `GET /api/v1/diffs/{name}/reviews` | The accepted changes, and `to_review`: the keys of the changes that nobody accepted yet |
@@ -128,7 +128,7 @@ curl -sf -H "$AUTH" -X POST $API/snapshots -d '{"groups": ["core"], "label": "be
 # After the change, then one diff per host of the group
 curl -sf -H "$AUTH" -X POST $API/snapshots -d '{"groups": ["core"], "label": "after"}' -H 'Content-Type: application/json'
 curl -sf -H "$AUTH" -X POST $API/diffs/targets -H 'Content-Type: application/json' \
-  -d '{"groups": ["core"], "left": "before", "right": "after", "profile": "change-window", "title": "CHG-1234"}' \
+  -d '{"groups": ["core"], "left": "before", "right": "after", "profile": "change-window", "change": "CHG-1234"}' \
   | jq -e '.has_differences == false and .failed == {}'      # fails the step when a host changed or failed
 ```
 

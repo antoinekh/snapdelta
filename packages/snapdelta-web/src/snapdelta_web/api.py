@@ -90,6 +90,7 @@ class DiffRequest(BaseModel):
     target: str | None = Field(default=None, description="With live: another target than the one of left.")
     models: list[str] = Field(default=[], description="Only these models; none: every model of both sides.")
     profile: str | None = Field(default=None, description="A compare profile of the settings.")
+    change: str | None = Field(default=None, description="The change that the diff belongs to: CHG-1042, #216.")
     title: str | None = None
     description: str | None = None
     expected: list[ExpectedChange] | None = Field(
@@ -107,6 +108,7 @@ class TargetsDiffRequest(BaseModel):
     live: bool = Field(default=False, description="Fetch each target now as the right side, at the same time.")
     models: list[str] = Field(default=[], description="Only these models; none: every model of both sides.")
     profile: str | None = Field(default=None, description="A compare profile of the settings.")
+    change: str | None = Field(default=None, description="The change that the diff belongs to: CHG-1042, #216.")
     title: str | None = None
     description: str | None = None
     expected: list[ExpectedChange] | None = Field(
@@ -122,6 +124,7 @@ class DiffResult(BaseModel):
     summary: dict[str, int]
     left: Side
     right: Side
+    change: str | None
     title: str | None
     description: str | None
     as_expected: bool | None = Field(
@@ -156,6 +159,7 @@ def diff_result(output: Output, name: str | None, include_output: bool) -> DiffR
         summary=output.summary,
         left=output.left,
         right=output.right,
+        change=output.change,
         title=output.title,
         description=output.description,
         as_expected=output.expectations.as_expected if output.expectations else None,
@@ -187,6 +191,7 @@ def targets_result(results: Mapping[str, TargetDiff], include_output: bool = Fal
 class DiffItem(BaseModel):
     name: str
     created_at: datetime
+    change: str | None
     title: str | None
     left: Side
     right: Side
@@ -201,6 +206,7 @@ class DiffItem(BaseModel):
         return cls(
             name=name,
             created_at=output.created_at,
+            change=output.change,
             title=output.title,
             left=output.left,
             right=output.right,
@@ -250,6 +256,7 @@ class ReviewState(BaseModel):
 
 
 class DescribeRequest(BaseModel):
+    change: str | None = Field(default=None, description="The new change; none keeps it, an empty text removes it.")
     title: str | None = Field(default=None, description="The new title; none keeps it, an empty text removes it.")
     description: str | None = Field(default=None, description="The new description; none keeps it.")
 
@@ -366,6 +373,7 @@ def create_api(state: AppState, row_cache: LruCache[Any, Any]) -> FastAPI:
             target=request.target,
             models=request.models,
             profile=request.profile,
+            change=request.change,
             title=request.title,
             description=request.description,
             expected=request.expected,
@@ -388,6 +396,7 @@ def create_api(state: AppState, row_cache: LruCache[Any, Any]) -> FastAPI:
             live=request.live,
             models=request.models,
             profile=request.profile,
+            change=request.change,
             title=request.title,
             description=request.description,
             expected=request.expected,
@@ -398,7 +407,7 @@ def create_api(state: AppState, row_cache: LruCache[Any, Any]) -> FastAPI:
 
     @api.get("/diffs")
     def diffs(q: str = "", limit: Annotated[int, Query(ge=1, le=MAX_LIMIT)] = 50) -> list[DiffItem]:
-        """The newest saved diffs, whose left or right target contains q."""
+        """The newest saved diffs, whose left target, right target or change contains q."""
         return [
             DiffItem.of(entry.name, state.store.load_output(entry.name))
             for entry in state.store.output_entries(q)[:limit]
@@ -415,12 +424,13 @@ def create_api(state: AppState, row_cache: LruCache[Any, Any]) -> FastAPI:
 
     @api.patch("/diffs/{name}")
     def describe(name: str, request: DescribeRequest) -> DiffItem:
-        """Change the title or the description of a saved diff."""
+        """Change the change, the title or the description of a saved diff."""
         resolved = state.store.resolve_output(name)
         current = state.store.load_output(resolved)
         title = current.title if request.title is None else request.title
         description = current.description if request.description is None else request.description
-        output = state.store.describe_output(resolved, title, description, current.change)
+        change = current.change if request.change is None else request.change
+        output = state.store.describe_output(resolved, title, description, change)
         row_cache.discard((state.store.location, resolved))
         return DiffItem.of(resolved, output)
 
