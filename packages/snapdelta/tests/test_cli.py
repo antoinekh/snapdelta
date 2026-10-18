@@ -329,6 +329,23 @@ def test_diff_with_a_title_and_describe_it_later(make_adapter, tmp_path) -> None
     assert markdown.output.startswith("# Change 43\n\nNew uplink description\n")
 
 
+def test_diff_with_a_change_and_find_it_later(make_adapter, tmp_path) -> None:
+    store = FileStore(tmp_path / "store")
+    store.save_snapshot(make_adapter(label="before", description="old"))
+    store.save_snapshot(make_adapter(label="after", description="new"))
+    base = ["--store", str(tmp_path / "store")]
+    result = runner.invoke(app, [*base, "diff", "R1@before", "R1@after", "--change", "CHG-7", "--title", "r1"])
+    assert "\nchange: CHG-7\ntitle: r1\n" in result.output
+    name = store.output_entries()[0].name
+    described = runner.invoke(app, [*base, "describe", name, "--title", "r1 uplink"])
+    assert described.exit_code == 0 and described.output == f"{name}: CHG-7 · r1 uplink\n"
+    assert store.load_output(name).change == "CHG-7"
+    listed = runner.invoke(app, [*base, "list", "--target", "chg-7"])
+    assert listed.output.endswith(f"outputs:\n  {name}\n")
+    removed = runner.invoke(app, [*base, "describe", name, "--change", ""])
+    assert removed.output == f"{name}: r1 uplink\n" and store.load_output(name).change is None
+
+
 def test_accept_changes_after_a_review(make_adapter, tmp_path, monkeypatch) -> None:
     import getpass
 

@@ -341,7 +341,10 @@ def _print_saved(reference: str, loaded: list[str], warnings: list[str]) -> None
 @app.command("list")
 @handle_errors
 def list_files(
-    ctx: typer.Context, target: Annotated[str | None, typer.Option(help="Only the targets whose name has this.")] = None
+    ctx: typer.Context,
+    target: Annotated[
+        str | None, typer.Option(help="Only the targets, and the outputs whose target or change has this.")
+    ] = None,
 ) -> None:
     """List the snapshots and the outputs of the store."""
     store = ctx.obj.store
@@ -398,6 +401,9 @@ def diff(
     no_save: Annotated[
         bool, typer.Option("--no-save", help="Do not save the output, nor the snapshot of --live.")
     ] = False,
+    change: Annotated[
+        str | None, typer.Option(help="The change that the diff belongs to: a ticket, an issue, any reference.")
+    ] = None,
     title: Annotated[str | None, typer.Option(help="A short title of the diff, shown in the lists.")] = None,
     description: Annotated[str | None, typer.Option(help="What the diff is about: the change, the ticket.")] = None,
     expect: Annotated[
@@ -425,6 +431,7 @@ def diff(
     common = {
         "models": models,
         "profile": profile,
+        "change": change,
         "title": title,
         "description": description,
         "expected": expected,
@@ -552,10 +559,11 @@ def info(ctx: typer.Context) -> None:
 def describe_output(
     ctx: typer.Context,
     output: Annotated[str, typer.Argument(help="Output name.")],
+    change: Annotated[str | None, typer.Option(help="The new change; an empty text removes it.")] = None,
     title: Annotated[str | None, typer.Option(help="The new title; an empty text removes it.")] = None,
     description: Annotated[str | None, typer.Option(help="The new description; an empty text removes it.")] = None,
 ) -> None:
-    """Give a saved diff a title and a description, or change them."""
+    """Give a saved diff a change, a title and a description, or change them."""
     store = ctx.obj.store
     name = store.resolve_output(output)
     current = store.load_output(name)
@@ -563,9 +571,9 @@ def describe_output(
         name,
         current.title if title is None else title,
         current.description if description is None else description,
-        current.change,
+        current.change if change is None else change,
     )
-    typer.echo(f"{name}: {changed.title or 'no title'}")
+    typer.echo(f"{name}: {' · '.join(filter(None, (changed.change, changed.title))) or 'no title'}")
 
 
 @app.command("accept")
