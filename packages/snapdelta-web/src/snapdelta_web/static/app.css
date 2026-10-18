@@ -287,8 +287,9 @@ table.list .num-col { text-align: right; width: 1%; white-space: nowrap; }
 .plugins-table th:nth-child(2) { width: 18%; }
 .plugins-table th:nth-child(3) { width: 9%; }
 .plugins-table th:nth-child(4) { width: 9%; }
-.plugins-table th:nth-child(5) { width: 18%; }
+.plugins-table th:nth-child(5) { width: 7%; }
 .plugins-table td { overflow-wrap: anywhere; }
+.in-use { color: var(--right-text); font-size: 18px; font-weight: 700; }
 .expectations { margin: 12px 0 16px; }
 .swap-sides { position: absolute; top: 16px; left: 50%; z-index: 1; width: 38px; height: 38px; border: 1px solid var(--line); border-radius: 50%; background: var(--surface); color: var(--ink-2); font-size: 18px; cursor: pointer; transform: translateX(-50%); box-shadow: 0 2px 8px rgb(15 23 42 / 0.08); transition: transform 200ms ease; }
 .swap-sides:hover { border-color: var(--cobalt); color: var(--cobalt-text); transform: translateX(-50%) rotate(180deg); }
