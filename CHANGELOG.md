@@ -26,13 +26,14 @@
 
 ### Changed
 
+- A snapshot has no `unmapped` list any more, nor the web UI and `snapdelta snapshot` its count: no source filled it. snapdelta still reads the snapshots that hold one; snapdelta 0.1 cannot read the snapshots that this version saves.
 - A run lists its diffs in `outputs`, in place of `output` (the runs saved by 0.1 still read); `--target` of `snapdelta diff` now selects targets, and `--live` fetches the target of the left snapshot.
 - `snapdelta diff` has no `--source` and `--file` any more: take a snapshot of the files (`snapdelta snapshot FILES --source S --label after`), then compare two snapshots, the one way to give the right side. `diff_snapshots(right=SOURCE)` stays in Python.
 
 - One plugin registry, `snapdelta.plugins`, for the four entry point groups, and the built-in stores, formats and Nornir inventory are entry points of the `snapdelta` package. A store backend, a format or an inventory format that cannot load is left out with its error, as a source already was, instead of a traceback; so is a plugin of the wrong kind, a name that two packages give, and a source whose `source` is not its entry point name.
 - `snapdelta.settings.Auth` is gone: `[web] auth` names an auth backend. The functions `token_of()`, `access_text()` and `valid_session()` of `snapdelta_web.auth` are now the `TokenAuth` backend, `describe()` and `session_user()`; a session cookie also holds the user name, so the sessions of a server before this version end.
 - `Secret(env="NAME")` is `Secret(backend="env", reference="NAME")` in Python; the file keeps `{ env = "NAME" }`.
-- `take_snapshots()` and `snapshot_targets()` give each saved snapshot as a `Taken` of data (`reference`, `loaded`, `warnings`, `unmapped`) in place of the loaded source, and refuse a source class that is not the one of the registry; `Progress` moves to `snapdelta.runners`.
+- `take_snapshots()` and `snapshot_targets()` give each saved snapshot as a `Taken` of data (`reference`, `loaded`, `warnings`) in place of the loaded source, and refuse a source class that is not the one of the registry; `Progress` moves to `snapdelta.runners`.
 - The package of a plugin comes from its entry point: `Source.distribution` is gone, `register_source(cls)` takes the class only, and in `GET /api/v1/version` each plugin package lists `plugins` (`source example`) in place of `sources`.
 - **New diff** has a switch, **One target** or **Many targets**, with the same Before and After boxes, fields and **Compare** button; the After side takes the target of the Before side until you choose another one, and Many targets also takes a description.
 - **Admin > Plugins** shows a green check mark for a plugin in use; its title lists where the settings use it.

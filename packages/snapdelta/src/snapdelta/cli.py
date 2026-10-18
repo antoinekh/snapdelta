@@ -316,7 +316,7 @@ def snapshot_command(
         if len(names) > 1:
             raise SnapdeltaError("one target at most with input files: the files belong to one target")
         loaded = _load(settings, cls.source, files or [], names[0] if names else None, label, when)
-        _print_saved(runtime.store.save_snapshot(loaded), loaded.loaded, loaded.warnings, len(loaded.unmapped))
+        _print_saved(runtime.store.save_snapshot(loaded), loaded.loaded, loaded.warnings)
         return
     if not (targets or groups or all_targets):
         raise SnapdeltaError("the source fetches its data from a target: give --target, --group or --all-targets")
@@ -324,19 +324,18 @@ def snapshot_command(
         runtime.store, settings, source, targets or [], groups or [], all_targets, label, "cli", jobs, when
     )
     for item in taken.values():
-        _print_saved(item.reference, item.loaded, item.warnings, item.unmapped)
+        _print_saved(item.reference, item.loaded, item.warnings)
     for message in failures.values():
         typer.echo(f"error: {message}", err=True)
     if failures:
         raise typer.Exit(2)
 
 
-def _print_saved(reference: str, loaded: list[str], warnings: list[str], unmapped: int) -> None:
+def _print_saved(reference: str, loaded: list[str], warnings: list[str]) -> None:
     typer.echo(f"saved {reference}")
     typer.echo(f"loaded: {', '.join(loaded)}")
     for warning in warnings:
         typer.echo(f"warning: {warning}")
-    typer.echo(f"unmapped leaves: {unmapped}")
 
 
 @app.command("list")

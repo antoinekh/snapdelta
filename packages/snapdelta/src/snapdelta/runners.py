@@ -46,7 +46,6 @@ class LoadOutcome(BaseModel):
     reference: str | None = None
     loaded: list[str] = []
     warnings: list[str] = []
-    unmapped: int = 0
     error: str | None = None
     log: list[LogLine] = []
 
@@ -122,7 +121,6 @@ def execute(task: LoadTask, settings: Settings, store: Store) -> LoadOutcome:
             reference=reference,
             loaded=loaded.loaded,
             warnings=loaded.warnings,
-            unmapped=len(loaded.unmapped),
             log=lines,
         )
 

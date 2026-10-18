@@ -22,7 +22,7 @@
 <input type="hidden" name="since" value="{{ period.since_text }}">
 <input type="hidden" name="until" value="{{ period.until_text }}">
 <table class="list">
-  <thead><tr><th class="pick"><input type="checkbox" data-select-all aria-label="Select all on this page"></th><th>Captured</th><th>Label</th><th>Source</th><th>Models</th><th class="num-col">Warnings</th><th class="num-col">Unmapped</th></tr></thead>
+  <thead><tr><th class="pick"><input type="checkbox" data-select-all aria-label="Select all on this page"></th><th>Captured</th><th>Label</th><th>Source</th><th>Models</th><th class="num-col">Warnings</th></tr></thead>
   <tbody>
     {% for row in rows %}
     <tr>
@@ -32,10 +32,9 @@
       <td><span class="tag">{{ row.source }}</span></td>
       <td class="muted">{{ row.loaded | join(", ") }}</td>
       <td class="num-col mono {{ 'warn-text' if row.warnings }}">{{ row.warnings }}</td>
-      <td class="num-col mono">{{ row.unmapped }}</td>
     </tr>
     {% else %}
-    <tr><td colspan="7" class="muted">No snapshot in this period.</td></tr>
+    <tr><td colspan="6" class="muted">No snapshot in this period.</td></tr>
     {% endfor %}
   </tbody>
 </table>

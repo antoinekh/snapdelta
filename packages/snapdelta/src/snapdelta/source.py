@@ -76,7 +76,6 @@ class Source(Adapter):
         self.captured_at = captured_at
         self.inputs: list[InputRef] = []
         self.loaded: list[str] = []
-        self.unmapped: list[str] = []
         self.warnings: list[str] = []
         # The log messages of the load; see activity.collecting().
         self.log: list[LogLine] = []

@@ -69,7 +69,7 @@ Unsafe characters in a target or a label become `_`. A name with `..` or another
 ```
 
 - Each file is written to a temporary file first, then renamed, so an interrupted write never leaves a broken file.
-- The files are readable JSON. A snapshot holds `schema`, `target`, `source`, `label`, `captured_at`, `created_at`, `versions`, `inputs` (names and SHA-256 of the input files), `loaded` (the models), `unmapped`, `warnings`, and `data` (the diffsync data of the load). An output holds `schema`, `created_at`, `versions`, `left` and `right` (target, source, label, capture time, snapshot reference), `compared`, `skipped`, `summary` and `diff` (diffsync `Diff.summary()` and `Diff.dict()`).
+- The files are readable JSON. A snapshot holds `schema`, `target`, `source`, `label`, `captured_at`, `created_at`, `versions`, `inputs` (names and SHA-256 of the input files), `loaded` (the models), `warnings`, and `data` (the diffsync data of the load). An output holds `schema`, `created_at`, `versions`, `left` and `right` (target, source, label, capture time, snapshot reference), `compared`, `skipped`, `summary` and `diff` (diffsync `Diff.summary()` and `Diff.dict()`).
 - Long lists read only the directory and file names: the list of targets and of the snapshots of a target never opens a file.
 
 ## SQLite store layout

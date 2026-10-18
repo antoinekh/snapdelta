@@ -169,7 +169,7 @@ snapdelta doctor                                         # each plugin against i
 
 The contract tests of `snapdelta.testing` (`StoreContract`, `SourceContract`) give a plugin the tests that every plugin of its kind must pass. [docs/plugins.md](docs/plugins.md) is the guide, and [docs/getting-started.md](docs/getting-started.md) writes a project with two sources step by step. For a source, three rules:
 
-- Both sides must give the same value for the same meaning: normalize names, units and defaults in `load()`, sort lists, and use `None` when the data gives no value. Put the input fields that no attribute maps in `unmapped`.
+- Both sides must give the same value for the same meaning: normalize names, units and defaults in `load()`, sort lists, and use `None` when the data gives no value.
 - A source that fetches (`fetches = True`) can list the targets that it reaches with the class method `targets()`, for the pickers of the web UI and `--all-targets`.
 - A snapshot names its source, so keep the plugin installed to read its snapshots.
 

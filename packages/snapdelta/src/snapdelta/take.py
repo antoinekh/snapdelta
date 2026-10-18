@@ -25,7 +25,6 @@ class Taken:
     reference: str
     loaded: list[str]
     warnings: list[str]
-    unmapped: int
 
 
 def target_names(
@@ -128,7 +127,7 @@ def take_snapshots(
         for outcome in outcomes.values():
             run.log.extend(outcome.log)
         taken = {
-            target: Taken(outcome.reference, outcome.loaded, outcome.warnings, outcome.unmapped)
+            target: Taken(outcome.reference, outcome.loaded, outcome.warnings)
             for target, outcome in outcomes.items()
             if outcome.reference is not None
         }

@@ -13,7 +13,6 @@
 <dl class="facts">
   <div><dt>Captured</dt><dd>{{ adapter.captured_at | when }}</dd></div>
   <div><dt>Models</dt><dd>{{ adapter.loaded | join(", ") }}</dd></div>
-  <div><dt>Unmapped fields</dt><dd class="mono">{{ adapter.unmapped | length }}</dd></div>
   <div class="wide"><dt>Inputs</dt><dd class="mono">{{ adapter.inputs | map(attribute="name") | join(", ") or "none" }}</dd></div>
 </dl>
 {% if adapter.warnings %}<ul class="notice warn">{% for warning in adapter.warnings %}<li>{{ warning }}</li>{% endfor %}</ul>{% endif %}

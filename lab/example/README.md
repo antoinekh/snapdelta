@@ -141,7 +141,6 @@ All the commands run in `lab/example`, so snapdelta reads the settings file of t
    ```
    saved r1/20261013T183026Z-before
    loaded: interface, bgp_peer, bgp_route
-   unmapped leaves: 0
    ...
    saved r3/20261013T183028Z-before
    ```

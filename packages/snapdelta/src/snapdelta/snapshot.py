@@ -29,7 +29,6 @@ class SnapshotFile(BaseModel):
     versions: dict[str, str]
     inputs: list[InputRef]
     loaded: list[str]
-    unmapped: list[str]
     warnings: list[str]
     # The log messages of the load, from the source plugin and from snapdelta.
     log: list[LogLine] = []
@@ -49,7 +48,6 @@ class StoredSource(Source):
     def load(self) -> None:
         self.load_from_dict(self.snapshot.data)
         self.inputs = list(self.snapshot.inputs)
-        self.unmapped = list(self.snapshot.unmapped)
         self.warnings = list(self.snapshot.warnings)
         self.log = list(self.snapshot.log)
         self.set_loaded(self.snapshot.loaded)
@@ -66,7 +64,6 @@ def build_snapshot_file(adapter: Source) -> SnapshotFile:
         versions=adapter.versions(),
         inputs=adapter.inputs,
         loaded=adapter.loaded,
-        unmapped=adapter.unmapped,
         warnings=adapter.warnings,
         log=adapter.log,
         # `model_flags` is a diffsync runtime flag and is not JSON-serializable.

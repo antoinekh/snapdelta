@@ -141,7 +141,6 @@ class SnapshotRow:
     captured_at: datetime
     loaded: list[str]
     warnings: int
-    unmapped: int
 
 
 @dataclass(frozen=True)
@@ -646,7 +645,6 @@ def target_snapshot_rows(
                 captured_at=snapshot.captured_at,
                 loaded=snapshot.loaded,
                 warnings=len(snapshot.warnings),
-                unmapped=len(snapshot.unmapped),
             )
         )
     return rows, unreadable, pager
