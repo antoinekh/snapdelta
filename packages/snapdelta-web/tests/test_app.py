@@ -322,6 +322,18 @@ def test_delete_selected_diffs(client, store, names) -> None:
     assert client.post("/diffs/delete", data={"names": ["nope"]}).status_code == 404
 
 
+def test_compare_two_selected_snapshots_of_a_target(client, store, names) -> None:
+    page = client.get("/snapshots/R1").text
+    assert 'formaction="/snapshots/R1/compare" data-no-confirm>Compare</button>' in page
+    picked = {"references": [names.after, names.before]}
+    done = client.post("/snapshots/R1/compare", data=picked, follow_redirects=False)
+    assert done.status_code == 303
+    output = store.load_output(done.headers["location"].removeprefix("/diffs/"))
+    assert (output.left.label, output.right.label) == ("before", "after")
+    assert client.post("/snapshots/R1/compare", data={"references": [names.before]}).status_code == 400
+    assert client.post("/snapshots/R2/compare", data=picked).status_code == 404
+
+
 def test_delete_selected_snapshots_of_a_target(client, store, names) -> None:
     other = client.post("/snapshots/R2/delete", data={"references": [names.before]})
     assert other.status_code == 404

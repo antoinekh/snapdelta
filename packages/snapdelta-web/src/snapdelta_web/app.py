@@ -630,6 +630,19 @@ def create_app(state: AppState) -> FastAPI:
         )
         return RedirectResponse(f"/diffs?{query}", status_code=303)
 
+    @app.post("/snapshots/{target}/compare")
+    def compare_snapshots(target: str, references: Annotated[list[str] | None, Form()] = None) -> RedirectResponse:
+        """The diff of the two selected snapshots: the older one is the left side."""
+        resolved = [state.store.resolve_snapshot(reference) for reference in _selected(references)]
+        if len(resolved) != 2:
+            raise SnapdeltaError(f"select two snapshots to compare, not {len(resolved)}")
+        newest_first = [entry.reference for entry in state.store.snapshot_entries(target)]
+        if any(reference not in newest_first for reference in resolved):
+            raise NotFoundError(f"a selected snapshot is not a snapshot of {target}")
+        newer, older = sorted(resolved, key=newest_first.index)
+        done = diff_snapshots(state.store, state.settings, older, newer, origin="web")
+        return RedirectResponse(f"/diffs/{done.name}", status_code=303)
+
     @app.post("/snapshots/{target}/delete")
     def delete_snapshots(
         target: str,

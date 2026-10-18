@@ -408,7 +408,7 @@
   document.addEventListener("submit", function (event) {
     if (event.target === dirtyForm) dirtyForm = null;
     var field = event.target.dataset.confirmSelected;
-    if (field) {
+    if (field && !(event.submitter && event.submitter.hasAttribute("data-no-confirm"))) {
       var count = event.target.querySelectorAll('input[name="' + field + '"]:checked').length;
       if (count && !window.confirm("Delete " + count + " selected?")) event.preventDefault();
       return;
