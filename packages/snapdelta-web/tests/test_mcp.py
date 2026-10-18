@@ -38,9 +38,7 @@ def test_an_agent_checks_a_change_and_accepts_it(store) -> None:
             "take_snapshots", {"targets": ["R1"], "label": "before", "source": "example-live"}
         )
         await client.call_tool("take_snapshots", {"targets": ["R1"], "label": "after", "source": "example-live"})
-        compared = await client.call_tool(
-            "compare", {"left": "R1@before", "right": "R1@after", "title": "CHG-7: nothing"}
-        )
+        compared = await client.call_tool("compare", {"left": "R1@before", "right": "R1@after", "title": "nothing"})
         name = compared.structured_content["name"]
         diff = await client.call_tool("read_diff", {"name": "20260925T110000Z-R1-vs-R1", "limit": 1})
         accepted = await client.call_tool(
@@ -64,7 +62,7 @@ def test_an_agent_checks_a_change_and_accepts_it(store) -> None:
 
     before, (name, compared), diff, (accepted, runs) = call(store, steps)
     assert before["ok"] and before["saved"]["R1"].endswith("-before")
-    assert compared["has_differences"] is False and compared["title"] == "CHG-7: nothing" and name
+    assert compared["has_differences"] is False and compared["title"] == "nothing" and name
     assert diff["total"] > 1 and diff["next_offset"] == 1 and diff["changes"][0]["accepted"] is False
     assert accepted["accepted"] == 1
     origins = {run["origin"] for run in runs["result"]}
@@ -128,3 +126,23 @@ def test_an_agent_compares_many_targets_at_once(store) -> None:
     result = call(store, steps)
     assert result["changed"] == ["R1"] and list(result["failed"]) == ["R9"]
     assert result["diffs"][0]["diff"]["url"].startswith("/diffs/")
+
+
+def test_an_agent_sets_the_change_of_a_diff_and_finds_it(store) -> None:
+    async def steps(client: Client) -> Any:
+        compared = await client.call_tool(
+            "compare", {"left": "R1@before", "right": "R1@after", "title": "r1", "change": "CHG-7"}
+        )
+        name = compared.structured_content["name"]
+        described = await client.call_tool("describe_diff", {"name": name, "title": "r1 uplink"})
+        found = await client.call_tool("list_diffs", {"query": "chg-7"})
+        many = await client.call_tool(
+            "compare_targets", {"left": "before", "right": "after", "targets": ["R1"], "change": "CHG-8"}
+        )
+        return name, compared.structured_content, described.structured_content, found.structured_content, many
+
+    name, compared, described, found, many = call(store, steps)
+    assert compared["change"] == "CHG-7"
+    assert (described["change"], described["title"]) == ("CHG-7", "r1 uplink")
+    assert [item["name"] for item in found["result"]] == [name]
+    assert many.structured_content["diffs"][0]["diff"]["change"] == "CHG-8"

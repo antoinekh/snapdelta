@@ -78,6 +78,7 @@ class Change(BaseModel):
 
 class ChangePage(BaseModel):
     name: str
+    change: str | None
     title: str | None
     has_differences: bool
     summary: dict[str, int]
@@ -201,7 +202,10 @@ def create_mcp(state: AppState) -> MCPServer:
         target: Annotated[str | None, Field(description="With live: another target than the one of left.")] = None,
         models: Annotated[list[str] | None, Field(description="Only these models; none: all.")] = None,
         profile: Annotated[str | None, Field(description="A profile of the settings, see list_profiles.")] = None,
-        title: Annotated[str | None, Field(description="What the diff is about: CHG-1042: VLAN 20, r1.")] = None,
+        change: Annotated[
+            str | None, Field(description="The change that the diff belongs to: CHG-1042, #216, any reference.")
+        ] = None,
+        title: Annotated[str | None, Field(description="What the diff is about: VLAN 20, r1.")] = None,
         description: Annotated[str | None, Field(description="More words about the change.")] = None,
         expected: Annotated[
             list[ExpectedChange] | None,
@@ -224,6 +228,7 @@ def create_mcp(state: AppState) -> MCPServer:
             target=target,
             models=models,
             profile=profile,
+            change=change,
             title=title,
             description=description,
             expected=expected,
@@ -241,7 +246,10 @@ def create_mcp(state: AppState) -> MCPServer:
         all_targets: Annotated[bool, Field(description="Every target that has a left snapshot.")] = False,
         live: Annotated[bool, Field(description="Fetch each target now as the right side, at the same time.")] = False,
         profile: Annotated[str | None, Field(description="A profile of the settings, see list_profiles.")] = None,
-        title: Annotated[str | None, Field(description="What the change is: CHG-1042: VLAN 20 on core.")] = None,
+        change: Annotated[
+            str | None, Field(description="The change that the diff belongs to: CHG-1042, #216, any reference.")
+        ] = None,
+        title: Annotated[str | None, Field(description="What the diffs are about: VLAN 20 on core.")] = None,
         expected: Annotated[
             list[ExpectedChange] | None,
             Field(description="The changes that must happen, on each target or on the one that each names."),
@@ -261,6 +269,7 @@ def create_mcp(state: AppState) -> MCPServer:
             all_targets=all_targets,
             live=live,
             profile=profile,
+            change=change,
             title=title,
             expected=expected,
             origin="mcp",
@@ -283,7 +292,7 @@ def create_mcp(state: AppState) -> MCPServer:
         query: str = "",
         limit: Annotated[int, Field(ge=1, le=MAX_LIMIT, description="How many diffs, newest first.")] = 20,
     ) -> list[DiffItem]:
-        """The newest saved diffs whose left or right target contains `query`."""
+        """The newest saved diffs whose left target, right target or change contains `query`."""
         return [
             DiffItem.of(entry.name, state.store.load_output(entry.name))
             for entry in state.store.output_entries(query)[:limit]
@@ -309,14 +318,17 @@ def create_mcp(state: AppState) -> MCPServer:
         return review_state(output)
 
     @tool(WRITES)
-    def describe_diff(name: str, title: str | None = None, description: str | None = None) -> DiffItem:
-        """Give a saved diff a title (CHG-1042: VLAN 20, r1) and a description."""
+    def describe_diff(
+        name: str, change: str | None = None, title: str | None = None, description: str | None = None
+    ) -> DiffItem:
+        """Give a saved diff a change (CHG-1042), a title (VLAN 20, r1) and a description; an empty text removes one."""
         resolved = state.store.resolve_output(name)
         current = state.store.load_output(resolved)
+        chosen_change = current.change if change is None else change
         chosen_title = current.title if title is None else title
         chosen_description = current.description if description is None else description
         return DiffItem.of(
-            resolved, state.store.describe_output(resolved, chosen_title, chosen_description, current.change)
+            resolved, state.store.describe_output(resolved, chosen_title, chosen_description, chosen_change)
         )
 
     @tool(READ_ONLY)
@@ -363,7 +375,7 @@ def create_mcp(state: AppState) -> MCPServer:
             f"Check this change on {targets}: {change}\n\n"
             "Follow the steps of the resource snapdelta://guide: take_snapshots with the label before, wait until "
             "the change is applied (ask me when it is), take_snapshots with the label after, then compare "
-            "TARGET@before with TARGET@after for each target, with a title that names the change. Accept the "
+            "TARGET@before with TARGET@after for each target, with the change reference in change. Accept the "
             "changes that the change explains, with a comment. List every other change for me, with its target."
         )
 
@@ -386,6 +398,7 @@ def _page(name: str, output: Any, model: str | None, offset: int, limit: int) ->
     end = offset + len(window)
     return ChangePage(
         name=name,
+        change=output.change,
         title=output.title,
         has_differences=output.has_differences(),
         summary=output.summary,

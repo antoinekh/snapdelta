@@ -18,7 +18,7 @@ snapdelta takes snapshots of devices (routers, services, APIs) through source pl
 2. Before the change: `take_snapshots` with `label: "before"`. Check `failed`: a failed target has no snapshot.
 3. The change happens (you or a person apply it).
 4. After the change: `take_snapshots` with `label: "after"`.
-5. `compare_targets` with `left: "before"`, `right: "after"`, the same targets or groups, a profile when one fits, and a `title` such as `CHG-1042: VLAN 20`: one diff per target. For one target, `compare` with `left: "TARGET@before"`, `right: "TARGET@after"`.
+5. `compare_targets` with `left: "before"`, `right: "after"`, the same targets or groups, a profile when one fits, the `change` (the ticket or issue, such as `CHG-1042`) and a `title` such as `VLAN 20`: one diff per target. For one target, `compare` with `left: "TARGET@before"`, `right: "TARGET@after"`.
 6. `changed` lists the targets with differences: read the changes of each (`read_diff` with the name of its diff, by pages) and compare them with what the change meant to do. `failed` gives the reason of each target that has no diff.
 7. `accept_changes` for each change that is expected, with a short comment; tell the person about every change that is not expected.
 
