@@ -8,7 +8,7 @@
 
 ### Changed
 
-- `Store.output_entries(query)` also matches the change of a diff, and `describe_output()` takes the change; a store backend of a plugin must do the same, which `StoreContract` checks. SQLite gets a `change` column: make again an SQLite store of 0.2.
+- `Store.output_entries(query)` also matches the change of a diff, and `describe_output()` takes the change; a store backend of a plugin must do the same, which `StoreContract` checks. SQLite and PostgreSQL get a `change` column: make again a store of 0.2.
 
 ## v0.2.0
 

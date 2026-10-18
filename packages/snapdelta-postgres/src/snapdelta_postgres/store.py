@@ -49,6 +49,7 @@ create table if not exists snapdelta_outputs (
     created_at timestamptz not null,
     left_target text not null,
     right_target text not null,
+    change text,
     body json not null
 );
 create index if not exists snapdelta_outputs_by_time on snapdelta_outputs (created_at);
@@ -141,8 +142,9 @@ class PostgresStore(Store):
         with self._connect() as db:
             rows = db.execute(
                 "select name from snapdelta_outputs "
-                "where strpos(lower(left_target), %s) > 0 or strpos(lower(right_target), %s) > 0 order by name desc",
-                (wanted, wanted),
+                "where strpos(lower(left_target), %s) > 0 or strpos(lower(right_target), %s) > 0 "
+                "or strpos(lower(coalesce(change, '')), %s) > 0 order by name desc",
+                (wanted, wanted, wanted),
             ).fetchall()
         return [entry for (name,) in rows if (entry := output_entry(name))]
 
@@ -202,12 +204,13 @@ class PostgresStore(Store):
             output.created_at,
             output.left.target,
             output.right.target,
+            output.change,
             Json(output.model_dump(mode="json", by_alias=True)),
         )
         with self._connect() as db:
             db.execute(
-                "insert into snapdelta_outputs (name, created_at, left_target, right_target, body) "
-                "values (%s, %s, %s, %s, %s)",
+                "insert into snapdelta_outputs (name, created_at, left_target, right_target, change, body) "
+                "values (%s, %s, %s, %s, %s, %s)",
                 values,
             )
 
@@ -217,8 +220,8 @@ class PostgresStore(Store):
     def _replace_output(self, name: str, output: Output) -> None:
         with self._connect() as db:
             db.execute(
-                "update snapdelta_outputs set body = %s where name = %s",
-                (Json(output.model_dump(mode="json", by_alias=True)), name),
+                "update snapdelta_outputs set change = %s, body = %s where name = %s",
+                (output.change, Json(output.model_dump(mode="json", by_alias=True)), name),
             )
 
     def _delete_output(self, name: str) -> None:
