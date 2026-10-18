@@ -295,7 +295,7 @@ class Store(ABC):
 
     @abstractmethod
     def output_entries(self, query: str = "") -> list[OutputEntry]:
-        """The outputs whose left or right target contains `query` (any case), newest first."""
+        """The outputs whose left target, right target or change contains `query` (any case), newest first."""
 
     # Activity
 
@@ -494,8 +494,18 @@ class FileStore(Store):
         wanted = query.strip().lower()
         paths = self.outputs_dir.glob("*.json") if self.outputs_dir.is_dir() else []
         entries = [entry for path in paths if (entry := output_entry(path.stem))]
-        selected = [entry for entry in entries if wanted in entry.left.lower() or wanted in entry.right.lower()]
+        selected = [entry for entry in entries if self._matches(entry, wanted)]
         return sorted(selected, key=lambda entry: entry.name, reverse=True)
+
+    def _matches(self, entry: OutputEntry, wanted: str) -> bool:
+        """The name gives the targets; only a query that misses them reads the output for its change."""
+        if not wanted or wanted in entry.left.lower() or wanted in entry.right.lower():
+            return True
+        try:
+            change = self._read_output(entry.name).change
+        except SnapdeltaError:
+            return False
+        return wanted in (change or "").lower()
 
     def info(self) -> StoreInfo:
         targets = self.targets()
@@ -580,6 +590,7 @@ create table if not exists outputs (
     created_at text not null,
     left_target text not null,
     right_target text not null,
+    change text,
     body text not null
 );
 create index if not exists outputs_by_time on outputs (created_at);
@@ -646,8 +657,8 @@ class SqliteStore(Store):
         with self._connect() as db:
             rows = db.execute(
                 "select name from outputs where instr(lower(left_target), ?) > 0 or instr(lower(right_target), ?) > 0 "
-                "order by name desc",
-                (wanted, wanted),
+                "or instr(lower(coalesce(change, '')), ?) > 0 order by name desc",
+                (wanted, wanted, wanted),
             ).fetchall()
         return [entry for (name,) in rows if (entry := output_entry(name))]
 
@@ -700,11 +711,14 @@ class SqliteStore(Store):
             output.created_at.isoformat(),
             output.left.target,
             output.right.target,
+            output.change,
             output.model_dump_json(by_alias=True),
         )
         with self._connect() as db:
             db.execute(
-                "insert into outputs (name, created_at, left_target, right_target, body) values (?, ?, ?, ?, ?)", values
+                "insert into outputs (name, created_at, left_target, right_target, change, body) "
+                "values (?, ?, ?, ?, ?, ?)",
+                values,
             )
 
     def _read_output(self, name: str) -> Output:
@@ -716,7 +730,10 @@ class SqliteStore(Store):
 
     def _replace_output(self, name: str, output: Output) -> None:
         with self._connect() as db:
-            db.execute("update outputs set body = ? where name = ?", (output.model_dump_json(by_alias=True), name))
+            db.execute(
+                "update outputs set change = ?, body = ? where name = ?",
+                (output.change, output.model_dump_json(by_alias=True), name),
+            )
 
     def _delete_output(self, name: str) -> None:
         with self._connect() as db:

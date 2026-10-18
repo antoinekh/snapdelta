@@ -69,8 +69,12 @@ class {{Class}}Store(Store):
     def output_entries(self, query: str = "") -> list[OutputEntry]:
         wanted = query.strip().lower()
         entries = [entry for name in self.tables.outputs if (entry := output_entry(name))]
-        chosen = [entry for entry in entries if wanted in entry.left.lower() or wanted in entry.right.lower()]
+        chosen = [entry for entry in entries if self._matches(entry, wanted)]
         return sorted(chosen, key=lambda entry: entry.name, reverse=True)
+
+    def _matches(self, entry: OutputEntry, wanted: str) -> bool:
+        change = parse_output(self.tables.outputs[entry.name], entry.name).change or ""
+        return any(wanted in text.lower() for text in (entry.left, entry.right, change))
 
     def info(self) -> StoreInfo:
         size = sum(len(body) for table in (self.tables.snapshots, self.tables.outputs) for body in table.values())

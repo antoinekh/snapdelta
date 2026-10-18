@@ -85,7 +85,7 @@ def test_sqlite_tables_use_target_columns(tmp_path) -> None:
         snapshots = [row[1] for row in db.execute("pragma table_info(snapshots)")]
         outputs = [row[1] for row in db.execute("pragma table_info(outputs)")]
     assert snapshots == ["reference", "target", "captured_at", "label", "source", "body"]
-    assert outputs == ["name", "created_at", "left_target", "right_target", "body"]
+    assert outputs == ["name", "created_at", "left_target", "right_target", "change", "body"]
 
 
 def test_open_store_from_settings(tmp_path) -> None:
@@ -154,3 +154,14 @@ def test_a_saved_output_gets_a_title_and_a_description(store, make_adapter) -> N
     assert store.describe_output(name, "", None, None).title is None
     with pytest.raises(SnapdeltaError, match="title"):
         store.describe_output(name, "two\nlines", None, None)
+
+
+def test_the_file_store_reads_no_output_for_an_empty_query(tmp_path, make_adapter, monkeypatch) -> None:
+    store = FileStore(tmp_path / "store")
+    name = store.save_output(compare(make_adapter(), make_adapter()))
+
+    def unread(*_: object) -> None:
+        raise AssertionError("an empty query must not read an output")
+
+    monkeypatch.setattr(FileStore, "_read_output", unread)
+    assert [entry.name for entry in store.output_entries("")] == [name]

@@ -6,6 +6,10 @@
 
 - A diff has a change: any reference of the work that it belongs to (`CHG-1042`, `#216`, a Jira key), apart from its title; the text and Markdown formats show it.
 
+### Changed
+
+- `Store.output_entries(query)` also matches the change of a diff, and `describe_output()` takes the change; a store backend of a plugin must do the same, which `StoreContract` checks. SQLite gets a `change` column: make again an SQLite store of 0.2.
+
 ## v0.2.0
 
 ### Added

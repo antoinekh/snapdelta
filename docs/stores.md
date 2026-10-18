@@ -78,10 +78,10 @@ Unsafe characters in a target or a label become `_`. A name with `..` or another
 create table snapshots (reference text primary key, target text not null, captured_at text not null,
                         label text, source text not null, body text not null);
 create table outputs (name text primary key, created_at text not null, left_target text not null,
-                      right_target text not null, body text not null);
+                      right_target text not null, change text, body text not null);
 ```
 
-- `body` is the same JSON document as the file of a file store.
+- `body` is the same JSON document as the file of a file store; `change` repeats the change of the diff, so that a search finds it.
 - Indexes on the target and on the creation time keep the lists fast with many rows.
 - Each call opens its own connection, and a busy timeout makes a parallel writer wait instead of failing.
 - You can query the file with any SQLite tool, for example `sqlite3 /data/snapdelta.db "select reference from snapshots where target = 'R1'"`.

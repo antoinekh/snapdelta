@@ -160,6 +160,15 @@ class StoreContract:
         with pytest.raises(NotFoundError, match="no output matches"):
             store.resolve_output("nope")
 
+    def test_an_output_is_found_by_its_change(self, store: Store) -> None:
+        first = store.save_output(compare(sample(), sample(target="R2")))
+        second = store.save_output(compare(sample(), sample(target="R3")))
+        store.describe_output(second, None, None, "CHG-1042")
+        assert [entry.name for entry in store.output_entries("chg-10")] == [second]
+        assert [entry.name for entry in store.output_entries("r2")] == [first]
+        store.describe_output(second, None, None, "")
+        assert store.output_entries("chg-10") == []
+
     def test_an_output_keeps_the_order_of_its_models_and_objects(self, store: Store) -> None:
         # A diff shows its models and objects in this order: a backend that sorts the keys changes every report.
         names = {"zeta": 1, "alpha": 2, "mid": 3, "b": 4}
