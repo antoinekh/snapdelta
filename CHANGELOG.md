@@ -11,6 +11,10 @@
 - `Store.output_entries(query)` also matches the change of a diff, and `describe_output()` takes the change; a store backend of a plugin must do the same, which `StoreContract` checks. SQLite and PostgreSQL get a `change` column: make again a store of 0.2.
 - The diff list shows a **Change** column, and its filter finds diffs by target or change; the diff page shows the change next to the title, and its edit form, **New diff** and **Many targets** have a **Change** field.
 
+### Fixed
+
+- On the page of a diff, the description is under the title also when the title is short.
+
 ### Removed
 
 - The diff list no longer groups the diffs by the start of their title before `: `; give them a change.

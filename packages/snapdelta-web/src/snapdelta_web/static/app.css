@@ -173,7 +173,8 @@ form:not(:has(tbody .pick input:checked)) .bulk { display: none; }
 .diff-head { margin-bottom: 28px; }
 .diff-about { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 16px; margin-bottom: 18px; }
 .diff-title { font-size: 28px; }
-.diff-description { flex-basis: 100%; order: 2; margin: 0; color: var(--ink-2); max-width: 80ch; white-space: pre-line; }
+/* A full line keeps the description under a short title; the padding keeps its text to 80ch. */
+.diff-description { flex-basis: 100%; order: 2; margin: 0; padding-right: max(0px, 100% - 80ch); color: var(--ink-2); white-space: pre-line; }
 .describe { order: 1; }
 .describe summary { list-style: none; height: 30px; padding: 0 10px; font-size: 13px; }
 .describe summary::-webkit-details-marker { display: none; }
