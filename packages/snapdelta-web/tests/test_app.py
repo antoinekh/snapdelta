@@ -646,6 +646,7 @@ def test_the_target_page_loads_its_timeline(client, names) -> None:
 
 def test_accept_a_change_on_the_diff_page(client, names, store) -> None:
     page = client.get(f"/diffs/{names.same}?model=interface").text
+    assert "data-reviewer" in page
     assert '0</b> of <b class="mono">' in page and 'name="key" value="interface:eth0"' in page
     headers = {"HX-Request": "true"}
     form = {"key": "interface:eth0", "by": "alice", "comment": "planned"}

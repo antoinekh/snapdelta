@@ -37,7 +37,7 @@
   {% if reviewed[1] %}
   <div class="review-line small">
     {{ review_count(reviewed[0], reviewed[1]) }}
-    <label class="inline-field">Your name<input id="reviewer" name="by" maxlength="80" autocomplete="name" data-reviewer></label>
+    {% if not user_name %}<label class="inline-field">Your name<input id="reviewer" name="by" maxlength="80" autocomplete="name" data-reviewer></label>{% endif %}
     <label class="switch"><input type="checkbox" data-hide-accepted> Hide accepted</label>
   </div>
   {% endif %}

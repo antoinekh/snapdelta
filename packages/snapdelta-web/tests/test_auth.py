@@ -77,8 +77,9 @@ def test_a_token_login_can_give_a_name(store, make_app) -> None:
     assert login.status_code == 303 and SESSION_COOKIE in login.headers["set-cookie"]
     page = client.get("/snapshots")
     assert '<span class="muted small">bob</span>' in page.text and 'action="/logout"' in page.text
-    client.post("/api/v1/diffs", json={"left": "R1@before", "right": "R1@after"})
+    diff = client.post("/api/v1/diffs", json={"left": "R1@before", "right": "R1@after"}).json()
     assert store.runs()[0].user == "bob"
+    assert "data-reviewer" not in client.get(f"/diffs/{diff['name']}").text
     form = client.get("/login").text
     assert 'name="token"' in form and 'name="name"' in form
 
