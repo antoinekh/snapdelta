@@ -270,7 +270,7 @@ table.list .num-col { text-align: right; width: 1%; white-space: nowrap; }
 .model-table h2 .count { color: var(--muted); font-size: 14px; font-weight: 400; margin-left: 4px; }
 
 /* New diff */
-.new-diff { position: relative; display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+.new-diff, .take-form { position: relative; display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
 .picker.targets-picker { grid-column: 1 / -1; border-top: 1px solid var(--line); }
 .targets-picker p { margin: 0; }
 .picker .field input { width: 100%; }
@@ -316,8 +316,9 @@ table.list .num-col { text-align: right; width: 1%; white-space: nowrap; }
 .model-picks .muted { margin: 10px 0 0; }
 
 /* Take snapshot */
-.take { display: flex; flex-direction: column; align-items: flex-start; gap: 16px; max-width: 680px; }
-.take .field input, .take .field select { min-width: 300px; }
+.take-fields { display: flex; flex-wrap: wrap; gap: 12px 16px; }
+.take-fields .search-field { flex: 1 1 260px; }
+.take-form .title-field { flex: 0 1 360px; margin-right: auto; }
 .picks { display: flex; flex-wrap: wrap; gap: 6px; }
 .group-picks { display: flex; flex-direction: column; gap: 6px; margin: 0; padding: 0; border: 0; }
 .group-picks legend { padding: 0 0 6px; font-size: 13px; font-weight: 500; color: var(--muted); }

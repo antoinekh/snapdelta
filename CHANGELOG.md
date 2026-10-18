@@ -37,6 +37,7 @@
 - **New diff** has a switch, **One target** or **Many targets**, with the same Before and After boxes, fields and **Compare** button; the After side takes the target of the Before side until you choose another one, and Many targets also takes a description.
 - **Admin > Plugins** shows a green check mark for a plugin in use; its title lists where the settings use it.
 - The diff page has no **Your name** field when a login gives the user.
+- **Take snapshot** has the style of **New diff > Many targets**: one **Targets** box, then the label and the button.
 
 ### Fixed
 

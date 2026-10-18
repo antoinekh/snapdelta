@@ -35,7 +35,7 @@ The page of a target starts with its **timeline**: the 40 newest snapshots as do
 
 ## Take snapshots
 
-**Snapshots**, then **Take snapshot**: a source (or "By platform (inventory)"), the targets, a group or all of them, and a label. The snapshot runs in the background, and its page follows each target live: queued, running, then saved with a link to its snapshot, or failed with its error, with the time it took. When targets failed, **Retry the failed** takes them again with the same source and label. Activity keeps the run and the log of its loads.
+**Snapshots**, then **Take snapshot**: in the **Targets** box, a source (or "By platform (inventory)"), the targets, all targets or groups; then a label. The form has the same style as **New diff > Many targets**. The snapshot runs in the background, and its page follows each target live: queued, running, then saved with a link to its snapshot, or failed with its error, with the time it took. When targets failed, **Retry the failed** takes them again with the same source and label. Activity keeps the run and the log of its loads.
 
 ## A snapshot
 
