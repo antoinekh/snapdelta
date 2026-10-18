@@ -46,6 +46,7 @@
 
 ### Fixed
 
+- A command of the lab that fails in its container gives its exit code and its reason, which `docker exec` writes on stdout when the program is missing; the error was empty.
 - In **Admin > Settings**, the new value of a secret has the style of the other fields.
 - `snapdelta prune` and the admin page refuse a negative keep or age, which used to delete every snapshot.
 - `snapdelta prune` and the admin page refuse an age too big for a date, which used to raise `OverflowError` (a traceback in the CLI, a 500 page in the web UI).

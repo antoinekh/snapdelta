@@ -44,7 +44,9 @@ class DockerRunner:
         except (OSError, subprocess.TimeoutExpired) as error:
             raise LoadError(self.target, f"{command}: {error}") from error
         if done.returncode != 0:
-            raise LoadError(self.target, f"{command}: {done.stderr.decode(errors='replace').strip()}")
+            # docker exec gives the error of a missing program on stdout, with an empty stderr.
+            reason = (done.stderr.strip() or done.stdout.strip()).decode(errors="replace")
+            raise LoadError(self.target, f"{command}: exit {done.returncode}" + (f": {reason}" if reason else ""))
         log.info("%s: %d bytes in %.2f s", command, len(done.stdout), time.monotonic() - start)
         return InputFile(name=f"{key}.json", content=done.stdout)
 

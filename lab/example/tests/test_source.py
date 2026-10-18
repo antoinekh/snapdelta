@@ -136,3 +136,21 @@ def test_the_host_names_the_container() -> None:
     assert isinstance(runner, DockerRunner) and runner.container == "my-router" and runner.shell == ("sr_cli",)
     default = FrrSource.runner("r1", RouterSettings())
     assert isinstance(default, DockerRunner) and default.container == "clab-snapdelta-lab-r1"
+
+
+def test_a_failed_command_gives_its_exit_code_and_its_output(monkeypatch) -> None:
+    import subprocess
+
+    from snapdelta.errors import LoadError
+
+    from snapdelta_lab.commands import DockerRunner
+
+    # docker exec writes the error of a missing program on stdout, with an empty stderr.
+    missing = b'OCI runtime exec failed: exec: "vtysh": executable file not found in $PATH\r\n'
+    done = subprocess.CompletedProcess(args=[], returncode=127, stdout=missing, stderr=b"")
+    monkeypatch.setattr(subprocess, "run", lambda *args, **kwargs: done)
+    with pytest.raises(LoadError) as raised:
+        DockerRunner("r3", 5.0, ("vtysh", "-c")).run("interfaces", "show interface json")
+    assert str(raised.value) == (
+        'r3: show interface json: exit 127: OCI runtime exec failed: exec: "vtysh": executable file not found in $PATH'
+    )
