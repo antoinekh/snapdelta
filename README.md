@@ -6,7 +6,7 @@
   <p><strong>Snapshot your devices and services, then see exactly what changed</strong></p>
   <p>snapshot &bull; diff &bull; profile &bull; inventory &bull; web UI</p>
   <img src="https://img.shields.io/badge/license-Apache%202.0-blue.svg" alt="License" />
-  <img src="https://img.shields.io/badge/version-0.1.0-3d5afe" alt="Version" />
+  <img src="https://img.shields.io/badge/version-0.2.0-3d5afe" alt="Version" />
   <img src="https://img.shields.io/badge/python-%3E%3D%203.13-blue" alt="Python version" />
   <img src="https://img.shields.io/badge/built%20on-diffsync-12876f" alt="Built on diffsync" />
   <img src="https://img.shields.io/badge/architecture-plug--in-8a4baf" alt="Plug-in architecture" />

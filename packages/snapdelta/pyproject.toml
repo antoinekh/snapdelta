@@ -1,6 +1,6 @@
 [project]
 name = "snapdelta"
-version = "0.1.0"
+version = "0.2.0"
 description = "Snapshot your devices and services, then see exactly what changed: a plug-in architecture, CLI and Python API, built on diffsync"
 readme = "README.md"
 requires-python = ">=3.13"

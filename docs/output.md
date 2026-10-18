@@ -20,7 +20,7 @@ The output then keeps `expectations`: the expected changes `done`, the `missing`
 {
   "schema": 2,
   "created_at": "2026-10-13T07:21:16Z",
-  "versions": {"diffsync": "2.2.3", "snapdelta": "0.1.0"},
+  "versions": {"diffsync": "2.2.3", "snapdelta": "0.2.0"},
   "left":  {"target": "PE1", "source": "junos", "label": "before", "captured_at": "...", "snapshot": "PE1/20261013T072114Z-before"},
   "right": {"target": "PE2", "source": "sros",  "label": "after",  "captured_at": "...", "snapshot": "PE2/20261013T072115Z-after"},
   "compared": ["interface", "lag", "interface_state", "lag_state"],

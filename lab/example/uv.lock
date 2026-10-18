@@ -620,7 +620,7 @@ wheels = [
 
 [[package]]
 name = "snapdelta"
-version = "0.1.0"
+version = "0.2.0"
 source = { editable = "../../packages/snapdelta" }
 dependencies = [
     { name = "diffsync" },
@@ -672,7 +672,7 @@ dev = [
 
 [[package]]
 name = "snapdelta-web"
-version = "0.1.0"
+version = "0.2.0"
 source = { editable = "../../packages/snapdelta-web" }
 dependencies = [
     { name = "fastapi" },

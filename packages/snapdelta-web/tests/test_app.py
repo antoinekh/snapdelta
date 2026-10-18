@@ -617,7 +617,7 @@ def test_a_diff_gets_a_title_at_the_compare_and_later(client, store, names) -> N
 
 def test_every_page_links_the_project_and_the_about_tab_shows_the_versions(client) -> None:
     page = client.get("/diffs").text
-    assert 'href="https://github.com/antoinekh/snapdelta"' in page and ">snapdelta 0.1.0</a>" in page
+    assert 'href="https://github.com/antoinekh/snapdelta"' in page and ">snapdelta 0.2.0</a>" in page
     about = client.get("/admin/about").text
     assert "snapdelta-web" in about and "diffsync" in about and "Python" in about
     assert "snapdelta-example" in about and "source example, source example-live" in about
