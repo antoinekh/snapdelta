@@ -39,9 +39,10 @@ def lab(tmp_path):
 
 def test_a_group_is_one_diff_per_host_in_one_run(lab) -> None:
     _, settings, store = lab
-    results = diff_targets(store, settings, "@before", "@after", groups=["core"], title="CHG-1")
+    results = diff_targets(store, settings, "@before", "@after", groups=["core"], title="VLAN 20", change="CHG-1")
     assert list(results) == ["R1", "R2"]
-    assert not results["R1"].changed and results["R2"].changed and results["R2"].output.title == "CHG-1"
+    assert not results["R1"].changed and results["R2"].changed and results["R2"].output.title == "VLAN 20"
+    assert {item.output.change for item in results.values()} == {"CHG-1"}
     run = store.runs(kind="diff")[0]
     assert run.targets == ["R1", "R2"] and run.outputs == [results["R1"].name, results["R2"].name]
     assert run.has_differences is True and run.status == "ok"

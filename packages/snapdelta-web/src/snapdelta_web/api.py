@@ -420,7 +420,7 @@ def create_api(state: AppState, row_cache: LruCache[Any, Any]) -> FastAPI:
         current = state.store.load_output(resolved)
         title = current.title if request.title is None else request.title
         description = current.description if request.description is None else request.description
-        output = state.store.describe_output(resolved, title, description)
+        output = state.store.describe_output(resolved, title, description, current.change)
         row_cache.discard((state.store.location, resolved))
         return DiffItem.of(resolved, output)
 

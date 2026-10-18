@@ -134,11 +134,23 @@ def test_a_plugin_backend_opens_by_its_scheme(tmp_path) -> None:
     assert isinstance(opened, MemoryStore) and opened.root == tmp_path / "one"
 
 
+def test_a_saved_output_gets_a_change_and_keeps_it(store, make_adapter) -> None:
+    name = store.save_output(compare(make_adapter(), make_adapter()))
+    assert store.load_output(name).change is None
+    assert store.describe_output(name, "VLAN 20", None, "  CHG-1042 ").change == "CHG-1042"
+    assert store.load_output(name).change == "CHG-1042"
+    assert store.describe_output(name, "VLAN 20", None, "").change is None
+    with pytest.raises(SnapdeltaError, match="change"):
+        store.describe_output(name, None, None, "a\nb")
+    with pytest.raises(SnapdeltaError, match="change"):
+        store.describe_output(name, None, None, "x" * 81)
+
+
 def test_a_saved_output_gets_a_title_and_a_description(store, make_adapter) -> None:
     name = store.save_output(compare(make_adapter(), make_adapter(description="other")))
-    changed = store.describe_output(name, "  Change 42 on R1 ", "Add VLAN 30 on the trunk")
+    changed = store.describe_output(name, "  Change 42 on R1 ", "Add VLAN 30 on the trunk", None)
     assert (changed.title, changed.description) == ("Change 42 on R1", "Add VLAN 30 on the trunk")
     assert store.load_output(name).title == "Change 42 on R1"
-    assert store.describe_output(name, "", None).title is None
+    assert store.describe_output(name, "", None, None).title is None
     with pytest.raises(SnapdeltaError, match="title"):
-        store.describe_output(name, "two\nlines", None)
+        store.describe_output(name, "two\nlines", None, None)

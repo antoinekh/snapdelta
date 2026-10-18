@@ -233,6 +233,7 @@ def diff_snapshots(
     profile: str | None = None,
     title: str | None = None,
     description: str | None = None,
+    change: str | None = None,
     expected: Sequence[ExpectedChange] | None = None,
     save: bool = True,
     origin: str = "python",
@@ -257,8 +258,8 @@ def diff_snapshots(
             right_adapter = take_live(store, left_adapter, settings, target, live_label, save)
             live_reference = getattr(right_adapter, "reference", None)
         output = compare(left_adapter, right_adapter, models or None, settings.profile(profile), profile)
-        if title or description:
-            output = described(output, title, description)
+        if title or description or change:
+            output = described(output, title, description, change)
         if expected is not None:
             output = output.model_copy(update={"expectations": check_expected(output, expected)})
         name = store.save_output(output) if save else None
@@ -308,6 +309,7 @@ def diff_targets(
     profile: str | None = None,
     title: str | None = None,
     description: str | None = None,
+    change: str | None = None,
     expected: Sequence[ExpectedChange] | None = None,
     save: bool = True,
     origin: str = "python",
@@ -349,8 +351,8 @@ def diff_targets(
                 output = compare(
                     store.load_snapshot(lefts[name]), store.load_snapshot(rights[name]), models, chosen_profile, profile
                 )
-                if title or description:
-                    output = described(output, title, description)
+                if title or description or change:
+                    output = described(output, title, description, change)
                 if expected is not None:
                     output = output.model_copy(update={"expectations": check_expected(output, expected)})
                 saved = store.save_output(output) if save else None

@@ -177,7 +177,7 @@ class StoreContract:
     def test_the_title_and_the_reviews_of_an_output_change_and_stay(self, store: Store) -> None:
         output = compare(sample(), sample(interfaces={"eth0": 9000, "eth1": 9000}))
         name = store.save_output(output)
-        store.describe_output(name, "Change 42", "MTU of eth0")
+        store.describe_output(name, "Change 42", "MTU of eth0", None)
         [key] = output.change_keys()
         store.review_output(name, key, new_review("ops", "expected"))
         saved = _reopened(store).load_output(name)

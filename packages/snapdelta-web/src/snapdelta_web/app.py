@@ -399,7 +399,7 @@ def create_app(state: AppState) -> FastAPI:
         name: str, title: Annotated[str, Form()] = "", description: Annotated[str, Form()] = ""
     ) -> RedirectResponse:
         resolved = state.store.resolve_output(name)
-        state.store.describe_output(resolved, title, description)
+        state.store.describe_output(resolved, title, description, state.store.load_output(resolved).change)
         row_cache.discard((state.store.location, resolved))
         return RedirectResponse(f"/diffs/{resolved}", status_code=303)
 

@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+### Added
+
+- A diff has a change: any reference of the work that it belongs to (`CHG-1042`, `#216`, a Jira key), apart from its title; the text and Markdown formats show it.
+
 ## v0.2.0
 
 ### Added

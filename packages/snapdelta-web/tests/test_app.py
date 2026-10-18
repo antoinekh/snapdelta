@@ -721,7 +721,7 @@ def test_new_diff_keeps_the_title_and_tells_a_missing_label(client, names) -> No
 
 def test_the_diffs_of_one_change_are_grouped(client, names, store) -> None:
     for name, title in ((names.same, "CHG-9: first"), (names.partial, "CHG-9: second")):
-        store.describe_output(name, title, None)
+        store.describe_output(name, title, None, None)
     page = client.get("/diffs").text
     assert page.count('<tr class="group-day">') == 1 and '<span class="group-name">CHG-9</span>' in page
     assert '<a class="row-link" href="/diffs/' in page and ">first</a>" in page and ">second</a>" in page

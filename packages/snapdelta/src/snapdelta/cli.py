@@ -563,6 +563,7 @@ def describe_output(
         name,
         current.title if title is None else title,
         current.description if description is None else description,
+        current.change,
     )
     typer.echo(f"{name}: {changed.title or 'no title'}")
 

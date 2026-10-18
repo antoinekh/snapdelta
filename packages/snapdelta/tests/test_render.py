@@ -71,3 +71,14 @@ def test_the_profile_and_its_count_checks_are_printed(make_adapter) -> None:
     assert "profile: loose (A few more interfaces)" in text
     assert "count interface: 2 -> 3 (+1, +50.0%), limit 50%: within, 1 objects of one side not shown" in text
     assert "- Count interface: 2 -> 3" in render_markdown(output)
+
+
+def test_text_and_markdown_show_the_change_before_the_title(make_adapter) -> None:
+    output = compare(make_adapter(), make_adapter(description="other"))
+    both = output.model_copy(update={"change": "CHG-1", "title": "r1"})
+    assert render_output(both).splitlines()[:3] == ["change: CHG-1", "title: r1", ""]
+    assert render_markdown(both).splitlines()[0] == "# CHG-1 · r1"
+    alone = output.model_copy(update={"change": "CHG-1"})
+    assert render_output(alone).splitlines()[:2] == ["change: CHG-1", ""]
+    assert render_markdown(alone).splitlines()[0] == "# CHG-1"
+    assert render_markdown(output).splitlines()[0] == "# R1 vs R1"

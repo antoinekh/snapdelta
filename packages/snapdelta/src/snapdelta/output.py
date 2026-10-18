@@ -58,7 +58,8 @@ class Output(BaseModel):
     summary: dict[str, int]
     diff: dict[str, Any]
     profile: AppliedProfile | None = None
-    # Given by the user, at the compare or later: what the diff is about.
+    # Given by the user, at the compare or later: the work that the diff belongs to, and what the diff is about.
+    change: str | None = Field(default=None, max_length=80, pattern=r"^[^\n]*$")
     title: str | None = Field(default=None, max_length=120, pattern=r"^[^\n]*$")
     description: str | None = Field(default=None, max_length=2000)
     # By the key of a changed object, `MODEL:UNIQUE_ID`: the changes that a person accepted.
@@ -111,15 +112,16 @@ def new_review(by: str | None, comment: str | None) -> Review:
         raise SnapdeltaError(f"not a valid review ({problems})") from error
 
 
-def described(output: Output, title: str | None, description: str | None) -> Output:
-    """The output with this title and description; an empty text removes it."""
+def described(output: Output, title: str | None, description: str | None, change: str | None) -> Output:
+    """The output with this title, description and change; an empty text removes it."""
     values = output.model_dump(by_alias=True)
-    values |= {"title": (title or "").strip() or None, "description": (description or "").strip() or None}
+    given = {"title": title, "description": description, "change": change}
+    values |= {key: (text or "").strip() or None for key, text in given.items()}
     try:
         return Output.model_validate(values)
     except ValidationError as error:
         problems = "; ".join(f"{item['loc'][0]}: {item['msg']}" for item in error.errors())
-        raise SnapdeltaError(f"not a valid title or description ({problems})") from error
+        raise SnapdeltaError(f"not a valid title, description or change ({problems})") from error
 
 
 def common_models(left: Sequence[str], right: Sequence[str]) -> list[str]:

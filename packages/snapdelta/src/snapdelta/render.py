@@ -69,8 +69,8 @@ def _change_rows(model: str, elements: dict[str, Any], parents: tuple[str, ...])
 
 
 def render_output(output: Output) -> str:
-    lines = [f"title: {output.title}"] if output.title else []
-    lines += [output.description, ""] if output.description else ([""] if output.title else [])
+    lines = [f"{key}: {value}" for key, value in (("change", output.change), ("title", output.title)) if value]
+    lines += [output.description, ""] if output.description else ([""] if lines else [])
     lines += [f"left:  {_side(output.left)}", f"right: {_side(output.right)}", ""]
     for model, elements in output.diff.items():
         lines.append(model)
@@ -197,8 +197,10 @@ def render_json(output: Output) -> str:
 def render_markdown(output: Output) -> str:
     """A report to paste in a ticket or a merge request: the sides, the counts, then one table per model."""
     summary = output.summary
+    named = " · ".join(filter(None, (output.change, output.title)))
+    heading = named or f"{output.left.target} vs {output.right.target}"
     lines = [
-        f"# {output.title or f'{output.left.target} vs {output.right.target}'}",
+        f"# {heading}",
         "",
         *([output.description, ""] if output.description else []),
         "| Side | Target | Source | Label | Captured |",

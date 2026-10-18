@@ -315,7 +315,9 @@ def create_mcp(state: AppState) -> MCPServer:
         current = state.store.load_output(resolved)
         chosen_title = current.title if title is None else title
         chosen_description = current.description if description is None else description
-        return DiffItem.of(resolved, state.store.describe_output(resolved, chosen_title, chosen_description))
+        return DiffItem.of(
+            resolved, state.store.describe_output(resolved, chosen_title, chosen_description, current.change)
+        )
 
     @tool(READ_ONLY)
     def list_profiles() -> list[ProfileItem]:

@@ -281,9 +281,9 @@ class Store(ABC):
         self.load_output(name)
         self._delete_output(name)
 
-    def describe_output(self, name: str, title: str | None, description: str | None) -> Output:
-        """Set the title and the description of a saved output; with the reviews, the only parts that change."""
-        output = described(self.load_output(name), title, description)
+    def describe_output(self, name: str, title: str | None, description: str | None, change: str | None) -> Output:
+        """Set the title, description and change of a saved output; with the reviews, the only parts that change."""
+        output = described(self.load_output(name), title, description, change)
         self._replace_output(name, output)
         return output
 
