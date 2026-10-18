@@ -141,7 +141,6 @@ snapdelta reads `snapdelta.toml`: the file given with `--settings`, else `SNAPDE
 | [web-ui.md](docs/web-ui.md) | The pages of the web UI, with screenshots |
 | [api.md](docs/api.md) | The JSON API for pipelines and AI agents, the token and the network access |
 | [mcp.md](docs/mcp.md) | The MCP server and the skill for AI agents |
-| [roadmap.md](docs/roadmap.md) | The work planned for the next versions |
 | [container.md](docs/container.md) | The container image, your plugins in an image of your own, a compose file with PostgreSQL |
 | [stores.md](docs/stores.md) | The file and SQLite stores, cleanup, the Python API, plugin backends |
 | [parallel.md](docs/parallel.md) | Several targets at the same time, and parallel fetches inside one target |
