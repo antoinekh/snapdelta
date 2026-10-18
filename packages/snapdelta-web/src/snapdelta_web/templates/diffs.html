@@ -30,7 +30,7 @@
     {% endfor %}
   </tbody>
 </table>
-<div class="bulk"><button type="submit" class="button danger">Delete selected</button></div>
+<div class="bulk"><span class="bulk-count"></span><button type="reset" class="button quiet">Clear</button><button type="submit" class="button danger">Delete</button></div>
 </form>
 {{ pages(pager, "/diffs", q) }}
 {% elif q %}

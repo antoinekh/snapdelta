@@ -19,6 +19,8 @@
 {% if pager.number == 1 %}<section id="timeline" class="panel timeline-panel" hx-get="/targets/{{ target | urlencode }}/timeline{{ '?' ~ period.query if period.active }}" hx-trigger="load" aria-busy="true"><h2>Timeline</h2><p class="muted">Comparing each snapshot with the one before…</p></section>{% endif %}
 <form method="post" action="/snapshots/{{ target }}/delete" data-confirm-selected="references">
 <input type="hidden" name="page" value="{{ pager.number }}">
+<input type="hidden" name="since" value="{{ period.since_text }}">
+<input type="hidden" name="until" value="{{ period.until_text }}">
 <table class="list">
   <thead><tr><th class="pick"><input type="checkbox" data-select-all aria-label="Select all on this page"></th><th>Captured</th><th>Label</th><th>Source</th><th>Models</th><th class="num-col">Warnings</th><th class="num-col">Unmapped</th></tr></thead>
   <tbody>
@@ -37,7 +39,7 @@
     {% endfor %}
   </tbody>
 </table>
-<div class="bulk"><button type="submit" class="button danger">Delete selected</button></div>
+<div class="bulk"><span class="bulk-count"></span><button type="reset" class="button quiet">Clear</button><button type="submit" class="button danger">Delete</button></div>
 </form>
 {{ pages(pager, "/snapshots/" ~ target, extra=period.query) }}
 {% endblock %}

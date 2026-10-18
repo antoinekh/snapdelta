@@ -618,7 +618,11 @@ def create_app(state: AppState) -> FastAPI:
 
     @app.post("/snapshots/{target}/delete")
     def delete_snapshots(
-        target: str, references: Annotated[list[str] | None, Form()] = None, page: Annotated[int, Form()] = 1
+        target: str,
+        references: Annotated[list[str] | None, Form()] = None,
+        page: Annotated[int, Form()] = 1,
+        since: Annotated[str, Form()] = "",
+        until: Annotated[str, Form()] = "",
     ) -> RedirectResponse:
         resolved = [state.store.resolve_snapshot(reference) for reference in _selected(references)]
         if any(reference.partition("/")[0] != target for reference in resolved):
@@ -627,7 +631,9 @@ def create_app(state: AppState) -> FastAPI:
             state.store.delete_snapshot(reference)
         if not state.store.snapshot_entries(target):
             return RedirectResponse(f"/snapshots?deleted={len(resolved)}", status_code=303)
-        return RedirectResponse(f"/snapshots/{target}?page={page}&deleted={len(resolved)}", status_code=303)
+        period = views.Period.parse(since, until)
+        kept = f"{period.query}&" if period.active else ""
+        return RedirectResponse(f"/snapshots/{target}?{kept}page={page}&deleted={len(resolved)}", status_code=303)
 
     @app.post("/diffs/{name}/delete")
     def delete_diff(name: str) -> RedirectResponse:

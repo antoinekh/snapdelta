@@ -141,7 +141,13 @@ table.list .num-col { text-align: right; width: 1%; white-space: nowrap; }
 .count-right { color: var(--right-text); }
 .count-changed { color: var(--change-text); }
 .counts .zero { opacity: 0.35; }
-.bulk { display: flex; justify-content: flex-end; margin-top: 12px; }
+/* The count comes from a CSS counter, so that a click on "Select all" also updates it. */
+form:has(> .bulk) { counter-reset: picked; }
+table.list tbody .pick input:checked { counter-increment: picked; }
+.bulk { position: sticky; bottom: 16px; z-index: 2; display: flex; align-items: center; gap: 10px; width: fit-content; margin: 12px 0 0 auto; padding: 8px 8px 8px 16px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); box-shadow: 0 8px 24px rgb(15 23 42 / 0.14); }
+form:not(:has(tbody .pick input:checked)) .bulk { display: none; }
+.bulk-count { margin-right: 6px; font-weight: 600; }
+.bulk-count::before { content: counter(picked) " selected"; }
 .pager { display: flex; justify-content: center; align-items: center; gap: 12px; margin-top: 18px; }
 .scroll { overflow-x: auto; border-radius: var(--radius); }
 .error { color: var(--left-text); }

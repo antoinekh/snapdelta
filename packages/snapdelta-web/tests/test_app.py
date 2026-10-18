@@ -325,12 +325,16 @@ def test_delete_selected_diffs(client, store, names) -> None:
 def test_delete_selected_snapshots_of_a_target(client, store, names) -> None:
     other = client.post("/snapshots/R2/delete", data={"references": [names.before]})
     assert other.status_code == 404
+    assert 'class="bulk"><span class="bulk-count"></span>' in client.get("/snapshots/R1").text
+    period = {"references": [names.before], "page": "1", "since": "2026-09-25T10:30", "until": ""}
+    kept = client.post("/snapshots/R1/delete", data=period, follow_redirects=False)
+    assert kept.headers["location"] == "/snapshots/R1?since=2026-09-25T10%3A30&page=1&deleted=1"
     response = client.post(
-        "/snapshots/R1/delete", data={"references": [names.before, names.after], "page": "1"}, follow_redirects=False
+        "/snapshots/R1/delete", data={"references": [names.after], "page": "1"}, follow_redirects=False
     )
-    assert (response.status_code, response.headers["location"]) == (303, "/snapshots/R1?page=1&deleted=2")
+    assert (response.status_code, response.headers["location"]) == (303, "/snapshots/R1?page=1&deleted=1")
     assert [entry.reference for entry in store.snapshot_entries("R1")] == [names.config]
-    assert "Deleted 2." in client.get(response.headers["location"]).text
+    assert "Deleted 1." in client.get(response.headers["location"]).text
     last = client.post("/snapshots/R1/delete", data={"references": [names.config]}, follow_redirects=False)
     assert last.headers["location"] == "/snapshots?deleted=1"
     assert client.post("/snapshots/R1/delete", data={}).status_code == 400
