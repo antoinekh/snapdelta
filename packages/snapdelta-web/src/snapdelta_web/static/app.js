@@ -319,11 +319,24 @@
     if (event.target.matches("[data-timeline-pick]")) timelinePicked(event.target.closest("[data-timeline]"), event.target);
   });
 
+  // A faded edge tells that the timeline holds more snapshots on that side.
+  function markTrackEdges(track) {
+    track.classList.toggle("more-left", track.scrollLeft > 1);
+    track.classList.toggle("more-right", track.scrollLeft + track.clientWidth < track.scrollWidth - 1);
+  }
+
   // The newest snapshots are on the right: a long timeline opens scrolled to its end.
   document.addEventListener("htmx:afterSettle", function (event) {
     var track = event.target.querySelector && event.target.querySelector("[data-timeline-track]");
-    if (track) track.scrollLeft = track.scrollWidth;
+    if (!track) return;
+    track.scrollLeft = track.scrollWidth;
+    markTrackEdges(track);
   });
+
+  // A scroll event does not bubble, so the listener captures it.
+  document.addEventListener("scroll", function (event) {
+    if (event.target.matches && event.target.matches("[data-timeline-track]")) markTrackEdges(event.target);
+  }, true);
 
   // The name of the reviewer stays in this browser, so that each Accept carries it.
   function restoreReviewer() {

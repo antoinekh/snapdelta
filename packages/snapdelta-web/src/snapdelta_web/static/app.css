@@ -546,6 +546,9 @@ kbd { padding: 1px 6px; border: 1px solid var(--line); border-bottom-width: 2px;
 .timeline-legend .only-right, .timeline-capsule .only-right { background: var(--right); }
 .timeline-legend .changed, .timeline-capsule .changed { background: var(--change); }
 .timeline-track { display: flex; justify-content: safe center; margin: 14px -8px 0; padding: 0 8px 6px; list-style: none; overflow-x: auto; scrollbar-width: thin; }
+.timeline-track.more-left { mask-image: linear-gradient(to right, transparent, #000 64px); }
+.timeline-track.more-right { mask-image: linear-gradient(to left, transparent, #000 64px); }
+.timeline-track.more-left.more-right { mask-image: linear-gradient(to right, transparent, #000 64px, #000 calc(100% - 64px), transparent); }
 .timeline-slot { position: relative; flex: 1 0 76px; max-width: 168px; padding-top: 96px; }
 .timeline-slot::before, .timeline-slot::after { content: ""; position: absolute; top: 103px; width: 50%; height: 2px; background: var(--line-strong); }
 .timeline-slot::before { left: 0; }
