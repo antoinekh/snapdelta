@@ -644,6 +644,19 @@ def test_the_target_page_loads_its_timeline(client, names) -> None:
     assert 'action="/diffs"' in part and "data-timeline-compare disabled" in part
 
 
+def test_the_target_page_filters_its_snapshots_by_period(client, names) -> None:
+    period = {"since": "2026-09-25T10:30", "until": "2026-09-25T11:00"}
+    page = client.get("/snapshots/R1", params=period).text
+    assert f'value="{names.after}"' in page
+    assert f'value="{names.before}"' not in page and f'value="{names.config}"' not in page
+    assert 'hx-get="/targets/R1/timeline?since=2026-09-25T10%3A30&amp;until=2026-09-25T11%3A00"' in page
+    assert 'value="2026-09-25T10:30"' in page and 'href="/snapshots/R1">Clear</a>' in page
+    part = client.get("/targets/R1/timeline", params={"since": "2026-09-25T10:30"}).text
+    assert part.count('class="timeline-slot"') == 2
+    assert "No snapshot in this period." in client.get("/snapshots/R1", params={"since": "2030-01-01T00:00"}).text
+    assert client.get("/snapshots/R1", params={"since": "soon"}).status_code == 400
+
+
 def test_accept_a_change_on_the_diff_page(client, names, store) -> None:
     page = client.get(f"/diffs/{names.same}?model=interface").text
     assert "data-reviewer" in page

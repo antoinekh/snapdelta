@@ -3,7 +3,7 @@
     <h2>Timeline</h2>
     <span class="timeline-legend small"><i class="only-left"></i>removed<i class="only-right"></i>added<i class="changed"></i>changed{% if timeline.older %}<span class="muted">{{ timeline.points | length }} newest of {{ timeline.points | length + timeline.older }}</span>{% endif %}</span>
     <label class="inline-field">Profile
-      <select name="profile" hx-get="/targets/{{ target | urlencode }}/timeline" hx-target="#timeline" hx-trigger="change">
+      <select name="profile" hx-get="/targets/{{ target | urlencode }}/timeline{{ '?' ~ period.query if period.active }}" hx-target="#timeline" hx-trigger="change">
         <option value="">None</option>
         {% for name, text in profiles %}<option value="{{ name }}"{% if name == profile %} selected{% endif %}>{{ text }}</option>{% endfor %}
       </select>

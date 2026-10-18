@@ -92,12 +92,12 @@
 </article>
 {%- endmacro %}
 
-{% macro pager(pager, base, q="") -%}
+{% macro pager(pager, base, q="", extra="") -%}
 {% if pager.has_previous or pager.has_next %}
 <nav class="pager" aria-label="Pages">
-  {% if pager.has_previous %}<a class="button quiet" href="{{ base }}?{% if q %}q={{ q | urlencode }}&{% endif %}page={{ pager.number - 1 }}">Previous</a>{% endif %}
+  {% if pager.has_previous %}<a class="button quiet" href="{{ base }}?{% if q %}q={{ q | urlencode }}&{% endif %}{% if extra %}{{ extra }}&{% endif %}page={{ pager.number - 1 }}">Previous</a>{% endif %}
   <span class="muted">Page {{ pager.number }}</span>
-  {% if pager.has_next %}<a class="button quiet" href="{{ base }}?{% if q %}q={{ q | urlencode }}&{% endif %}page={{ pager.number + 1 }}">Next</a>{% endif %}
+  {% if pager.has_next %}<a class="button quiet" href="{{ base }}?{% if q %}q={{ q | urlencode }}&{% endif %}{% if extra %}{{ extra }}&{% endif %}page={{ pager.number + 1 }}">Next</a>{% endif %}
 </nav>
 {% endif %}
 {%- endmacro %}

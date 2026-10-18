@@ -445,20 +445,27 @@ def create_app(state: AppState) -> FastAPI:
         return render(request, "snapshots.html", context)
 
     @app.get("/snapshots/{target}", response_class=HTMLResponse)
-    def target_page(request: Request, target: str, page: int = 1, deleted: int | None = None) -> HTMLResponse:
-        rows, unreadable, pager = views.target_snapshot_rows(state.store, target, page, PAGE_SIZE)
-        if not rows and not unreadable and page == 1:
+    def target_page(
+        request: Request, target: str, page: int = 1, deleted: int | None = None, since: str = "", until: str = ""
+    ) -> HTMLResponse:
+        period = views.Period.parse(since, until)
+        rows, unreadable, pager = views.target_snapshot_rows(state.store, target, page, PAGE_SIZE, period)
+        if not rows and not unreadable and page == 1 and not period.active:
             raise NotFoundError(f"no snapshot of {target}")
         context = {"tab": "snapshots", "target": target, "rows": rows, "unreadable": unreadable, "pager": pager}
-        context["deleted"] = deleted
+        context |= {"deleted": deleted, "period": period}
         return render(request, "target.html", context)
 
     @app.get("/targets/{target}/timeline", response_class=HTMLResponse)
-    def target_timeline(request: Request, target: str, profile: str = "") -> HTMLResponse:
+    def target_timeline(
+        request: Request, target: str, profile: str = "", since: str = "", until: str = ""
+    ) -> HTMLResponse:
         """Each snapshot of the target, and the size of the delta from the one before."""
         rules = state.settings.profile(profile or None)
-        built = views.timeline(state.store, target, rules, profile or None, step_cache)
+        period = views.Period.parse(since, until)
+        built = views.timeline(state.store, target, rules, profile or None, step_cache, period=period)
         context = {"timeline": built, "target": target, "profiles": profile_choices(), "profile": profile}
+        context["period"] = period
         return render(request, "_timeline.html", context)
 
     @app.get("/snapshots/{target}/{name}", response_class=HTMLResponse)

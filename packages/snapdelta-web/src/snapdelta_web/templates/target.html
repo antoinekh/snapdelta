@@ -3,10 +3,20 @@
 {% block title %}{{ target }} · snapdelta{% endblock %}
 {% block content %}
 <nav class="crumbs" aria-label="Breadcrumb"><a href="/snapshots">Snapshots</a></nav>
-<div class="title-row"><h1>{{ target }}</h1><a class="button primary" href="/new?left={{ target }}@latest">Compare</a></div>
+<div class="title-row">
+  <h1>{{ target }}</h1>
+  <form class="period" method="get" action="/snapshots/{{ target }}">
+    <label class="inline-field">From<input type="datetime-local" name="since" value="{{ period.since_text }}"></label>
+    <label class="inline-field">To<input type="datetime-local" name="until" value="{{ period.until_text }}"></label>
+    <span class="muted small">UTC</span>
+    <button type="submit" class="button">Apply</button>
+    {% if period.active %}<a class="button quiet" href="/snapshots/{{ target }}">Clear</a>{% endif %}
+  </form>
+  <a class="button primary" href="/new?left={{ target }}@latest">Compare</a>
+</div>
 {% if deleted %}<p class="notice">Deleted {{ deleted }}.</p>{% endif %}
 {% if unreadable %}<p class="notice warn">Unreadable: {{ unreadable | join(", ") }}</p>{% endif %}
-{% if pager.number == 1 %}<section id="timeline" class="panel timeline-panel" hx-get="/targets/{{ target | urlencode }}/timeline" hx-trigger="load" aria-busy="true"><h2>Timeline</h2><p class="muted">Comparing each snapshot with the one before…</p></section>{% endif %}
+{% if pager.number == 1 %}<section id="timeline" class="panel timeline-panel" hx-get="/targets/{{ target | urlencode }}/timeline{{ '?' ~ period.query if period.active }}" hx-trigger="load" aria-busy="true"><h2>Timeline</h2><p class="muted">Comparing each snapshot with the one before…</p></section>{% endif %}
 <form method="post" action="/snapshots/{{ target }}/delete" data-confirm-selected="references">
 <input type="hidden" name="page" value="{{ pager.number }}">
 <table class="list">
@@ -22,10 +32,12 @@
       <td class="num-col mono {{ 'warn-text' if row.warnings }}">{{ row.warnings }}</td>
       <td class="num-col mono">{{ row.unmapped }}</td>
     </tr>
+    {% else %}
+    <tr><td colspan="7" class="muted">No snapshot in this period.</td></tr>
     {% endfor %}
   </tbody>
 </table>
 <div class="bulk"><button type="submit" class="button danger">Delete selected</button></div>
 </form>
-{{ pages(pager, "/snapshots/" ~ target) }}
+{{ pages(pager, "/snapshots/" ~ target, extra=period.query) }}
 {% endblock %}

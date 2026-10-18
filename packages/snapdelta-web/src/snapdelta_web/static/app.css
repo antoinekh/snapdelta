@@ -340,6 +340,8 @@ table.list .num-col { text-align: right; width: 1%; white-space: nowrap; }
 .subnav a:hover { color: var(--ink); text-decoration: none; background: var(--sunken); }
 .subnav a[aria-current="page"] { background: var(--ink); color: var(--canvas); }
 .title-row .subnav, .panel-head .subnav { margin: 0; }
+.period { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; }
+.period .inline-field { margin: 0; }
 
 /* MCP server page: the tools of the server, each with a form that calls it. */
 .mcp-section { margin-top: 28px; }

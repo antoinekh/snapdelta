@@ -23,7 +23,7 @@ from snapdelta.output import Output, Review, Side, change_key, compare
 from snapdelta.profile import accepted
 from snapdelta.settings import Profile
 from snapdelta.source import Source
-from snapdelta.store import Store
+from snapdelta.store import SnapshotEntry, Store
 
 from .access import LruCache
 
@@ -571,10 +571,64 @@ def target_rows(store: Store, query: str = "", page: int = 1, size: int = 50) ->
     return rows, pager
 
 
+PERIOD_FORMAT = "%Y-%m-%dT%H:%M"
+
+
+@dataclass(frozen=True)
+class Period:
+    """The snapshots captured from `since` to `until`, both included, in UTC; None leaves that end open."""
+
+    since: datetime | None = None
+    until: datetime | None = None
+
+    @classmethod
+    def parse(cls, since: str, until: str) -> Period:
+        return cls(_period_end(since), _period_end(until))
+
+    @property
+    def active(self) -> bool:
+        return self.since is not None or self.until is not None
+
+    @property
+    def since_text(self) -> str:
+        return self.since.strftime(PERIOD_FORMAT) if self.since else ""
+
+    @property
+    def until_text(self) -> str:
+        return self.until.strftime(PERIOD_FORMAT) if self.until else ""
+
+    @property
+    def query(self) -> str:
+        ends = (("since", self.since_text), ("until", self.until_text))
+        return urlencode([(name, text) for name, text in ends if text])
+
+    def select(self, entries: list[SnapshotEntry]) -> list[SnapshotEntry]:
+        # The fields give minutes: a snapshot of 13:10:45 is in a period that ends at 13:10.
+        return [
+            entry
+            for entry in entries
+            if (self.since is None or entry.captured_at >= self.since)
+            and (self.until is None or entry.captured_at.replace(second=0, microsecond=0) <= self.until)
+        ]
+
+
+ALL_TIME = Period()
+
+
+def _period_end(text: str) -> datetime | None:
+    if not text.strip():
+        return None
+    try:
+        moment = datetime.fromisoformat(text.strip())
+    except ValueError as error:
+        raise SnapdeltaError(f"{text!r} is not a date and time") from error
+    return moment if moment.tzinfo else moment.replace(tzinfo=UTC)
+
+
 def target_snapshot_rows(
-    store: Store, target: str, page: int = 1, size: int = 50
+    store: Store, target: str, page: int = 1, size: int = 50, period: Period = ALL_TIME
 ) -> tuple[list[SnapshotRow], list[str], Pager]:
-    entries, pager = page_of(store.snapshot_entries(target), page, size)
+    entries, pager = page_of(period.select(store.snapshot_entries(target)), page, size)
     rows: list[SnapshotRow] = []
     unreadable: list[str] = []
     for entry in entries:
@@ -649,9 +703,15 @@ type StepCache = LruCache[tuple[str, str, str, str | None], TimelineStep]
 
 
 def timeline(
-    store: Store, target: str, rules: Profile | None, profile: str | None, cache: StepCache, size: int = TIMELINE_SIZE
+    store: Store,
+    target: str,
+    rules: Profile | None,
+    profile: str | None,
+    cache: StepCache,
+    size: int = TIMELINE_SIZE,
+    period: Period = ALL_TIME,
 ) -> Timeline:
-    entries = store.snapshot_entries(target)
+    entries = period.select(store.snapshot_entries(target))
     shown = list(reversed(entries[:size]))
     points = [TimelinePoint(entry.reference, entry.captured_at, entry.label) for entry in shown]
     steps = [
