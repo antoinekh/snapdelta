@@ -100,7 +100,8 @@ uv run snapdelta diff --group core @before @after --ticket CHG-1042 --note "VLAN
 |---|---|
 | `snapshot` | Load input files (`FILES --source S`), or fetch targets (`--target`, `--group`, `--all-targets`, `--jobs N`); `--label`, `--ticket`, `--captured-at` |
 | `diff LEFT RIGHT` | Compare two snapshots, or a snapshot and its target now (`--live`); or many targets at once, `diff --group core @before @after` (`--target`, `--all-targets`), one diff per target; `--model`, `--profile`, `--ticket`, `--note`, `--format`, `--no-save` |
-| `output NAME`, `describe NAME` | Print a saved output again (`--format text`, `json`, `markdown`, `csv`); give it a ticket and a note (`--ticket`, `--note`) |
+| `output NAME` | Print a saved output again (`--format text`, `json`, `markdown`, `csv`) |
+| `describe NAME` | Give a saved diff a ticket and a note, or change them (`--ticket`, `--note`) |
 | `accept NAME KEY...` | Accept changes after a review (`--all`, `--comment`, `--undo`); the Markdown report lists them |
 | `list`, `show REF` | List the snapshots and outputs (`--target` keeps the outputs whose target or ticket has this text, `--ticket` the outputs of exactly that ticket); print the data of a snapshot |
 | `delete`, `prune`, `info` | Delete snapshots or outputs; keep the N newest or the last days; show the store |
