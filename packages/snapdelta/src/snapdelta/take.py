@@ -16,6 +16,7 @@ from .runners import RUNNERS, LoadTask, OnProgress
 from .settings import Settings, SourceSettings
 from .source import Source, require_source, source_classes
 from .store import Store
+from .ticket import normalize_ticket
 
 
 @dataclass(frozen=True)
@@ -218,7 +219,12 @@ def take_live(
     inventory = settings.hosts()
     host = inventory.host(name) if inventory and name else None
     loaded = load_source(
-        cls, target=name, label=label, settings=settings.source(cls), host=host, ticket=ticket or left.ticket
+        cls,
+        target=name,
+        label=label,
+        settings=settings.source(cls),
+        host=host,
+        ticket=normalize_ticket(ticket) or left.ticket,
     )
     if not save:
         return loaded
@@ -245,21 +251,21 @@ def diff_snapshots(
     live_label: str | None = "live",
     models: Sequence[str] | None = None,
     profile: str | None = None,
-    title: str | None = None,
-    description: str | None = None,
-    change: str | None = None,
+    ticket: str | None = None,
+    note: str | None = None,
     expected: Sequence[ExpectedChange] | None = None,
     save: bool = True,
     origin: str = "python",
 ) -> Compared:
     """Compare the snapshot `left` with `right` (a snapshot or a loaded source) or with its target now (`live`).
 
-    With `expected`, the output also holds its check against these expected changes. With `save`, the output and
-    the live snapshot are saved, and the store records the command as a run.
+    With `ticket`, the labels of `left` and `right` are looked up in the snapshots of that ticket, and the live
+    snapshot has it. With `expected`, the output also holds its check against these expected changes. With `save`,
+    the output and the live snapshot are saved, and the store records the command as a run.
     """
     if (right is None) == (not live):
         raise SnapdeltaError("give right, or live, not both")
-    left_adapter = store.load_snapshot(store.resolve_snapshot(left))
+    left_adapter = store.load_snapshot(store.resolve_snapshot(left, ticket))
     _check_expected_targets(expected, [target or left_adapter.target or left])
     run = recorded(store, "diff", origin, [left_adapter.target or left], settings) if save else contextlib.nullcontext()
     with run as record:
@@ -267,13 +273,13 @@ def diff_snapshots(
         if isinstance(right, Source):
             right_adapter = right
         elif right is not None:
-            right_adapter = store.load_snapshot(store.resolve_snapshot(right))
+            right_adapter = store.load_snapshot(store.resolve_snapshot(right, ticket))
         else:
-            right_adapter = take_live(store, left_adapter, settings, target, live_label, save)
+            right_adapter = take_live(store, left_adapter, settings, target, live_label, save, ticket)
             live_reference = getattr(right_adapter, "reference", None)
         output = compare(left_adapter, right_adapter, models or None, settings.profile(profile), profile)
-        if title or description or change:
-            output = described(output, title, description, change)
+        if ticket or note:
+            output = described(output, ticket=ticket, note=note)
         if expected is not None:
             output = output.model_copy(update={"expectations": check_expected(output, expected)})
         name = store.save_output(output) if save else None
@@ -321,9 +327,8 @@ def diff_targets(
     live_label: str = "live",
     models: Sequence[str] | None = None,
     profile: str | None = None,
-    title: str | None = None,
-    description: str | None = None,
-    change: str | None = None,
+    ticket: str | None = None,
+    note: str | None = None,
     expected: Sequence[ExpectedChange] | None = None,
     save: bool = True,
     origin: str = "python",
@@ -340,20 +345,20 @@ def diff_targets(
     if live and not save:
         raise SnapdeltaError("a live diff of many targets saves the snapshots that it takes")
     chosen_profile = settings.profile(profile)
-    names = _diff_names(store, settings, left, targets, groups, all_targets)
+    names = _diff_names(store, settings, left, targets, groups, all_targets, ticket)
     _check_expected_targets(expected, names)
     results: dict[str, TargetDiff] = {}
     lefts: dict[str, str] = {}
     for name in names:
         try:
-            lefts[name] = store.resolve_snapshot(f"{name}@{left}")
+            lefts[name] = store.resolve_snapshot(f"{name}@{left}", ticket)
         except SnapdeltaError as error:
             results[name] = TargetDiff(name, error=str(error))
-    rights = _live_rights(store, settings, lefts, live_label, jobs, origin, results) if live else {}
+    rights = _live_rights(store, settings, lefts, live_label, jobs, origin, results, ticket) if live else {}
     if not live:
         for name in lefts:
             try:
-                rights[name] = store.resolve_snapshot(f"{name}@{right}")
+                rights[name] = store.resolve_snapshot(f"{name}@{right}", ticket)
             except SnapdeltaError as error:
                 results[name] = TargetDiff(name, error=str(error))
     run = recorded(store, "diff", origin, names, settings) if save else contextlib.nullcontext()
@@ -365,8 +370,8 @@ def diff_targets(
                 output = compare(
                     store.load_snapshot(lefts[name]), store.load_snapshot(rights[name]), models, chosen_profile, profile
                 )
-                if title or description or change:
-                    output = described(output, title, description, change)
+                if ticket or note:
+                    output = described(output, ticket=ticket, note=note)
                 if expected is not None:
                     output = output.model_copy(update={"expectations": check_expected(output, expected)})
                 saved = store.save_output(output) if save else None
@@ -385,7 +390,13 @@ def diff_targets(
 
 
 def _diff_names(
-    store: Store, settings: Settings, left: str, targets: Iterable[str], groups: Iterable[str], all_targets: bool
+    store: Store,
+    settings: Settings,
+    left: str,
+    targets: Iterable[str],
+    groups: Iterable[str],
+    all_targets: bool,
+    ticket: str | None,
 ) -> list[str]:
     """The targets of diff_targets(): the names, the hosts of `groups`, and with `all_targets` each target with LEFT."""
     names = list(dict.fromkeys(name.strip() for name in targets if name.strip()))
@@ -396,16 +407,16 @@ def _diff_names(
             raise SnapdeltaError("a group needs an inventory: set [inventory] location in the settings")
         names = inventory.select(names, wanted_groups)
     if all_targets:
-        with_left = [name for name in store.targets() if _has(store, f"{name}@{left}")]
+        with_left = [name for name in store.targets() if _has(store, f"{name}@{left}", ticket)]
         names = list(dict.fromkeys([*names, *with_left]))
     if not names:
         raise SnapdeltaError("give targets, groups or all_targets")
     return names
 
 
-def _has(store: Store, reference: str) -> bool:
+def _has(store: Store, reference: str, ticket: str | None) -> bool:
     try:
-        store.resolve_snapshot(reference)
+        store.resolve_snapshot(reference, ticket)
     except SnapdeltaError:
         return False
     return True
@@ -419,6 +430,7 @@ def _live_rights(
     jobs: int | None,
     origin: str,
     results: dict[str, TargetDiff],
+    ticket: str | None,
 ) -> dict[str, str]:
     """Take a snapshot of each target now, with the source of its left snapshot; the references by target."""
     plan: dict[str, type[Source]] = {}
@@ -437,7 +449,7 @@ def _live_rights(
     if not plan:
         return {}
     taken, failures = take_snapshots(
-        store, plan, label, jobs=jobs or settings.snapshot.jobs, settings=settings, origin=origin
+        store, plan, label, jobs=jobs or settings.snapshot.jobs, settings=settings, origin=origin, ticket=ticket
     )
     for name, message in failures.items():
         results[name] = TargetDiff(name, error=message)

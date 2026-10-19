@@ -1,4 +1,5 @@
 import time
+from datetime import UTC, datetime
 from pathlib import Path
 
 import pytest
@@ -6,7 +7,7 @@ import pytest
 from snapdelta.errors import LoadError, SnapdeltaError
 from snapdelta.settings import Settings, SourceSettings
 from snapdelta.store import FileStore
-from snapdelta.take import load_source, snapshot_targets, take_live, take_snapshots, target_names
+from snapdelta.take import diff_snapshots, load_source, snapshot_targets, take_live, take_snapshots, target_names
 from snapdelta_example import ExampleLiveSource, ExampleSource
 
 
@@ -87,6 +88,7 @@ def test_a_live_snapshot_takes_the_ticket_given_else_the_ticket_of_its_left_side
     left = load_source(ExampleLiveSource, target="R1", ticket="CHG-1")
     assert take_live(store, left, Settings(), label="inherited").ticket == "CHG-1"
     assert take_live(store, left, Settings(), label="given", ticket="CHG-2").ticket == "CHG-2"
+    assert take_live(store, left, Settings(), label="blank", ticket="   ").ticket == "CHG-1"
 
 
 def test_snapshot_targets_saves_each_snapshot_with_the_ticket(tmp_path) -> None:
@@ -97,3 +99,21 @@ def test_snapshot_targets_saves_each_snapshot_with_the_ticket(tmp_path) -> None:
     taken, failures = snapshot_targets(store, Settings(), "example-live", targets=["R1", "R2"], jobs=1, ticket="CHG-1")
     assert failures == {}
     assert [store.load_snapshot(item.reference).ticket for item in taken.values()] == ["CHG-1", "CHG-1"]
+
+
+def test_diff_snapshots_resolves_its_labels_in_its_ticket_and_keeps_its_note(tmp_path) -> None:
+    from snapdelta.source import register_source
+
+    register_source(ExampleLiveSource)
+    store = FileStore(tmp_path)
+    settings = Settings()
+    for ticket, hour in (("CHG-1", 1), ("CHG-2", 2)):
+        captured_at = datetime(2026, 1, 1, hour, tzinfo=UTC)
+        store.save_snapshot(
+            load_source(ExampleLiveSource, target="R1", label="before", ticket=ticket, captured_at=captured_at)
+        )
+    done = diff_snapshots(store, settings, "R1@before", live=True, ticket="CHG-1", note="first\nsecond")
+    assert done.output.ticket == "CHG-1" and done.output.note == "first\nsecond"
+    assert done.live is not None and store.load_snapshot(done.live).ticket == "CHG-1"
+    with pytest.raises(SnapdeltaError, match="in ticket 'CHG-9'"):
+        diff_snapshots(store, settings, "R1@before", live=True, ticket="CHG-9")

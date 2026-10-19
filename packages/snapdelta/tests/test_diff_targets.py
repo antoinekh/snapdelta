@@ -39,13 +39,73 @@ def lab(tmp_path):
 
 def test_a_group_is_one_diff_per_host_in_one_run(lab) -> None:
     _, settings, store = lab
-    results = diff_targets(store, settings, "@before", "@after", groups=["core"], title="VLAN 20", change="CHG-1")
+    results = diff_targets(store, settings, "@before", "@after", groups=["core"], note="VLAN 20")
     assert list(results) == ["R1", "R2"]
-    assert not results["R1"].changed and results["R2"].changed and results["R2"].output.title == "VLAN 20"
-    assert {item.output.change for item in results.values()} == {"CHG-1"}
+    assert not results["R1"].changed and results["R2"].changed and results["R2"].output.note == "VLAN 20"
     run = store.runs(kind="diff")[0]
     assert run.targets == ["R1", "R2"] and run.outputs == [results["R1"].name, results["R2"].name]
     assert run.has_differences is True and run.status == "ok"
+
+
+def test_diff_targets_pairs_the_snapshots_of_its_ticket(lab) -> None:
+    path, settings, store = lab
+    now = datetime.now(UTC)
+    snapshot_targets(
+        store,
+        settings,
+        "example-live",
+        targets=["R1"],
+        label="before",
+        ticket="CHG-1",
+        captured_at=now + timedelta(hours=1),
+    )
+    snapshot_targets(
+        store,
+        settings,
+        "example-live",
+        targets=["R1"],
+        label="after",
+        ticket="CHG-1",
+        captured_at=now + timedelta(hours=2),
+    )
+    device = path.parent / "devices" / "R1.json"
+    data = json.loads(device.read_text())
+    data["interfaces"][0]["mtu"] = 1400
+    device.write_text(json.dumps(data))
+    snapshot_targets(
+        store,
+        settings,
+        "example-live",
+        targets=["R1"],
+        label="after",
+        ticket="CHG-2",
+        captured_at=now + timedelta(hours=3),
+    )
+    [result] = diff_targets(store, settings, "before", "after", targets=["R1"], ticket="CHG-1").values()
+    assert result.output is not None and result.output.ticket == "CHG-1"
+    assert not result.changed
+    [unscoped] = diff_targets(store, settings, "before", "after", targets=["R1"]).values()
+    assert unscoped.changed
+
+
+def test_a_label_missing_in_the_ticket_fails_with_the_ticket(lab) -> None:
+    _, settings, store = lab
+    [result] = diff_targets(store, settings, "before", live=True, targets=["R1"], ticket="CHG-9").values()
+    assert result.error is not None and "in ticket 'CHG-9'" in result.error
+
+
+def test_a_live_diff_takes_its_snapshot_in_the_ticket(lab) -> None:
+    _, settings, store = lab
+    snapshot_targets(store, settings, "example-live", targets=["R1"], label="start", ticket="CHG-1")
+    [result] = diff_targets(store, settings, "start", live=True, targets=["R1"], ticket="CHG-1").values()
+    assert result.live is not None and store.load_snapshot(result.live).ticket == "CHG-1"
+    assert result.output is not None and result.output.ticket == "CHG-1"
+
+
+def test_all_targets_with_a_ticket_are_those_that_have_the_label_in_it(lab) -> None:
+    _, settings, store = lab
+    snapshot_targets(store, settings, "example-live", targets=["R2"], label="start", ticket="CHG-1")
+    assert list(diff_targets(store, settings, "start", live=True, all_targets=True, ticket="CHG-1")) == ["R2"]
 
 
 def test_a_target_without_its_snapshot_fails_alone(lab) -> None:
