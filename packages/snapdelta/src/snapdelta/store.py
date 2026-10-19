@@ -7,7 +7,7 @@ import os
 import re
 import sqlite3
 from abc import ABC, abstractmethod
-from collections.abc import Iterator, Mapping
+from collections.abc import Collection, Iterator, Mapping
 from contextlib import closing, contextmanager
 from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
@@ -627,6 +627,12 @@ create table if not exists runs (
 """
 
 
+def refuse_older_tables(columns: Collection[str]) -> None:
+    """The columns of a table that exists lack the ticket when an older snapdelta made it, and nothing migrates it."""
+    if columns and "ticket_key" not in columns:
+        raise SnapdeltaError("this store was made by an older snapdelta: make it again")
+
+
 class SqliteSettings(StoreBackendSettings):
     busy_timeout_s: float = Field(
         default=BUSY_TIMEOUT_S, gt=0, description="How long a writer waits for the lock of the database, in seconds."
@@ -646,6 +652,8 @@ class SqliteStore(Store):
         self.busy_timeout_s = busy_timeout_s
         path.parent.mkdir(parents=True, exist_ok=True)
         with self._connect() as db:
+            for table in ("snapshots", "outputs"):
+                refuse_older_tables([row[1] for row in db.execute(f"pragma table_info({table})")])
             db.executescript(SQLITE_SCHEMA)
 
     @classmethod

@@ -88,6 +88,16 @@ def test_sqlite_tables_use_target_columns(tmp_path) -> None:
     assert outputs == ["name", "created_at", "left_target", "right_target", "ticket", "ticket_key", "body"]
 
 
+def test_sqlite_store_of_an_older_snapdelta_is_refused(tmp_path) -> None:
+    import sqlite3
+
+    path = tmp_path / "old.db"
+    with sqlite3.connect(path) as db:
+        db.execute("create table snapshots (reference text primary key, target text not null, body text not null)")
+    with pytest.raises(SnapdeltaError, match="made by an older snapdelta: make it again"):
+        SqliteStore(path)
+
+
 def test_open_store_from_settings(tmp_path) -> None:
     from snapdelta.settings import Settings, StoreSettings
     from snapdelta.store import open_store_from

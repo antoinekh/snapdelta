@@ -16,7 +16,7 @@
 - A diff has a note, free text on many lines (2000 characters at most), in place of its title and its description: `--note` replaces `--title` and `--description`, and so do `note` in the API and MCP and the **Note** field of the web UI. The lists show the first line of the note, cut at 120 characters.
 - The diff list has a **Ticket** column, and its filter finds the diffs by target or by a part of the ticket.
 - Snapshots and outputs are schema 3. `Store.snapshot_entries(target, ticket)`, `output_entries(query, ticket)` and `resolve_snapshot(reference, ticket)` take a ticket, and `describe_output(name, *, ticket, note)` sets the ticket and the note; a store backend of a plugin must do the same, which `StoreContract` checks.
-- SQLite and PostgreSQL get the columns `ticket` and `ticket_key` (the ticket in lower case) with an index on `ticket_key`. A store of 0.2 must be made again.
+- SQLite and PostgreSQL get the columns `ticket` and `ticket_key` (the ticket in lower case) with an index on `ticket_key`. A SQLite or PostgreSQL store of 0.2 must be made again: every command stops with "this store was made by an older snapdelta".
 - The file store has no index: a search or a filter by ticket reads each document, which is slow on a large store; use SQLite or PostgreSQL for a large store.
 
 ### Removed

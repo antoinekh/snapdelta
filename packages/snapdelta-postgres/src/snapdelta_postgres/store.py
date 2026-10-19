@@ -30,6 +30,7 @@ from snapdelta.store import (
     parse_output,
     parse_run,
     parse_snapshot,
+    refuse_older_tables,
     snapshot_entry,
 )
 from snapdelta.ticket import ticket_key
@@ -106,9 +107,20 @@ class PostgresStore(Store):
         except PoolTimeout as error:
             self.pool.close()
             raise SnapdeltaError(f"{self.location}: no connection within {settings.connect_timeout_s} s") from error
-        with self._connect() as db:
-            db.execute("select pg_advisory_xact_lock(%s)", (LOCK_ID,))
-            db.execute(TABLES)
+        try:
+            with self._connect() as db:
+                db.execute("select pg_advisory_xact_lock(%s)", (LOCK_ID,))
+                for table in ("snapdelta_snapshots", "snapdelta_outputs"):
+                    columns = db.execute(
+                        "select column_name from information_schema.columns "
+                        "where table_schema = current_schema() and table_name = %s",
+                        (table,),
+                    ).fetchall()
+                    refuse_older_tables([column for (column,) in columns])
+                db.execute(TABLES)
+        except SnapdeltaError:
+            self.pool.close()
+            raise
 
     @classmethod
     def open(cls, address: str, settings: StoreBackendSettings) -> PostgresStore:

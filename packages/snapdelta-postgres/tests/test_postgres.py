@@ -54,6 +54,14 @@ def test_the_scheme_opens_the_backend_and_two_stores_share_the_tables(database: 
 
 
 @needs_server
+def test_a_store_of_an_older_snapdelta_is_refused(database: str) -> None:
+    with psycopg.connect(f"postgresql://{database}") as db:
+        db.execute("create table snapdelta_snapshots (reference text primary key, target text not null)")
+    with pytest.raises(SnapdeltaError, match="made by an older snapdelta: make it again"):
+        PostgresStore.open(database, PostgresSettings())
+
+
+@needs_server
 def test_a_password_of_the_settings_is_used(database: str, monkeypatch: pytest.MonkeyPatch) -> None:
     password = os.environ.get("PGPASSWORD")
     if password is None:
