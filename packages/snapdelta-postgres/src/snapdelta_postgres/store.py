@@ -34,6 +34,7 @@ from snapdelta.store import (
     parse_run,
     parse_snapshot,
     refuse_older_tables,
+    snapshot_conditions,
     snapshot_entry,
     snapshot_row,
 )
@@ -154,7 +155,7 @@ class PostgresStore(Store):
         return [row[0] for row in rows]
 
     def snapshot_entries(self, query: SnapshotQuery = SnapshotQuery()) -> list[SnapshotEntry]:
-        conditions = query.conditions()
+        conditions = snapshot_conditions(query)
         filters = [sql.SQL("{} = %s").format(sql.Identifier(column)) for column, _ in conditions]
         where = sql.SQL(" where {}").format(sql.SQL(" and ").join(filters)) if filters else sql.SQL("")
         statement = sql.SQL(

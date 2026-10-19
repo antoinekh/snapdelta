@@ -133,12 +133,6 @@ class SnapshotQuery:
     label: str | None = None
     ticket: str | None = None
 
-    def conditions(self) -> list[tuple[str, str]]:
-        """The column and the value of each filter given, for a store that answers with SQL."""
-        key = ticket_key(self.ticket)
-        wanted = [("target", self.target), ("label", self.safe_label), ("ticket_key", key)]
-        return [(column, value) for column, value in wanted if value is not None]
-
     @property
     def safe_label(self) -> str | None:
         """The label as a reference writes it, so that `before swap` and `before_swap` find the same snapshots."""
@@ -200,6 +194,12 @@ def snapshot_row(reference: str, snapshot: SnapshotFile) -> SnapshotEntry:
     if entry is None:
         raise SnapdeltaError(f"{reference!r} is not the reference of a snapshot")
     return entry
+
+
+def snapshot_conditions(query: SnapshotQuery) -> list[tuple[str, str]]:
+    """The column and the value of each filter of the query, for a store that answers with SQL."""
+    wanted = [("target", query.target), ("label", query.safe_label), ("ticket_key", ticket_key(query.ticket))]
+    return [(column, value) for column, value in wanted if value is not None]
 
 
 def output_entry(name: str) -> OutputEntry | None:
@@ -276,7 +276,7 @@ class Store(ABC):
                 which = "snapshot" if tag == LATEST else f"snapshot labelled {tag!r}"
                 scope = f" in ticket {ticket!r}" if ticket else ""
                 # Snapshots taken without the ticket never resolve with it, so say where they are.
-                outside = ticket and self.snapshot_entries(SnapshotQuery(target=target, label=label))
+                outside = bool(ticket) and bool(self.snapshot_entries(SnapshotQuery(target=target, label=label)))
                 hint = (
                     f"; {target}@{tag} exists outside this ticket: compare without the ticket, then give the diff "
                     "the ticket"
@@ -748,7 +748,7 @@ class SqliteStore(Store):
         return [row[0] for row in rows]
 
     def snapshot_entries(self, query: SnapshotQuery = SnapshotQuery()) -> list[SnapshotEntry]:
-        conditions = query.conditions()
+        conditions = snapshot_conditions(query)
         where = f" where {' and '.join(f'{column} = ?' for column, _ in conditions)}" if conditions else ""
         with self._connect() as db:
             rows = db.execute(
