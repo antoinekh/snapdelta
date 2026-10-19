@@ -73,7 +73,7 @@ flowchart LR
 |---|---|
 | Source | A plugin class that fills diffsync models: from input files, or by fetching from a target (`fetches = True`) |
 | Target | What a snapshot describes: a device, a service, an API |
-| Snapshot | One load of one target, saved as `TARGET/TIME-LABEL` (`R1/20260101T100000Z-before`); `R1@latest` is the newest of R1, `R1@before` the newest with the label `before` |
+| Snapshot | One load of one target, saved as `TARGET/TIME-LABEL` (`R1/20260101T100000Z-before`); `R1@latest` is the newest of R1, `R1@before` the newest with the label `before`; an optional ticket (`CHG-1042`, `#216`, any text) names the work, and the labels then look inside it |
 | Output | The result of one compare, saved as `TIME-LEFT-vs-RIGHT`; `-` is the left value, `+` the right value |
 | Store | Where snapshots and outputs go: a directory, a SQLite file, a PostgreSQL database, or a plugin backend |
 | Profile | Optional rules of a compare: ignore, tolerance (`"5%"`), counts, pairs of names |
@@ -88,13 +88,21 @@ uv run snapdelta --store /tmp/snapdelta-demo snapshot --source example-live --al
 uv run snapdelta --store /tmp/snapdelta-demo diff R1@demo R2@demo
 ```
 
+To check a change on many targets, give the same ticket to the snapshots and to the diff:
+
+```bash
+uv run snapdelta snapshot --group core --label before --ticket CHG-1042
+uv run snapdelta snapshot --group core --label after --ticket CHG-1042
+uv run snapdelta diff --group core @before @after --ticket CHG-1042 --note "VLAN 20"
+```
+
 | Command | What it does |
 |---|---|
-| `snapshot` | Load input files (`FILES --source S`), or fetch targets (`--target`, `--group`, `--all-targets`, `--jobs N`); `--label`, `--captured-at` |
-| `diff LEFT RIGHT` | Compare two snapshots, or a snapshot and its target now (`--live`); or many targets at once, `diff --group core @before @after` (`--target`, `--all-targets`), one diff per target; `--model`, `--profile`, `--title`, `--description`, `--format`, `--no-save` |
-| `output NAME`, `describe NAME` | Print a saved output again (`--format text`, `json`, `markdown`, `csv`); give it a title and a description |
+| `snapshot` | Load input files (`FILES --source S`), or fetch targets (`--target`, `--group`, `--all-targets`, `--jobs N`); `--label`, `--ticket`, `--captured-at` |
+| `diff LEFT RIGHT` | Compare two snapshots, or a snapshot and its target now (`--live`); or many targets at once, `diff --group core @before @after` (`--target`, `--all-targets`), one diff per target; `--model`, `--profile`, `--ticket`, `--note`, `--format`, `--no-save` |
+| `output NAME`, `describe NAME` | Print a saved output again (`--format text`, `json`, `markdown`, `csv`); give it a ticket and a note (`--ticket`, `--note`) |
 | `accept NAME KEY...` | Accept changes after a review (`--all`, `--comment`, `--undo`); the Markdown report lists them |
-| `list`, `show REF` | List the snapshots and outputs; print the data of a snapshot |
+| `list`, `show REF` | List the snapshots and outputs (`--target` keeps the outputs whose target or ticket has this text, `--ticket` the outputs of exactly that ticket); print the data of a snapshot |
 | `delete`, `prune`, `info` | Delete snapshots or outputs; keep the N newest or the last days; show the store |
 | `activity [RUN]` | The runs: each snapshot and saved diff, from the CLI, the web UI, the API or MCP, with the log of its loads |
 | `sources`, `models`, `inventory` | The installed sources; their models and attributes; the hosts of the inventory |
@@ -109,11 +117,11 @@ By default, `snapdelta-web` listens on 127.0.0.1 only, refuses other host names 
 
 ## API
 
-`snapdelta-web` also serves a JSON API under `/api/v1`, for a pipeline or an AI agent: take snapshots before and after a change, compare them (`R1@before` with `R1@after`, or with the target now), read the diff in any format, and give it a title. Its OpenAPI description is at `/api/v1/openapi.json`; see [docs/api.md](docs/api.md).
+`snapdelta-web` also serves a JSON API under `/api/v1`, for a pipeline or an AI agent: take snapshots before and after a change, compare them (`R1@before` with `R1@after`, or with the target now), read the diff in any format, and give it a ticket and a note. Its OpenAPI description is at `/api/v1/openapi.json`; see [docs/api.md](docs/api.md).
 
 ```bash
 curl -s -X POST http://127.0.0.1:8765/api/v1/diffs -H 'Content-Type: application/json' \
-  -d '{"left": "R1@before", "right": "R1@after", "change": "CHG-1234"}' | jq .has_differences
+  -d '{"left": "R1@before", "right": "R1@after", "ticket": "CHG-1234"}' | jq .has_differences
 ```
 
 ## AI agents

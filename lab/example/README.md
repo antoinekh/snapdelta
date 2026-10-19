@@ -135,7 +135,7 @@ All the commands run in `lab/example`, so snapdelta reads the settings file of t
 2. Take a snapshot of every router, at the same time:
 
    ```bash
-   uv run snapdelta snapshot --all-targets --label before
+   uv run snapdelta snapshot --all-targets --label before --ticket CHG-1042
    ```
 
    ```
@@ -145,7 +145,7 @@ All the commands run in `lab/example`, so snapdelta reads the settings file of t
    saved r3/20261013T183028Z-before
    ```
 
-   For one router only: `--target r1`. `--jobs N` sets how many routers load at the same time; without it, `snapshot.jobs` of the settings file applies (3 in the lab).
+   `--ticket` names the work: the labels `before` and `after` then belong to CHG-1042 only, so a later change with the same labels never mixes in. For one router only: `--target r1`. `--jobs N` sets how many routers load at the same time; without it, `snapshot.jobs` of the settings file applies (3 in the lab).
 
 3. Apply the change:
 
@@ -158,18 +158,18 @@ All the commands run in `lab/example`, so snapdelta reads the settings file of t
 4. Take the `after` snapshots:
 
    ```bash
-   uv run snapdelta snapshot --all-targets --label after
+   uv run snapdelta snapshot --all-targets --label after --ticket CHG-1042
    ```
 
-5. Compare before and after for r1 (`r1@before` is the newest snapshot of r1 with the label `before`):
+5. Compare before and after for r1 (`r1@before` is the newest snapshot of r1 with the label `before`, among the snapshots of the ticket):
 
    ```bash
-   uv run snapdelta diff r1@before r1@after --change CHG-1042 --title "VLAN 20, r1"
+   uv run snapdelta diff r1@before r1@after --ticket CHG-1042 --note "VLAN 20, r1"
    ```
 
    ```
-   change: CHG-1042
-   title: VLAN 20, r1
+   ticket: CHG-1042
+   VLAN 20, r1
 
    left:  r1 [before] frr 2026-10-13T18:30:26+00:00
    right: r1 [after] frr 2026-10-13T18:30:31+00:00
@@ -235,13 +235,13 @@ All the commands run in `lab/example`, so snapdelta reads the settings file of t
 
    It prints the link of the web UI, `http://127.0.0.1:8765/diffs`: open it in your browser.
 
-2. **Snapshots**, then **Take snapshot**. The source is "By platform (inventory)": each router uses the source of its platform. Check **All targets**, type the label `before`, then **Take snapshot**. The page of the job follows the three routers live, then links each saved snapshot; SR Linux answers last.
+2. **Snapshots**, then **Take snapshot**. The source is "By platform (inventory)": each router uses the source of its platform. Check **All targets**, type the label `before` and the ticket `CHG-1042`, then **Take snapshot**. The page of the job follows the three routers live, then links each saved snapshot; SR Linux answers last.
 
 3. In a terminal, apply the change: `scripts/lab.sh change`.
 
-4. **Take snapshot** again, with **All targets** and the label `after`.
+4. **Take snapshot** again, with **All targets**, the label `after` and the ticket `CHG-1042`.
 
-5. **New diff**: pick `r1` on the left, then **Before → after** selects its `before` and `after` snapshots. Give a title, then **Compare**.
+5. **New diff**: pick `r1` on the left, then **Before → after** selects its `before` and `after` snapshots. Give the ticket `CHG-1042` and a note, then **Compare**.
 
 6. The diff page: the two sides, the delta strip, the chips and the search that filter the objects, the change map at the right edge, and **Accept** on each change. `?` lists the keyboard shortcuts; see [docs/web-ui.md](../../docs/web-ui.md).
 

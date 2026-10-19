@@ -4,20 +4,24 @@
 
 ### Added
 
-- A diff has a change: any reference of the work that it belongs to (`CHG-1042`, `#216`, a Jira key), apart from its title; the text and Markdown formats show it.
+- A snapshot and a diff have a ticket: any text that names the work (`CHG-1042`, `#216`, `Migration Lyon phase 2`), 80 characters at most, one line, the same in any case. `snapdelta snapshot --ticket`, `snapdelta diff --ticket`, `snapdelta describe --ticket`, `ticket` in the API and in the MCP tools, and a **Ticket** field in **Take snapshot**, **New diff** and the edit form of a diff.
+- With a ticket, `TARGET@LABEL` and `TARGET@latest` name the snapshots of that ticket only, so `before` and `after` of one piece of work never mix with another one; `TARGET/NAME` is not scoped.
+- A diff with no ticket given takes the ticket of its two snapshots when they have the same one, and the live snapshot of `--live` takes the ticket given, else the ticket of its left side.
+- The exact filter by ticket: `snapdelta list --ticket`, `GET /api/v1/diffs?ticket=`, `GET /api/v1/snapshots?ticket=`, the `ticket` argument of the MCP tools `list_diffs` and `list_snapshots`, and `/diffs?ticket=` in the web UI, where the chip of a ticket opens it. The search (`snapdelta list --target`, `q`, `query`) also finds a part of a ticket.
+- The prompt `check_change` of MCP takes an optional `ticket`, which it gives to the snapshots and the diffs.
+- The text format shows the line `ticket: X` and the note; the Markdown format has the heading `# TICKET · LEFT vs RIGHT`.
 
 ### Changed
 
-- `Store.output_entries(query)` also matches the change of a diff, and `describe_output()` takes the change; a store backend of a plugin must do the same, which `StoreContract` checks. SQLite and PostgreSQL get a `change` column: make again a store of 0.2.
-- The diff list shows a **Change** column, and its filter finds diffs by target or change; the diff page shows the change next to the title, and its edit form, **New diff** and **Many targets** have a **Change** field.
-
-### Fixed
-
-- On the page of a diff, the description is under the title also when the title is short.
+- A diff has a note, free text on many lines (2000 characters at most), in place of its title and its description: `--note` replaces `--title` and `--description`, and so do `note` in the API and MCP and the **Note** field of the web UI. The lists show the first line of the note, cut at 120 characters.
+- The diff list has a **Ticket** column, and its filter finds the diffs by target or by a part of the ticket.
+- Snapshots and outputs are schema 3. `Store.snapshot_entries(target, ticket)`, `output_entries(query, ticket)` and `resolve_snapshot(reference, ticket)` take a ticket, and `describe_output(name, *, ticket, note)` sets the ticket and the note; a store backend of a plugin must do the same, which `StoreContract` checks.
+- SQLite and PostgreSQL get the columns `ticket` and `ticket_key` (the ticket in lower case) with an index on `ticket_key`. A store of 0.2 must be made again.
+- The file store has no index: a search or a filter by ticket reads each document, which is slow on a large store; use SQLite or PostgreSQL for a large store.
 
 ### Removed
 
-- The diff list no longer groups the diffs by the start of their title before `: `; give them a change.
+- The grouping of the diff list by the start of the text before `: `; filter by ticket instead.
 
 ## v0.2.0
 

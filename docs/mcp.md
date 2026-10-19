@@ -38,15 +38,15 @@ claude mcp add --transport http snapdelta https://snapdelta.example.net/mcp --he
 | Kind | Name | What it does |
 |---|---|---|
 | Resource | `snapdelta://guide` | The words of snapdelta, the steps to check a change, and the rules for an agent |
-| Tool | `list_sources`, `list_targets`, `list_snapshots` | The sources, the targets (with platform and groups), the snapshots of a target |
-| Tool | `take_snapshots` | Fetch targets, groups or every target at the same time, with a label |
-| Tool | `compare` | Two snapshots, or a snapshot and its target now (`live`), with a profile, a change and a title; the first page of changes |
-| Tool | `compare_targets` | For each target or each host of groups, `TARGET@left` with `TARGET@right` or the target now: the targets that changed, did not change or failed, and the name of each diff |
-| Tool | `read_diff`, `list_diffs` | The changes of a saved diff by pages, each with its key; the newest diffs, by target or change |
-| Tool | `accept_changes`, `describe_diff` | Accept changes after a review, with a comment; give a change, a title and a description |
+| Tool | `list_sources`, `list_targets`, `list_snapshots` | The sources, the targets (with platform and groups), the snapshots of a target (`target`, `ticket`, `limit`) |
+| Tool | `take_snapshots` | Fetch targets, groups or every target at the same time, with a label and a `ticket` |
+| Tool | `compare` | Two snapshots, or a snapshot and its target now (`live`), with a profile, a `ticket` and a `note`; the first page of changes |
+| Tool | `compare_targets` | For each target or each host of groups, `TARGET@left` with `TARGET@right` or the target now: the targets that changed, did not change or failed, and the name of each diff; it takes a `ticket` and a `note` too |
+| Tool | `read_diff`, `list_diffs` | The changes of a saved diff by pages, each with its key; the newest diffs, by `query` (a target or a part of the ticket) or by `ticket` (exactly that one) |
+| Tool | `accept_changes`, `describe_diff` | Accept changes after a review, with a comment; give a saved diff a `ticket` and a `note` |
 | Tool | `list_profiles`, `list_models` | The profiles of the settings; the models, their attributes and the fields never compared |
 | Tool | `list_runs`, `read_run` | The activity, and the log of the loads of one run |
-| Prompt | `check_change` | Before, change, after, compare, then accept what the change explains |
+| Prompt | `check_change` | Before, change, after, compare, then accept what the change explains; `check_change(targets, change, ticket)` gives the optional `ticket` to the snapshots and the diffs |
 | Prompt | `review_diff` | Read every change of a saved diff and sort them |
 
 A tool that fails returns the message of snapdelta (a wrong reference, a target that does not answer) as a tool error, so the agent can correct its call. The tools that only read say so to the client (`read_only_hint`); `take_snapshots`, a live `compare` and a live `compare_targets` read the devices and change nothing on them.
