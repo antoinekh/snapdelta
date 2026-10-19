@@ -600,14 +600,16 @@ def create_app(state: AppState) -> FastAPI:
     ) -> HTMLResponse:
         pickers = {}
         missing = []
+        ticket_text = normalize_ticket(ticket)
+        in_ticket = f" in the ticket {ticket_text}" if ticket_text else ""
         for side, selected in (("left", left), ("right", right)):
             if selected and "@" in selected and not selected.endswith(f"@{LATEST}"):
                 # TARGET@LABEL selects the snapshot that it names, as one of the choices of the list.
                 target, _, label = selected.partition("@")
                 try:
-                    selected = state.store.resolve_snapshot(selected)
+                    selected = state.store.resolve_snapshot(selected, ticket_text)
                 except NotFoundError:
-                    missing.append(f"No snapshot of {target} is labelled {label}")
+                    missing.append(f"No snapshot of {target} is labelled {label}{in_ticket}")
                     selected = f"{target}@{LATEST}"
             target = selected.split("@")[0].split("/")[0] if selected else None
             options = snapshot_options(target, side, 0, selected) if target else None

@@ -647,6 +647,13 @@ def test_new_diff_selects_a_snapshot_by_its_label(client, names) -> None:
     assert f'value="{names.before}" checked' in page and 'value="R1@latest" checked' in page
 
 
+def test_new_diff_selects_the_snapshot_of_its_ticket(client, ticketed) -> None:
+    page = client.get("/new", params={"left": "R1@before", "right": "R1@after", "ticket": " chg-1 "}).text
+    assert 'value="R1/20260926T100000Z-before" checked' in page
+    assert 'value="R1/20260926T110000Z-before" checked' not in page
+    assert 'value="R1/20260926T120000Z-after" checked' in page
+
+
 def test_pages_load_nothing_from_another_site(client) -> None:
     import re
 
@@ -735,13 +742,13 @@ def test_every_page_has_the_shortcuts_window(client) -> None:
     assert "data-shortcuts-open" in page
 
 
-def test_new_diff_keeps_the_ticket_and_tells_a_missing_label(client, names) -> None:
+def test_new_diff_keeps_the_ticket_and_tells_a_missing_label(client, ticketed) -> None:
     page = client.get(
-        "/new", params={"left": "R1@before", "right": "R1@nope", "ticket": "CHG-7", "note": "Uplink", "profile": "none"}
+        "/new", params={"left": "R1@before", "right": "R1@nope", "ticket": "CHG-1", "note": "Uplink", "profile": "none"}
     ).text
-    assert f'value="{names.before}" checked' in page and 'value="R1@latest" checked' in page
-    assert "No snapshot of R1 is labelled nope: the newest snapshot is selected." in page
-    assert 'value="CHG-7"' in page and ">Uplink</textarea>" in page
+    assert 'value="R1/20260926T100000Z-before" checked' in page and 'value="R1@latest" checked' in page
+    assert "No snapshot of R1 is labelled nope in the ticket CHG-1: the newest snapshot is selected." in page
+    assert 'value="CHG-1"' in page and ">Uplink</textarea>" in page
     assert "data-swap-sides" in page and 'data-preset-labels="before after"' in page
 
 
