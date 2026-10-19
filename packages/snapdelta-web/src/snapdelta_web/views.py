@@ -483,7 +483,7 @@ PALETTE_PAGES = [
     ("MCP server", "/mcp/docs"),
 ]
 PALETTE_LIMIT = 8
-# The palette searches the notes of the newest diffs only: each one is a row to read.
+# The palette matches the text of the newest diffs only: each one is a row to read.
 PALETTE_DIFFS = 300
 
 
