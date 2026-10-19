@@ -15,6 +15,8 @@ from typing import TYPE_CHECKING, Annotated, Any, Literal, cast
 
 import tomlkit
 from pydantic import AfterValidator, BaseModel, ConfigDict, Field, ValidationError, model_validator
+from tomlkit.container import Container
+from tomlkit.items import Comment, Item, Key, Null, Table, Whitespace
 
 from .errors import SnapdeltaError
 
@@ -670,11 +672,7 @@ def save_settings(
         raise SettingsError("\n".join(f"{path}: {key}: {message}" for key, message in errors.items()), errors)
     document = tomlkit.parse(path.read_text()) if path.is_file() else tomlkit.document()
     for table in removed:
-        *parents, last = table.split(".")
-        container = document
-        for part in parents:
-            container = container.get(part, {})
-        container.pop(last, None)
+        _remove_table(document, table.split("."))
     created: list[tuple[Any, str]] = []
     for table, model in checked.items():
         defaults = type(model)()
@@ -693,6 +691,87 @@ def save_settings(
         if not container[key] and container is not document.get("profiles"):
             del container[key]
     _write_atomic(path, tomlkit.dumps(document))
+
+
+def _remove_table(document: Any, parts: list[str]) -> None:
+    nodes: list[Any] = [document]
+    for part in parts:
+        node = nodes[-1].get(part)
+        if node is None:
+            return
+        nodes.append(node)
+    # tomlkit stores the comment above a table in the table before it: move the one of the next table there.
+    if all(isinstance(node, Table) for node in nodes[1:]):
+        container, start, stop = _comment_run_above(document, parts)
+        kept = _tail(_last_container(nodes[-1]))
+        blank_before = not start or isinstance(container.body[start - 1][1], Whitespace)
+        if kept and isinstance(kept[0], Whitespace) and blank_before:
+            kept = kept[1:]
+        _replace_run(container, start, stop, kept)
+    nodes[-2].pop(parts[-1])
+
+
+def _node_container(node: Any) -> Container:
+    return node.value if isinstance(node, Table) else node
+
+
+def _last_container(table: Table) -> Container:
+    """The container that ends the text of `table`, where a comment of the next table is stored."""
+    container = table.value
+    while True:
+        last = next((item for key, item in reversed(container.body) if key is not None), None)
+        if not isinstance(last, Table):
+            return container
+        container = last.value
+
+
+def _tail(container: Container) -> list[Item]:
+    start = next((i + 1 for i, (key, _) in reversed(list(enumerate(container.body))) if key is not None), 0)
+    return [item for _, item in container.body[start:] if not isinstance(item, Null)]
+
+
+def _comment_start(body: list[tuple[Key | None, Item]], stop: int) -> int:
+    start = stop
+    for index in range(stop - 1, -1, -1):
+        key, item = body[index]
+        if key is not None or isinstance(item, Whitespace):
+            break
+        if isinstance(item, Comment):
+            start = index
+    return start
+
+
+def _comment_run_above(document: Any, parts: list[str]) -> tuple[Container, int, int]:
+    """The container and the range of the comment lines right above the table `parts`."""
+    parent = document
+    for part in parts[:-1]:
+        parent = parent[part]
+    container = _node_container(parent)
+    body = container.body
+    stop = next(index for index, (key, _) in enumerate(body) if key is not None and key.key == parts[-1])
+    begin = stop
+    while begin and body[begin - 1][0] is None:
+        begin -= 1
+    previous = body[begin - 1][1] if begin else None
+    if isinstance(previous, Table):
+        tail = _last_container(previous)
+        return tail, _comment_start(tail.body, len(tail.body)), len(tail.body)
+    start = _comment_start(body, stop)
+    if begin == 0 and start == stop and isinstance(parent, Table) and parent.is_super_table():
+        return _comment_run_above(document, parts[:-1])
+    return container, start, stop
+
+
+def _replace_run(container: Container, start: int, stop: int, items: list[Item]) -> None:
+    """Replace `container.body[start:stop]` by `items` and move the index of the keys after it."""
+    shift = len(items) - (stop - start)
+    container.body[start:stop] = [(None, item) for item in items]
+    for key, index in container._map.items():
+        container._map[key] = (
+            tuple(i + shift if i >= stop else i for i in index)
+            if isinstance(index, tuple)
+            else (index + shift if index >= stop else index)
+        )
 
 
 def _table(document: Any, parts: list[str], created: list[tuple[Any, str]]) -> Any:

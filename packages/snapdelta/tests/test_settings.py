@@ -255,6 +255,78 @@ def test_save_keeps_a_new_profile_with_all_its_values_at_the_default(tmp_path) -
     assert "night" not in path.read_text()
 
 
+PROFILES_WITH_COMMENTS = """\
+# top
+[store]
+location = "x"
+
+# first
+[profiles.a]
+description = "a"
+
+# second
+[profiles.b]
+description = "b"
+
+# third
+[profiles.c]
+description = "c"
+"""
+
+
+def profiles_with_comments(*profiles: str, head: str = '# top\n[store]\nlocation = "x"\n\n') -> str:
+    comments = {"a": "first", "b": "second", "c": "third"}
+    tables = [f'# {comments[name]}\n[profiles.{name}]\ndescription = "{name}"\n' for name in profiles]
+    return head + "\n".join(tables)
+
+
+@pytest.mark.parametrize(
+    ("removed", "kept"),
+    [
+        (["a"], ["b", "c"]),
+        (["b"], ["a", "c"]),
+        (["c"], ["a", "b"]),
+        (["a", "b"], ["c"]),
+        (["b", "c"], ["a"]),
+        (["a", "b", "c"], []),
+    ],
+)
+def test_removing_profiles_keeps_the_comments_of_the_other_tables(tmp_path, removed, kept) -> None:
+    path = write(tmp_path / "snapdelta.toml", PROFILES_WITH_COMMENTS)
+    save_settings(path, {}, removed=[f"profiles.{name}" for name in removed])
+    assert path.read_text().rstrip("\n") == profiles_with_comments(*kept).rstrip("\n")
+
+
+def test_removing_the_first_table_of_the_file_keeps_the_comment_of_the_next_one(tmp_path) -> None:
+    head = "# top\n\n"
+    path = write(tmp_path / "snapdelta.toml", profiles_with_comments("a", "b", head=head))
+    save_settings(path, {}, removed=["profiles.a"])
+    assert path.read_text().rstrip("\n") == profiles_with_comments("b", head=head).rstrip("\n")
+
+
+def test_removing_a_profile_without_comment_keeps_the_comment_of_the_next_one(tmp_path) -> None:
+    path = write(tmp_path / "snapdelta.toml", '[store]\nlocation = "x"\n\n[profiles.a]\n\n# second\n[profiles.b]\n')
+    save_settings(path, {}, removed=["profiles.a"])
+    assert path.read_text() == '[store]\nlocation = "x"\n\n# second\n[profiles.b]\n'
+
+
+def test_removing_a_profile_keeps_the_comments_in_an_explicit_profiles_table(tmp_path) -> None:
+    text = '[profiles]\n# first\n[profiles.a]\ndescription = "a"\n\n# second\n[profiles.b]\ndescription = "b"\n'
+    path = write(tmp_path / "snapdelta.toml", text)
+    save_settings(path, {}, removed=["profiles.a"])
+    assert path.read_text() == '[profiles]\n# second\n[profiles.b]\ndescription = "b"\n'
+
+
+def test_removing_a_profile_with_a_subtable_keeps_the_comment_of_the_next_one(tmp_path) -> None:
+    text = (
+        '# first\n[profiles.a]\n[profiles.a.tolerance]\n"interface.mtu" = 10\n\n'
+        '# second\n[profiles.b]\ndescription = "b"\n'
+    )
+    path = write(tmp_path / "snapdelta.toml", text)
+    save_settings(path, {}, removed=["profiles.a"])
+    assert path.read_text() == '# second\n[profiles.b]\ndescription = "b"\n'
+
+
 def test_save_writes_source_tables_and_secrets(tmp_path) -> None:
     path = tmp_path / "new" / "snapdelta.toml"
     secret = Secret(backend="env", reference="DEMO_PASSWORD")
