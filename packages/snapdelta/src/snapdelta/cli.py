@@ -48,7 +48,11 @@ Json = Annotated[bool, typer.Option("--json", help="Print JSON instead of text."
 # The options of the three commands snapdelta, snapdelta-web and snapdelta-mcp.
 StoreOption = Annotated[
     str | None,
-    typer.Option("--store", help="Store directory, or SCHEME://ADDRESS; wins over SNAPDELTA_STORE and the settings."),
+    typer.Option(
+        "--store",
+        help="SCHEME://ADDRESS (sqlite://FILE), or a directory for the file store; "
+        "wins over SNAPDELTA_STORE and the settings.",
+    ),
 ]
 SettingsOption = Annotated[
     Path | None,
