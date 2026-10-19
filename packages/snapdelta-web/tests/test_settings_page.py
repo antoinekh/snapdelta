@@ -203,6 +203,7 @@ def test_a_profile_keeps_its_name_as_the_title_with_its_delete_button_right_afte
     page = client.get("/admin/profiles").text
     group = page.split('<fieldset class="settings-group" id="profile-quiet">')[1].split("</fieldset>")[0]
     assert re.match(r'\s*<legend>quiet</legend>\s*<button [^>]*form="delete-profile-quiet"', group)
+    assert group.count("<legend") == 1 and group.index("</legend>") < group.index("<button")
 
 
 def test_each_profile_has_a_delete_button_in_its_own_form(client, settings_file) -> None:
