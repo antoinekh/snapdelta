@@ -161,14 +161,30 @@ class StoreContract:
         with pytest.raises(NotFoundError, match="no output matches"):
             store.resolve_output("nope")
 
-    def test_an_output_is_found_by_its_change(self, store: Store) -> None:
+    def test_a_label_resolves_inside_its_ticket(self, store: Store) -> None:
+        first = store.save_snapshot(sample(label="before", ticket="CHG-1"))
+        store.save_snapshot(sample(label="before", ticket="CHG-2", captured_at=FIRST + timedelta(hours=1)))
+        assert store.resolve_snapshot("R1@before", ticket="chg-1") == first
+        with pytest.raises(NotFoundError, match="in ticket 'CHG-3'"):
+            store.resolve_snapshot("R1@before", ticket="CHG-3")
+
+    def test_the_snapshots_of_a_ticket(self, store: Store) -> None:
+        store.save_snapshot(sample(label="before"))
+        marked = store.save_snapshot(
+            sample(label="after", ticket="Évolution / lot 2", captured_at=FIRST + timedelta(hours=1))
+        )
+        assert [entry.reference for entry in store.snapshot_entries("R1", ticket="ÉVOLUTION / LOT 2")] == [marked]
+
+    def test_an_output_is_found_by_its_ticket(self, store: Store) -> None:
         first = store.save_output(compare(sample(), sample(target="R2")))
         second = store.save_output(compare(sample(), sample(target="R3")))
-        store.describe_output(second, None, None, "CHG-1042")
+        store.describe_output(second, ticket="CHG-1042")
         assert [entry.name for entry in store.output_entries("chg-10")] == [second]
+        assert [entry.name for entry in store.output_entries(ticket="chg-1042")] == [second]
+        assert store.output_entries(ticket="CHG-10") == []
         assert [entry.name for entry in store.output_entries("r2")] == [first]
-        store.describe_output(second, None, None, "")
-        assert store.output_entries("chg-10") == []
+        store.describe_output(second, ticket="")
+        assert store.output_entries(ticket="CHG-1042") == []
 
     def test_an_output_keeps_the_order_of_its_models_and_objects(self, store: Store) -> None:
         # A diff shows its models and objects in this order: a backend that sorts the keys changes every report.
@@ -184,14 +200,14 @@ class StoreContract:
         assert second == first.replace("Z-", "Z.2-", 1)
         assert [entry.name for entry in store.output_entries()] == [second, first]
 
-    def test_the_title_and_the_reviews_of_an_output_change_and_stay(self, store: Store) -> None:
+    def test_the_note_and_the_reviews_of_an_output_change_and_stay(self, store: Store) -> None:
         output = compare(sample(), sample(interfaces={"eth0": 9000, "eth1": 9000}))
         name = store.save_output(output)
-        store.describe_output(name, "Change 42", "MTU of eth0", None)
+        store.describe_output(name, ticket="CHG-42", note="MTU of eth0")
         [key] = output.change_keys()
         store.review_output(name, key, new_review("ops", "expected"))
         saved = _reopened(store).load_output(name)
-        assert (saved.title, saved.description) == ("Change 42", "MTU of eth0")
+        assert (saved.ticket, saved.note) == ("CHG-42", "MTU of eth0")
         assert saved.reviews[key].comment == "expected" and saved.review_counts() == (1, 1)
         assert store.review_output(name, key, None).reviews == {}
 

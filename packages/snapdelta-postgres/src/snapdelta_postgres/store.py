@@ -32,6 +32,7 @@ from snapdelta.store import (
     parse_snapshot,
     snapshot_entry,
 )
+from snapdelta.ticket import ticket_key
 
 SCHEME = "postgresql"
 TABLES = """
@@ -41,18 +42,23 @@ create table if not exists snapdelta_snapshots (
     captured_at timestamptz not null,
     label text,
     source text not null,
+    ticket text,
+    ticket_key text,
     body json not null
 );
 create index if not exists snapdelta_snapshots_by_target on snapdelta_snapshots (target, reference);
+create index if not exists snapdelta_snapshots_by_ticket on snapdelta_snapshots (ticket_key);
 create table if not exists snapdelta_outputs (
     name text primary key,
     created_at timestamptz not null,
     left_target text not null,
     right_target text not null,
-    change text,
+    ticket text,
+    ticket_key text,
     body json not null
 );
 create index if not exists snapdelta_outputs_by_time on snapdelta_outputs (created_at);
+create index if not exists snapdelta_outputs_by_ticket on snapdelta_outputs (ticket_key);
 create table if not exists snapdelta_runs (
     id text primary key,
     body json not null
@@ -130,21 +136,26 @@ class PostgresStore(Store):
             ).fetchall()
         return [row[0] for row in rows]
 
-    def snapshot_entries(self, target: str) -> list[SnapshotEntry]:
+    def snapshot_entries(self, target: str, ticket: str | None = None) -> list[SnapshotEntry]:
+        key = ticket_key(ticket)
         with self._connect() as db:
             rows = db.execute(
-                "select reference from snapdelta_snapshots where target = %s order by reference desc", (target,)
+                "select reference from snapdelta_snapshots where target = %s and (%s::text is null or ticket_key = %s) "
+                "order by reference desc",
+                (target, key, key),
             ).fetchall()
         return [entry for (reference,) in rows if (entry := snapshot_entry(reference))]
 
-    def output_entries(self, query: str = "") -> list[OutputEntry]:
-        wanted = query.strip().lower()
+    def output_entries(self, query: str = "", ticket: str | None = None) -> list[OutputEntry]:
+        wanted = ticket_key(query) or ""
+        key = ticket_key(ticket)
         with self._connect() as db:
             rows = db.execute(
                 "select name from snapdelta_outputs "
-                "where strpos(lower(left_target), %s) > 0 or strpos(lower(right_target), %s) > 0 "
-                "or strpos(lower(coalesce(change, '')), %s) > 0 order by name desc",
-                (wanted, wanted, wanted),
+                "where (strpos(lower(left_target), %s) > 0 or strpos(lower(right_target), %s) > 0 "
+                "or strpos(coalesce(ticket_key, ''), %s) > 0) and (%s::text is null or ticket_key = %s) "
+                "order by name desc",
+                (wanted, wanted, wanted, key, key),
             ).fetchall()
         return [entry for (name,) in rows if (entry := output_entry(name))]
 
@@ -173,13 +184,16 @@ class PostgresStore(Store):
             snapshot.captured_at,
             snapshot.label,
             snapshot.source,
+            snapshot.ticket,
+            ticket_key(snapshot.ticket),
             Json(snapshot.model_dump(mode="json", by_alias=True)),
         )
         try:
             with self._connect() as db:
                 db.execute(
-                    "insert into snapdelta_snapshots (reference, target, captured_at, label, source, body) "
-                    "values (%s, %s, %s, %s, %s, %s)",
+                    "insert into snapdelta_snapshots "
+                    "(reference, target, captured_at, label, source, ticket, ticket_key, body) "
+                    "values (%s, %s, %s, %s, %s, %s, %s, %s)",
                     values,
                 )
         except psycopg.errors.UniqueViolation as error:
@@ -204,13 +218,14 @@ class PostgresStore(Store):
             output.created_at,
             output.left.target,
             output.right.target,
-            output.change,
+            output.ticket,
+            ticket_key(output.ticket),
             Json(output.model_dump(mode="json", by_alias=True)),
         )
         with self._connect() as db:
             db.execute(
-                "insert into snapdelta_outputs (name, created_at, left_target, right_target, change, body) "
-                "values (%s, %s, %s, %s, %s, %s)",
+                "insert into snapdelta_outputs (name, created_at, left_target, right_target, ticket, ticket_key, body) "
+                "values (%s, %s, %s, %s, %s, %s, %s)",
                 values,
             )
 
@@ -220,8 +235,8 @@ class PostgresStore(Store):
     def _replace_output(self, name: str, output: Output) -> None:
         with self._connect() as db:
             db.execute(
-                "update snapdelta_outputs set change = %s, body = %s where name = %s",
-                (output.change, Json(output.model_dump(mode="json", by_alias=True)), name),
+                "update snapdelta_outputs set ticket = %s, ticket_key = %s, body = %s where name = %s",
+                (output.ticket, ticket_key(output.ticket), Json(output.model_dump(mode="json", by_alias=True)), name),
             )
 
     def _delete_output(self, name: str) -> None:
