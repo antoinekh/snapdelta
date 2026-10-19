@@ -301,6 +301,7 @@ def sample_output() -> Output:
         skipped=[],
         summary=summary,
         diff=diff,
+        ticket=None,
     )
 
 
