@@ -265,6 +265,7 @@ def diff_snapshots(
     """
     if (right is None) == (not live):
         raise SnapdeltaError("give right, or live, not both")
+    ticket = normalize_ticket(ticket)
     left_adapter = store.load_snapshot(store.resolve_snapshot(left, ticket))
     _check_expected_targets(expected, [target or left_adapter.target or left])
     run = recorded(store, "diff", origin, [left_adapter.target or left], settings) if save else contextlib.nullcontext()
@@ -342,6 +343,7 @@ def diff_targets(
     left, right = left.removeprefix("@"), right.removeprefix("@") if right is not None else None
     if (right is None) == (not live):
         raise SnapdeltaError("give the label of the right side, or live, not both")
+    ticket = normalize_ticket(ticket)
     if live and not save:
         raise SnapdeltaError("a live diff of many targets saves the snapshots that it takes")
     chosen_profile = settings.profile(profile)

@@ -117,3 +117,34 @@ def test_diff_snapshots_resolves_its_labels_in_its_ticket_and_keeps_its_note(tmp
     assert done.live is not None and store.load_snapshot(done.live).ticket == "CHG-1"
     with pytest.raises(SnapdeltaError, match="in ticket 'CHG-9'"):
         diff_snapshots(store, settings, "R1@before", live=True, ticket="CHG-9")
+
+
+@pytest.mark.parametrize("blank", ["   ", ""])
+def test_a_blank_ticket_keeps_the_ticket_that_the_diff_inherits(tmp_path, blank) -> None:
+    from snapdelta.source import register_source
+
+    register_source(ExampleLiveSource)
+    store = FileStore(tmp_path)
+    for label, hour in (("before", 1), ("after", 2)):
+        captured_at = datetime(2026, 1, 1, hour, tzinfo=UTC)
+        store.save_snapshot(
+            load_source(ExampleLiveSource, target="R1", label=label, ticket="CHG-1", captured_at=captured_at)
+        )
+    between = diff_snapshots(store, Settings(), "R1@before", "R1@after", ticket=blank)
+    assert between.output.ticket == "CHG-1"
+    live = diff_snapshots(store, Settings(), "R1@before", live=True, ticket=blank)
+    assert live.output.ticket == "CHG-1"
+
+
+def test_diff_snapshots_looks_for_the_right_side_in_the_ticket_too(tmp_path) -> None:
+    from snapdelta.source import register_source
+
+    register_source(ExampleLiveSource)
+    store = FileStore(tmp_path)
+    for label, ticket, hour in (("before", "CHG-1", 1), ("after", "CHG-1", 2), ("after", "CHG-2", 3)):
+        captured_at = datetime(2026, 1, 1, hour, tzinfo=UTC)
+        store.save_snapshot(
+            load_source(ExampleLiveSource, target="R1", label=label, ticket=ticket, captured_at=captured_at)
+        )
+    done = diff_snapshots(store, Settings(), "R1@before", "R1@after", ticket="CHG-1")
+    assert done.output.right.snapshot == "R1/20260101T020000Z-after"
