@@ -129,12 +129,12 @@
     card.focus({ preventScroll: true });
   });
 
-  // Swap and the presets reload New diff with the chosen sides, and keep the title, the description and the profile.
+  // The reload keeps what was typed, because the ticket decides which snapshots the labels name.
   function reloadNewDiff(form, left, right) {
     var url = new URL("/new", location.origin);
     if (left) url.searchParams.set("left", left);
     if (right) url.searchParams.set("right", right);
-    ["title", "description", "profile"].forEach(function (name) {
+    ["ticket", "note", "profile"].forEach(function (name) {
       var field = form.elements[name];
       if (field && field.value) url.searchParams.set(name, field.value);
     });
