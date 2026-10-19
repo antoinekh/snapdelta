@@ -53,6 +53,8 @@ RUN_ID_RE = re.compile(r"^\d{8}T\d{12}Z-[a-z]+-[0-9a-f]{4}$")
 # The store keeps the newest runs only: the activity is a recent history, not an archive.
 RUNS_KEPT = 1000
 LATEST = "latest"
+# The largest integer that SQLite and PostgreSQL take as a limit or an offset.
+SQL_INTEGER_MAX = 2**63 - 1
 SCHEME_SEPARATOR = "://"
 SQLITE_PREFIX = "sqlite://"
 # A location without a scheme is a directory of the file store.
@@ -139,6 +141,8 @@ class SnapshotQuery:
     offset: int = 0
 
     def __post_init__(self) -> None:
+        if isinstance(self.targets, str):
+            raise SnapdeltaError("the targets of a snapshot list are a tuple of names, not one string")
         # A field left empty in a form or a request means no filter, whichever door the query comes through.
         wanted = dict.fromkeys(name for name in self.targets if name.strip())
         object.__setattr__(self, "targets", tuple(wanted))
@@ -146,8 +150,8 @@ class SnapshotQuery:
             value = getattr(self, name)
             if value is not None and not value.strip():
                 object.__setattr__(self, name, None)
-        if self.offset < 0 or (self.limit is not None and self.limit < 0):
-            raise SnapdeltaError("the limit and the offset of a snapshot list cannot be negative")
+        if not all(0 <= bound <= SQL_INTEGER_MAX for bound in (self.offset, self.limit or 0)):
+            raise SnapdeltaError(f"the limit and the offset of a snapshot list go from 0 to {SQL_INTEGER_MAX}")
 
     @property
     def safe_label(self) -> str | None:

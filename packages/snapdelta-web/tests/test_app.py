@@ -270,6 +270,12 @@ def test_the_snapshots_page_of_an_empty_store_offers_the_first_snapshot(tmp_path
     assert "No snapshot yet." in client.get("/snapshots").text
 
 
+def test_a_page_number_beyond_the_integer_range_of_sql_is_a_400_page(client) -> None:
+    page = client.get("/snapshots", params={"page": 10**18})
+    assert page.status_code == 400
+    assert "from 0 to 9223372036854775807" in page.text
+
+
 def test_the_target_page_pages_its_snapshots(big_client) -> None:
     target = big_client.get("/snapshots/DEV001", params={"page": 2})
     assert target.status_code == 200

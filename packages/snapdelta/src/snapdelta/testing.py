@@ -226,6 +226,12 @@ class StoreContract:
         assert store.snapshot_entries(SnapshotQuery(limit=2, offset=4)) == []
         assert store.snapshot_entries(SnapshotQuery(offset=40)) == []
 
+    def test_a_page_beyond_the_integer_range_of_sql_is_refused(self) -> None:
+        with pytest.raises(SnapdeltaError, match="from 0 to 9223372036854775807"):
+            SnapshotQuery(offset=2**63)
+        with pytest.raises(SnapdeltaError, match="from 0 to 9223372036854775807"):
+            SnapshotQuery(limit=2**63)
+
     def test_a_page_applies_after_the_filters(self, store: Store) -> None:
         for hour in (0, 2, 4):
             store.save_snapshot(sample(ticket="CHG-1", captured_at=FIRST + timedelta(hours=hour)))

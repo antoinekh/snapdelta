@@ -34,10 +34,19 @@ def at(hour: int) -> datetime:
     return datetime(2026, 9, 25, hour, 0, tzinfo=UTC)
 
 
-@pytest.mark.parametrize("window", [{"limit": -1}, {"offset": -1}])
-def test_a_negative_page_window_is_refused(window) -> None:
-    with pytest.raises(SnapdeltaError, match="cannot be negative"):
+@pytest.mark.parametrize("window", [{"limit": -1}, {"offset": -1}, {"limit": 2**63}, {"offset": 2**63}])
+def test_a_page_window_outside_the_integer_range_of_sql_is_refused(window) -> None:
+    with pytest.raises(SnapdeltaError, match="from 0 to 9223372036854775807"):
         SnapshotQuery(**window)
+
+
+def test_the_largest_page_window_is_accepted() -> None:
+    assert SnapshotQuery(limit=2**63 - 1, offset=2**63 - 1).page([1, 2]) == []
+
+
+def test_the_targets_of_a_query_are_not_one_string() -> None:
+    with pytest.raises(SnapdeltaError, match="a tuple of names"):
+        SnapshotQuery(targets="R1")  # type: ignore[arg-type]
 
 
 def test_the_blank_and_repeated_targets_of_a_query_are_dropped() -> None:
