@@ -1,6 +1,6 @@
 # Web UI
 
-`snapdelta-web` serves the store in a browser: the diffs, the snapshots, a form for a new diff, and the administration. These pages come from the lab of this repository (`lab/example`): change CHG-1042 adds VLAN 20 on the trunk between r1 and r2.
+`snapdelta-web` serves the store in a browser: the diffs, the snapshots, a form for a new diff, and the administration. The pages of the diffs come from the example plugin of this repository (`examples/minimal-plugin`), with the ticket CHG-1042 on R1 before and after a change; the other pages come from the lab (`lab/example`).
 
 ```bash
 snapdelta-web                         # http://127.0.0.1:8765
