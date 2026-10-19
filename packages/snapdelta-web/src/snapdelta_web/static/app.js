@@ -362,7 +362,7 @@
     }
   });
 
-  // A form with data-track-changes holds unsaved changes only while its values differ from the ones it loaded with.
+  // Comparing with the values the form loaded with lets a reverted field clear the unsaved state, and the leave-page prompt follows it.
   var dirtyForm = null;
   var loadedValues = new Map();
 

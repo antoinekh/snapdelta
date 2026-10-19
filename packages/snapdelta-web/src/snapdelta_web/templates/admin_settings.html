@@ -12,7 +12,7 @@
   An empty field takes its default.{% if section == "profiles" %} The names of the models and attributes are in <a href="/admin/models">Models</a>.{% endif %}
 </p>
 {% if section == "settings" %}<nav class="section-links" aria-label="Sections">{% for group in groups %}<a href="#group-{{ group.table | replace('.', '-') }}">{{ group.title }}</a>{% endfor %}</nav>{% endif %}
-<form method="post" action="/admin/{{ section }}" class="settings-form" data-track-changes>
+<form method="post" action="/admin/{{ section }}" class="settings-form" autocomplete="off" data-track-changes>
   {% for group in groups %}
   {% set new_profile = group.table == "profiles.+" %}
   <fieldset class="settings-group" id="{% if group.table.startswith('profiles.') %}{{ 'new-profile' if new_profile else 'profile-' ~ group.table.removeprefix('profiles.') }}{% else %}group-{{ group.table | replace('.', '-') }}{% endif %}">
