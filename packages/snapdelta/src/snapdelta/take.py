@@ -108,11 +108,13 @@ def take_snapshots(
     progress: OnProgress | None = None,
     *,
     ticket: str | None = None,
+    tickets: Mapping[str, str | None] | None = None,
 ) -> tuple[dict[str, Taken], dict[str, str]]:
     """The saved snapshots and the error messages, by target; a failed target does not stop the others.
 
-    The runner of `[snapshot] runner` runs the loads. The store records the command as a run of `origin` (cli,
-    web, api, mcp), with the log of each load. `progress` hears each target when it starts and when it ends.
+    A target in `tickets` has that ticket in place of `ticket`. The runner of `[snapshot] runner` runs the loads.
+    The store records the command as a run of `origin` (cli, web, api, mcp), with the log of each load. `progress`
+    hears each target when it starts and when it ends.
     """
     for cls in set(plan.values()):
         if require_source(cls.source) is not cls:
@@ -123,7 +125,13 @@ def take_snapshots(
     runner = require(RUNNERS, name)
     options = chosen.plugin("runners", name, runner.settings_class)
     tasks = [
-        LoadTask(source=cls.source, target=target, label=label, ticket=ticket, captured_at=captured_at)
+        LoadTask(
+            source=cls.source,
+            target=target,
+            label=label,
+            ticket=tickets[target] if tickets and target in tickets else ticket,
+            captured_at=captured_at,
+        )
         for target, cls in plan.items()
     ]
     with recorded(store, "snapshot", origin, list(plan), chosen) as run:
@@ -339,6 +347,8 @@ def diff_targets(
 
     `left` and `right` are labels, or `latest`. A target that fails does not stop the others. With `live`, the
     runner takes the snapshots of every target at the same time, in one snapshot run; the compares are one diff run.
+    With `ticket`, the labels are looked up in the snapshots of that ticket; a live snapshot has `ticket`, else the
+    ticket of its left snapshot.
     """
     left, right = left.removeprefix("@"), right.removeprefix("@") if right is not None else None
     if (right is None) == (not live):
@@ -436,14 +446,17 @@ def _live_rights(
 ) -> dict[str, str]:
     """Take a snapshot of each target now, with the source of its left snapshot; the references by target."""
     plan: dict[str, type[Source]] = {}
+    tickets: dict[str, str | None] = {}
     for name, reference in lefts.items():
         try:
-            cls = require_source(store.read_snapshot(reference).source)
+            snapshot = store.read_snapshot(reference)
+            cls = require_source(snapshot.source)
         except SnapdeltaError as error:
             results[name] = TargetDiff(name, error=str(error))
             continue
         if cls.fetches:
             plan[name] = cls
+            tickets[name] = ticket or snapshot.ticket
         else:
             results[name] = TargetDiff(
                 name, error=f"{name}: the source {cls.source!r} reads input files, so it cannot fetch"
@@ -451,7 +464,7 @@ def _live_rights(
     if not plan:
         return {}
     taken, failures = take_snapshots(
-        store, plan, label, jobs=jobs or settings.snapshot.jobs, settings=settings, origin=origin, ticket=ticket
+        store, plan, label, jobs=jobs or settings.snapshot.jobs, settings=settings, origin=origin, tickets=tickets
     )
     for name, message in failures.items():
         results[name] = TargetDiff(name, error=message)

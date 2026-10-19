@@ -102,6 +102,16 @@ def test_a_live_diff_takes_its_snapshot_in_the_ticket(lab) -> None:
     assert result.output is not None and result.output.ticket == "CHG-1"
 
 
+def test_a_live_diff_of_many_targets_inherits_the_ticket_of_each_left_snapshot(lab) -> None:
+    _, settings, store = lab
+    snapshot_targets(store, settings, "example-live", targets=["R1"], label="start", ticket="CHG-1")
+    snapshot_targets(store, settings, "example-live", targets=["R2"], label="start")
+    results = diff_targets(store, settings, "start", live=True, targets=["R1", "R2"])
+    assert results["R1"].live is not None and store.load_snapshot(results["R1"].live).ticket == "CHG-1"
+    assert results["R1"].output is not None and results["R1"].output.ticket == "CHG-1"
+    assert results["R2"].output is not None and results["R2"].output.ticket is None
+
+
 def test_all_targets_with_a_ticket_are_those_that_have_the_label_in_it(lab) -> None:
     _, settings, store = lab
     snapshot_targets(store, settings, "example-live", targets=["R2"], label="start", ticket="CHG-1")
