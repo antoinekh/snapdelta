@@ -777,7 +777,7 @@ def _comment_run_above(path: list[tuple[Container, int]]) -> tuple[Container, in
         return _comment_run_above(path[:-1])
     # A stale comment is harmless and a lost one is not, so a comment that nothing separates stays.
     before = _previous_item(body, start)
-    if isinstance(before, Whitespace) or (before is None and not isinstance(container, TOMLDocument)):
+    if isinstance(before, Whitespace):
         return container, start, stop
     return container, stop, stop
 

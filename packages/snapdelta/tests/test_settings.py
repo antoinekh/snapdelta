@@ -317,11 +317,15 @@ def test_removing_a_profile_without_comment_keeps_the_comment_of_the_next_one(tm
 
 
 def test_removing_a_profile_keeps_the_comments_in_an_explicit_profiles_table(tmp_path) -> None:
-    text = '[profiles]\n# first\n[profiles.a]\ndescription = "a"\n\n# second\n[profiles.b]\ndescription = "b"\n'
-    assert (
-        remove_profiles(tmp_path / "snapdelta.toml", text, "a")
-        == '[profiles]\n# second\n[profiles.b]\ndescription = "b"\n'
-    )
+    text = '[profiles]\n\n# first\n[profiles.a]\ndescription = "a"\n\n# second\n[profiles.b]\ndescription = "b"\n'
+    expected = '[profiles]\n\n# second\n[profiles.b]\ndescription = "b"\n'
+    assert remove_profiles(tmp_path / "snapdelta.toml", text, "a") == expected
+
+
+def test_a_comment_at_the_start_of_a_table_body_stays(tmp_path) -> None:
+    text = '[store]\n# location = "y"\n[profiles.a]\ndescription = "a"\n\n# second\n[profiles.b]\n'
+    expected = '[store]\n# location = "y"\n\n# second\n[profiles.b]\n'
+    assert remove_profiles(tmp_path / "snapdelta.toml", text, "a") == expected
 
 
 def test_removing_a_profile_with_a_subtable_keeps_the_comment_of_the_next_one(tmp_path) -> None:
