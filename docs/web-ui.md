@@ -29,6 +29,10 @@ snapdelta-web                         # http://127.0.0.1:8765
 
 Every saved diff, newest first and by day, with its **Ticket**, the first line of its note, its two sides and a delta strip; the search filters by target or a part of the ticket, and `/diffs?ticket=CHG-1042` (a click on a chip) lists the diffs of exactly that ticket. The ticket is any reference of the work (`CHG-1042`, `#216`, an issue): give it in **New diff**, in **Take snapshot**, with `--ticket`, or later on the page of the diff.
 
+## The snapshots
+
+**Snapshots** lists every snapshot of every target in one table, newest first, 50 per page: **Captured** (a link to the snapshot), **Target** (a link to the page of the target), **Label**, **Ticket** (a chip that lists the snapshots of exactly that ticket) and **Source**. **Target** (the whole name, with the targets of the store as suggestions), **Label** and **Ticket** filter the table as you type, and stay in the URL: `/snapshots?label=before&ticket=CHG-1042` lists the `before` snapshots of that ticket for all targets, and the first row is the newest. A label matches as the reference writes it, so `before swap` and `before_swap` are the same, and a ticket matches in any case.
+
 ## The snapshots of a target
 
 ![The page of r1: the timeline of its snapshots for one period, then the table](images/screenshots/target.png)

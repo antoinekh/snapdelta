@@ -1,5 +1,6 @@
 from datetime import UTC, datetime
 
+from snapdelta.store import SnapshotQuery
 from snapdelta_web import views
 from snapdelta_web.access import SnapshotCache
 
@@ -98,10 +99,12 @@ def test_model_deltas_and_lists(store, names) -> None:
 def test_lists_are_paged_and_filtered(big_store) -> None:
     rows, _, pager = views.output_rows(big_store, query="dev", page=2, size=50)
     assert (len(rows), pager.number, pager.has_previous, pager.has_next) == (10, 2, True, False)
-    targets, pager = views.target_rows(big_store, page=1, size=50)
-    assert (len(targets), pager.has_next) == (31, False)
-    first = next(row for row in targets if row.name == "DEV000")
-    assert (first.count, first.latest.minute) == (60, 59)
+    entries, pager = views.snapshot_list(big_store, SnapshotQuery(), page=36, size=50)
+    assert (len(entries), pager.has_next) == (50, True)
+    entries, pager = views.snapshot_list(big_store, SnapshotQuery(), page=37, size=50)
+    assert (len(entries), pager.has_next) == (3, False)
+    entries, pager = views.snapshot_list(big_store, SnapshotQuery(target="DEV000"), page=1, size=50)
+    assert (len(entries), pager.has_next, entries[0].captured_at.minute) == (50, True, 59)
     snapshots, unreadable, pager = views.target_snapshot_rows(big_store, "DEV000", page=2, size=50)
     assert (len(snapshots), unreadable, pager.has_next) == (10, [], False)
     assert snapshots[0].target == "DEV000"

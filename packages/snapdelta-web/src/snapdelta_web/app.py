@@ -452,9 +452,18 @@ def create_app(state: AppState) -> FastAPI:
         return render(request, "_models.html", context)
 
     @app.get("/snapshots", response_class=HTMLResponse)
-    def snapshots(request: Request, q: str = "", page: int = 1, deleted: int | None = None) -> HTMLResponse:
-        rows, pager = views.target_rows(state.store, q, page, PAGE_SIZE)
-        context = {"tab": "snapshots", "rows": rows, "pager": pager, "q": q, "deleted": deleted}
+    def snapshots(
+        request: Request,
+        target: str = "",
+        label: str = "",
+        ticket: str = "",
+        page: int = 1,
+        deleted: int | None = None,
+    ) -> HTMLResponse:
+        query = views.snapshot_query(target, label, ticket)
+        rows, pager = views.snapshot_list(state.store, query, page, PAGE_SIZE)
+        context = {"tab": "snapshots", "rows": rows, "pager": pager, "query": query, "deleted": deleted}
+        context |= {"filters": views.snapshot_filters(query), "targets": state.store.targets()}
         return render(request, "snapshots.html", context)
 
     @app.get("/snapshots/{target}", response_class=HTMLResponse)

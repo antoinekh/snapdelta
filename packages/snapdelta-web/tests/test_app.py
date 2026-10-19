@@ -6,7 +6,7 @@ from datetime import UTC, datetime
 import pytest
 from fastapi.testclient import TestClient
 
-from snapdelta.store import SnapshotQuery
+from snapdelta.store import FileStore, SnapshotQuery
 from snapdelta.testing import sample_run
 from snapdelta_example import ExampleSource
 from snapdelta_web import views
@@ -207,10 +207,68 @@ def test_a_missing_side_is_a_400_page(client, names) -> None:
     assert "select a left and a right snapshot" in page.text
 
 
-def test_snapshots_tab_lists_targets_then_their_snapshots(big_client) -> None:
-    listing = big_client.get("/snapshots", params={"q": "dev00"})
-    assert listing.status_code == 200
-    assert 'href="/snapshots/DEV001"' in listing.text and "R1" not in listing.text.split("<main")[1]
+def listed_references(page: str) -> list[str]:
+    return re.findall(r'class="row-link" href="/snapshots/([^"]+)"', page)
+
+
+def test_the_snapshots_page_lists_every_snapshot_newest_first(client, two_targets) -> None:
+    page = client.get("/snapshots").text
+    entries = two_targets.snapshot_entries()
+    assert listed_references(page) == [entry.reference for entry in entries]
+    assert {entry.target for entry in entries} == {"R1", "R2"}
+    assert 'href="/snapshots/R2"' in page and 'href="/snapshots/R1"' in page
+    assert page.count('<a class="ticket-chip" href="/snapshots?ticket=CHG-1">CHG-1</a>') == 3
+    assert page.count('<span class="tag">example</span>') == len(entries)
+    assert re.findall(r"<th[^>]*>([A-Za-z ]+)</th>", page.split("<thead>")[1].split("</thead>")[0]) == [
+        "Captured",
+        "Target",
+        "Label",
+        "Ticket",
+        "Source",
+    ]
+    assert '<datalist id="targets"><option value="R1"><option value="R2"></datalist>' in page
+
+
+def test_the_snapshots_page_filters_by_target_label_and_ticket(client, two_targets) -> None:
+    both = client.get("/snapshots", params={"label": "before", "ticket": "chg-1"}).text
+    assert [reference.split("/")[0] for reference in listed_references(both)] == ["R2", "R1"]
+    assert 'name="label" value="before"' in both and 'name="ticket" value="chg-1"' in both
+    only_r1 = client.get("/snapshots", params={"target": "R1", "ticket": "CHG-1"}).text
+    assert len(listed_references(only_r1)) == 2 and "R2/" not in only_r1
+    assert 'name="target" value="R1"' in only_r1
+
+
+def test_the_snapshots_pager_keeps_the_filters(two_targets, monkeypatch, make_app) -> None:
+    from snapdelta_web import app as app_module
+
+    monkeypatch.setattr(app_module, "PAGE_SIZE", 2)
+    page = TestClient(make_app(two_targets), base_url="http://127.0.0.1").get("/snapshots", params={"ticket": "Chg-1"})
+    assert 'href="/snapshots?ticket=Chg-1&page=2"' in page.text
+
+
+def test_the_snapshots_ticket_link_is_encoded_and_the_text_escaped(client, save_r2) -> None:
+    save_r2("x", "<b> #2", datetime(2026, 9, 26, tzinfo=UTC))
+    page = client.get("/snapshots").text
+    assert '<a class="ticket-chip" href="/snapshots?ticket=%3Cb%3E%20%232">&lt;b&gt; #2</a>' in page
+    assert "<b> #2" not in page
+    filtered = client.get("/snapshots", params={"ticket": "<b> #2"}).text
+    assert 'name="ticket" value="&lt;b&gt; #2"' in filtered
+
+
+def test_a_snapshots_filter_with_no_match_names_the_filters(client, two_targets) -> None:
+    page = client.get("/snapshots", params={"target": "R2", "label": "after", "ticket": "<i>"})
+    assert page.status_code == 200
+    assert "No snapshot for the target R2, the label after, the ticket &lt;i&gt;." in page.text
+    assert '<table class="list' not in page.text and "No snapshot yet" not in page.text
+    assert "No snapshot for the ticket CHG-9." in client.get("/snapshots", params={"ticket": "CHG-9"}).text
+
+
+def test_the_snapshots_page_of_an_empty_store_offers_the_first_snapshot(tmp_path, make_app) -> None:
+    client = TestClient(make_app(FileStore(tmp_path / "empty")), base_url="http://127.0.0.1")
+    assert "No snapshot yet." in client.get("/snapshots").text
+
+
+def test_the_target_page_pages_its_snapshots(big_client) -> None:
     target = big_client.get("/snapshots/DEV001", params={"page": 2})
     assert target.status_code == 200
     assert target.text.count('href="/snapshots/DEV001/') == 10
@@ -491,7 +549,7 @@ def test_the_lists_come_one_page_at_a_time(big_store, monkeypatch, make_app) -> 
     monkeypatch.setattr(app_module, "PAGE_SIZE", 7)
     client = TestClient(make_app(big_store), base_url="http://127.0.0.1")
     page = client.get("/snapshots")
-    assert page.text.count('class="row-link mono" href="/snapshots/DEV') == 7
+    assert page.text.count('class="row-link" href="/snapshots/') == 7
 
 
 def test_admin_has_store_and_settings_sections(client) -> None:

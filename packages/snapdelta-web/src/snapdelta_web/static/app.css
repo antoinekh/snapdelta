@@ -349,8 +349,9 @@ form:not(:has(tbody .pick input:checked)) .bulk { display: none; }
 .subnav a[aria-current="page"] { background: var(--ink); color: var(--canvas); }
 .title-row .subnav, .panel-head .subnav { margin: 0; }
 .section-links { display: flex; flex-wrap: wrap; gap: 6px 16px; margin: 0 0 16px; font-size: 14px; }
-.period { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; }
-.period .inline-field { margin: 0; }
+.period, .filters { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; }
+.period .inline-field, .filters .inline-field { margin: 0; }
+.filters input { width: 160px; }
 
 /* MCP server page: the tools of the server, each with a form that calls it. */
 .mcp-section { margin-top: 28px; }
@@ -490,6 +491,8 @@ table.list.model-list td { vertical-align: top; }
   .new-diff { grid-template-columns: 1fr; }
   .grid { grid-template-columns: minmax(90px, 130px) 1fr 1fr; margin-left: 0; }
   .search-form, .search-form input, .legend-tools, .legend-tools .search { width: 100%; }
+  .filters, .filters .inline-field { width: 100%; }
+  .filters input { flex: 1; width: auto; }
   .legend-tools { margin-left: 0; }
   table.list { display: block; overflow-x: auto; }
 }
@@ -542,7 +545,7 @@ kbd { padding: 1px 6px; border: 1px solid var(--line); border-bottom-width: 2px;
 a.ticket-chip:hover { text-decoration: underline; }
 .ticket-heading { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; margin-right: auto; }
 .title-row .ticket-heading h1 { margin-right: 0; }
-.diffs .ticket-cell { width: 1%; white-space: nowrap; }
+.ticket-cell { width: 1%; white-space: nowrap; }
 .reviewed-tag { margin-left: 8px; font: 500 12px/1 var(--mono); color: var(--muted); }
 .reviewed-tag.complete { color: var(--right-text); }
 

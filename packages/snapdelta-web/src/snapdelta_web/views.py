@@ -24,6 +24,7 @@ from snapdelta.profile import accepted
 from snapdelta.settings import Profile
 from snapdelta.source import Source
 from snapdelta.store import OutputQuery, SnapshotEntry, SnapshotQuery, Store
+from snapdelta.ticket import normalize_ticket
 
 from .access import LruCache
 
@@ -430,13 +431,6 @@ class Pager:
     has_next: bool
 
 
-@dataclass(frozen=True)
-class TargetRow:
-    name: str
-    count: int
-    latest: datetime | None
-
-
 def page_of[T](items: list[T], page: int, size: int) -> tuple[list[T], Pager]:
     """One page of a list; the lists come from names only, so only the page is read further."""
     number = max(page, 1)
@@ -556,13 +550,22 @@ def _output_row(store: Store, name: str) -> OutputRow:
     )
 
 
-def target_rows(store: Store, query: str = "", page: int = 1, size: int = 50) -> tuple[list[TargetRow], Pager]:
-    names, pager = page_of(store.targets(query), page, size)
-    rows = []
-    for name in names:
-        entries = store.snapshot_entries(SnapshotQuery(target=name))
-        rows.append(TargetRow(name, len(entries), entries[0].captured_at if entries else None))
-    return rows, pager
+def snapshot_query(target: str, label: str, ticket: str) -> SnapshotQuery:
+    """The filters of the Snapshots page; a field left empty does not filter."""
+    return SnapshotQuery(target.strip() or None, label.strip() or None, normalize_ticket(ticket))
+
+
+def snapshot_filters(query: SnapshotQuery) -> str:
+    """The filters as a URL query string, for the links that keep them."""
+    pairs = [("target", query.target), ("label", query.label), ("ticket", query.ticket)]
+    return urlencode([(name, value) for name, value in pairs if value])
+
+
+def snapshot_list(
+    store: Store, query: SnapshotQuery, page: int = 1, size: int = 50
+) -> tuple[list[SnapshotEntry], Pager]:
+    """One page of the snapshots of every target that match `query`, newest first."""
+    return page_of(store.snapshot_entries(query), page, size)
 
 
 PERIOD_FORMAT = "%Y-%m-%dT%H:%M"
