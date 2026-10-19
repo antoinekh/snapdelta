@@ -432,7 +432,7 @@ class Pager:
 
 
 def page_of[T](items: list[T], page: int, size: int) -> tuple[list[T], Pager]:
-    """One page of a list; the lists come from names only, so only the page is read further."""
+    """One page of a list; a list holds rows, not documents, so only the page is read further."""
     number = max(page, 1)
     start = (number - 1) * size
     return items[start : start + size], Pager(number, number > 1, len(items) > start + size)
