@@ -238,6 +238,10 @@ def test_a_pipeline_describes_a_diff_and_finds_it_by_ticket(api, ticketed) -> No
         ("post", "/api/v1/diffs/targets", {"targets": ["R1"], "left": "before", "live": True, "note": "x" * 2001}),
         ("patch", "/api/v1/diffs/any", {"ticket": "x" * 81}),
         ("patch", "/api/v1/diffs/any", {"note": "x" * 2001}),
+        ("post", "/api/v1/snapshots", {"targets": ["R1"], "source": "example-live", "ticket": f" {'x' * 81} "}),
+        ("post", "/api/v1/diffs", {"left": "R1@before", "right": "R1@after", "ticket": f" {'x' * 81} "}),
+        ("post", "/api/v1/diffs/targets", {"targets": ["R1"], "left": "before", "live": True, "ticket": 5}),
+        ("patch", "/api/v1/diffs/any", {"ticket": f" {'x' * 81} "}),
     ],
 )
 def test_a_ticket_or_a_note_that_is_too_long_is_refused_before_any_work(api, store, method, path, body) -> None:
@@ -251,3 +255,24 @@ def test_a_ticket_or_a_note_that_is_too_long_is_refused_before_any_work(api, sto
         len(store.output_entries()),
         [len(store.snapshot_entries(SnapshotQuery(target=t))) for t in store.targets()],
     )
+
+
+def test_a_ticket_is_checked_after_its_normalization(api, store) -> None:
+    ticket = f"  {'x' * 40}   {'y' * 39}  "
+    padded = "x" * 40 + " " + "y" * 39
+    for label in ("before", "after"):
+        body = {"source": "example-live", "targets": ["R1"], "label": label, "ticket": ticket}
+        assert api.post("/api/v1/snapshots", json=body).status_code == 200
+    assert store.load_snapshot(store.resolve_snapshot("R1@before", padded)).ticket == padded
+
+    made = api.post("/api/v1/diffs", json={"left": "R1@before", "right": "R1@after", "ticket": ticket})
+    assert made.status_code == 200 and made.json()["ticket"] == padded
+    many = api.post(
+        "/api/v1/diffs/targets", json={"targets": ["R1"], "left": "before", "right": "after", "ticket": ticket}
+    )
+    assert many.status_code == 200 and many.json()["diffs"][0]["diff"]["ticket"] == padded
+
+    described = api.patch(f"/api/v1/diffs/{made.json()['name']}", json={"ticket": "  CHG-1   x  "})
+    assert described.status_code == 200 and described.json()["ticket"] == "CHG-1 x"
+    removed = api.patch(f"/api/v1/diffs/{made.json()['name']}", json={"ticket": "  "})
+    assert removed.status_code == 200 and removed.json()["ticket"] is None

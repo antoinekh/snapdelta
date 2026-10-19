@@ -201,6 +201,10 @@ def test_a_ticket_or_a_note_that_is_too_long_is_refused_before_any_work(store) -
         ("compare_targets", {"targets": ["R1"], "left": "before", "live": True, "note": "x" * 2001}),
         ("describe_diff", {"name": "any", "ticket": "x" * 81}),
         ("describe_diff", {"name": "any", "note": "x" * 2001}),
+        ("take_snapshots", {"targets": ["R1"], "source": "example-live", "ticket": f" {'x' * 81} "}),
+        ("compare", {"left": "R1@before", "right": "R1@after", "ticket": f" {'x' * 81} "}),
+        ("compare_targets", {"targets": ["R1"], "left": "before", "live": True, "ticket": f" {'x' * 81} "}),
+        ("describe_diff", {"name": "any", "ticket": f" {'x' * 81} "}),
     ]
 
     async def steps(client: Client) -> list[Any]:
@@ -216,3 +220,28 @@ def test_a_ticket_or_a_note_that_is_too_long_is_refused_before_any_work(store) -
         len(store.output_entries()),
         [len(store.snapshot_entries(SnapshotQuery(target=t))) for t in store.targets()],
     )
+
+
+def test_an_agent_gives_a_ticket_that_is_padded_but_short_after_its_normalization(store) -> None:
+    ticket = f"  {'x' * 40}   {'y' * 39}  "
+    padded = "x" * 40 + " " + "y" * 39
+
+    async def steps(client: Client) -> Any:
+        for label in ("before", "after"):
+            await client.call_tool(
+                "take_snapshots", {"targets": ["R1"], "label": label, "source": "example-live", "ticket": ticket}
+            )
+        compared = await client.call_tool("compare", {"left": "R1@before", "right": "R1@after", "ticket": ticket})
+        many = await client.call_tool(
+            "compare_targets", {"left": "before", "right": "after", "targets": ["R1"], "ticket": ticket}
+        )
+        name = compared.structured_content["name"]
+        described = await client.call_tool("describe_diff", {"name": name, "ticket": "  CHG-1   x  "})
+        removed = await client.call_tool("describe_diff", {"name": name, "ticket": ""})
+        return compared, many, described, removed
+
+    compared, many, described, removed = call(store, steps)
+    assert compared.structured_content["ticket"] == padded
+    assert many.structured_content["diffs"][0]["diff"]["ticket"] == padded
+    assert described.structured_content["ticket"] == "CHG-1 x"
+    assert removed.structured_content["ticket"] is None

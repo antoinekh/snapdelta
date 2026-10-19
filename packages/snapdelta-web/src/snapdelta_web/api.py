@@ -21,7 +21,7 @@ from snapdelta.snapshot import SnapshotFile
 from snapdelta.source import SOURCES, source_classes
 from snapdelta.store import OutputQuery, SnapshotEntry, SnapshotQuery
 from snapdelta.take import TargetDiff, diff_snapshots, diff_targets, snapshot_targets
-from snapdelta.ticket import TICKET_MAX
+from snapdelta.ticket import TicketChange, TicketText
 
 from .access import LruCache
 from .state import AppState
@@ -90,9 +90,7 @@ class SnapshotRequest(BaseModel):
     groups: list[str] = Field(default=[], description="Inventory groups: every host of each group.")
     all_targets: bool = Field(default=False, description="Every target of the source, or every inventory host.")
     label: str | None = Field(default=None, description="The label of the snapshots, for example before.")
-    ticket: str | None = Field(
-        default=None, max_length=TICKET_MAX, description="The ticket, issue or any reference of the work."
-    )
+    ticket: TicketText = Field(description="The ticket, issue or any reference of the work.")
 
 
 class SnapshotResult(BaseModel):
@@ -108,10 +106,8 @@ class DiffRequest(BaseModel):
     target: str | None = Field(default=None, description="With live: another target than the one of left.")
     models: list[str] = Field(default=[], description="Only these models; none: every model of both sides.")
     profile: str | None = Field(default=None, description="A compare profile of the settings.")
-    ticket: str | None = Field(
-        default=None,
-        max_length=TICKET_MAX,
-        description="The ticket of the diff; the labels are looked up in the snapshots of that ticket.",
+    ticket: TicketText = Field(
+        description="The ticket of the diff; the labels are looked up in the snapshots of that ticket."
     )
     note: str | None = Field(
         default=None, max_length=NOTE_MAX, description="Free text about the diff, on many lines when needed."
@@ -131,10 +127,8 @@ class TargetsDiffRequest(BaseModel):
     live: bool = Field(default=False, description="Fetch each target now as the right side, at the same time.")
     models: list[str] = Field(default=[], description="Only these models; none: every model of both sides.")
     profile: str | None = Field(default=None, description="A compare profile of the settings.")
-    ticket: str | None = Field(
-        default=None,
-        max_length=TICKET_MAX,
-        description="The ticket of the diff; the labels are looked up in the snapshots of that ticket.",
+    ticket: TicketText = Field(
+        description="The ticket of the diff; the labels are looked up in the snapshots of that ticket."
     )
     note: str | None = Field(
         default=None, max_length=NOTE_MAX, description="Free text about the diff, on many lines when needed."
@@ -282,9 +276,7 @@ class ReviewState(BaseModel):
 
 
 class DescribeRequest(BaseModel):
-    ticket: str | None = Field(
-        default=None, max_length=TICKET_MAX, description="The new ticket; none keeps it, an empty text removes it."
-    )
+    ticket: TicketChange = Field(description="The new ticket; none keeps it, an empty text removes it.")
     note: str | None = Field(
         default=None, max_length=NOTE_MAX, description="The new note; none keeps it, an empty text removes it."
     )
