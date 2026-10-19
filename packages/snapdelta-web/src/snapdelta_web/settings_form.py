@@ -1,7 +1,7 @@
 """The forms of the Admin tabs Settings and Profiles: one group per table, built from the settings models."""
 
 from collections.abc import Mapping, Sequence
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from pathlib import Path
 from types import NoneType, UnionType
 from typing import Any, Literal, Union, get_args, get_origin
@@ -54,16 +54,6 @@ class FormGroup:
     table: str
     title: str
     fields: list[FormField]
-    # A profile group can be removed; the other tables always exist.
-    removable: bool = False
-
-
-@dataclass(frozen=True)
-class FormValues:
-    """The posted values by table, and the tables to remove."""
-
-    values: dict[str, dict[str, Any]]
-    removed: list[str] = field(default_factory=list)
 
 
 def form_groups(
@@ -91,22 +81,19 @@ def form_groups(
 def profile_groups(settings: Settings) -> list[FormGroup]:
     """One group per profile, then the group that adds a profile."""
     written = read_settings_file(settings.file).get("profiles", {})
-    groups = []
-    for name, profile in sorted(settings.profiles.items()):
-        group = _group(f"profiles.{name}", name, profile, written.get(name, {}), settings)
-        groups.append(FormGroup(group.table, group.title, group.fields, removable=True))
+    groups = [
+        _group(f"profiles.{name}", name, profile, written.get(name, {}), settings)
+        for name, profile in sorted(settings.profiles.items())
+    ]
     groups.append(_group(NEW_PROFILE, "New profile", Profile(), {}, settings))
     return groups
 
 
-def parse_form(form: Mapping[str, str], groups: list[FormGroup]) -> FormValues:
+def parse_form(form: Mapping[str, str], groups: list[FormGroup]) -> dict[str, dict[str, Any]]:
     """The posted values by table; an empty field goes back to its default, an empty secret keeps the current one."""
-    parsed = FormValues({})
+    parsed: dict[str, dict[str, Any]] = {}
     errors: dict[str, str] = {}
     for group in groups:
-        if group.removable and form.get(f"{group.table}.remove"):
-            parsed.removed.append(group.table)
-            continue
         table: dict[str, Any] = {}
         for item in group.fields:
             if item.kind == "bool":
@@ -131,9 +118,9 @@ def parse_form(form: Mapping[str, str], groups: list[FormGroup]) -> FormValues:
                 errors[NEW_PROFILE_NAME] = f"{name!r}: a profile name holds letters, digits, _ and - only"
             elif any(group.table == f"profiles.{name}" for group in groups):
                 errors[NEW_PROFILE_NAME] = f"a profile {name!r} exists already"
-            parsed.values[f"profiles.{name}"] = table
+            parsed[f"profiles.{name}"] = table
         else:
-            parsed.values[group.table] = table
+            parsed[group.table] = table
     if errors:
         raise SettingsError("\n".join(f"{key}: {message}" for key, message in errors.items()), errors)
     return parsed

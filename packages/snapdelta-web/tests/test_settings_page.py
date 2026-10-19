@@ -125,16 +125,14 @@ def test_an_empty_secret_keeps_the_current_one(tmp_path, monkeypatch) -> None:
     (tmp_path / "snapdelta.toml").write_text('[sources.token]\ntoken = { env = "MY_TOKEN" }\n')
     installed = {"token": TokenSource}
     groups = settings_form.form_groups(load_settings(installed=installed), installed)
-    assert settings_form.parse_form({}, groups).values["sources.token"]["token"] == Secret(
-        backend="env", reference="MY_TOKEN"
-    )
+    assert settings_form.parse_form({}, groups)["sources.token"]["token"] == Secret(backend="env", reference="MY_TOKEN")
     changed = settings_form.parse_form({"sources.token.token.plain": "abc"}, groups)
-    assert changed.values["sources.token"]["token"] == Secret(plain="abc")
+    assert changed["sources.token"]["token"] == Secret(plain="abc")
     removed = settings_form.parse_form({"sources.token.token.clear": "true"}, groups)
-    assert removed.values["sources.token"]["token"] is None
+    assert removed["sources.token"]["token"] is None
     posted = {"sources.token.token.backend": "file", "sources.token.token.reference": "/run/secrets/token"}
     from_file = settings_form.parse_form(posted, groups)
-    assert from_file.values["sources.token"]["token"] == Secret(backend="file", reference="/run/secrets/token")
+    assert from_file["sources.token"]["token"] == Secret(backend="file", reference="/run/secrets/token")
 
 
 def test_a_store_that_cannot_open_keeps_the_running_state(client, settings_file, tmp_path) -> None:
@@ -154,7 +152,7 @@ def test_a_store_that_cannot_open_keeps_the_running_state(client, settings_file,
     assert client.get("/diffs").status_code == 200
 
 
-def test_profiles_are_shown_edited_added_and_removed(client, settings_file) -> None:
+def test_profiles_are_shown_edited_and_added(client, settings_file) -> None:
     settings_file.write_text(
         settings_file.read_text() + '\n# my profiles\n[profiles.quiet]\nignore = ["*.description"]\n'
         "\n[profiles.old]\nskip_only_left = true\n"
@@ -172,7 +170,6 @@ def test_profiles_are_shown_edited_added_and_removed(client, settings_file) -> N
             "profiles.quiet.ignore": "*.description\ninterface.mtu",
             "profiles.quiet.tolerance": "bgp_peer.prefixes_received = 5%\ninterface.speed_mbps = 100",
             "profiles.old.skip_only_left": "true",
-            "profiles.old.remove": "true",
             "new_profile": "migration",
             "profiles.+.pairs": "ge-0/0/6 = 1/1/1",
         }
@@ -182,8 +179,70 @@ def test_profiles_are_shown_edited_added_and_removed(client, settings_file) -> N
     assert saved.profiles["quiet"].ignore == ["*.description", "interface.mtu"]
     assert saved.profiles["quiet"].tolerance == {"bgp_peer.prefixes_received": "5%", "interface.speed_mbps": 100}
     assert saved.profiles["migration"].pairs == {"ge-0/0/6": "1/1/1"}
-    assert "old" not in saved.profiles
+    assert saved.profiles["old"].skip_only_left is True
     assert "# my profiles" in settings_file.read_text()
+
+
+def test_each_profile_has_a_delete_button_in_its_own_form(client, settings_file) -> None:
+    settings_file.write_text(settings_file.read_text() + "\n[profiles.quiet]\nskip_only_left = true\n")
+    client.post("/admin/profiles", data=form(), follow_redirects=False)
+    page = client.get("/admin/profiles").text
+    assert "Remove profile" not in page and ".remove" not in page
+    settings_form = page.split('<form method="post" action="/admin/profiles"')[1].split("</form>")[0]
+    assert 'form="delete-profile-quiet"' in settings_form
+    assert (
+        '<form id="delete-profile-quiet" method="post" action="/admin/profiles/quiet/delete"'
+        ' data-confirm="Delete the profile quiet?">'
+    ) in page
+
+
+def test_a_profile_is_deleted_at_once_and_the_rest_of_the_file_stays(client, settings_file) -> None:
+    settings_file.write_text(
+        settings_file.read_text() + '\n[profiles.change-window]\nignore = ["*.description"]\n'
+        "\n[profiles.quiet]\nskip_only_left = true\n"
+    )
+    client.post("/admin/profiles", data=form(), follow_redirects=False)
+    response = client.post("/admin/profiles/change-window/delete", follow_redirects=False)
+    assert response.status_code == 303
+    assert response.headers["location"] == "/admin/profiles?deleted=change-window"
+    text = settings_file.read_text()
+    assert "change-window" not in text and "skip_only_left = true" in text
+    assert "# kept" in text and "jobs = 10" in text and "[profiles.quiet]" in text
+    page = client.get(response.headers["location"]).text
+    assert f"Deleted the profile <code>change-window</code> from <code>{settings_file}</code>." in page
+    assert "<legend>change-window</legend>" not in page and "<legend>quiet</legend>" in page
+    assert load_settings(settings_file).profiles.keys() == {"quiet"}
+
+
+def test_deleting_an_unknown_profile_is_a_404(client, settings_file) -> None:
+    before = settings_file.read_text()
+    assert client.post("/admin/profiles/nope/delete").status_code == 404
+    assert settings_file.read_text() == before
+
+
+def test_a_failed_delete_leaves_the_profile_and_says_why(client, settings_file) -> None:
+    settings_file.write_text(settings_file.read_text() + "\n[profiles.quiet]\nskip_only_left = true\n")
+    client.post("/admin/profiles", data=form(), follow_redirects=False)
+    settings_file.parent.chmod(0o500)
+    try:
+        page = client.post("/admin/profiles/quiet/delete")
+    finally:
+        settings_file.parent.chmod(0o700)
+    assert page.status_code == 400 and "Not saved" in page.text and "Permission denied" in page.text
+    assert "[profiles.quiet]" in settings_file.read_text() and "<legend>quiet</legend>" in page.text
+
+
+def test_a_saved_diff_still_opens_after_its_profile_is_deleted(client, settings_file, store, names) -> None:
+    settings_file.write_text(
+        f'[store]\nlocation = "{store.location}"\n[profiles.quiet]\nignore = ["interface.description"]\n'
+    )
+    client.post("/admin/profiles", data=form(), follow_redirects=False)
+    data = {"left": names.before, "right": names.after, "profile": "quiet"}
+    diff = client.post("/diffs", data=data, follow_redirects=False).headers["location"]
+    assert "profile quiet" in client.get(diff).text
+    assert client.post("/admin/profiles/quiet/delete", follow_redirects=False).status_code == 303
+    page = client.get(diff)
+    assert page.status_code == 200 and "profile quiet" in page.text
 
 
 def test_a_bad_profile_value_comes_back_on_its_field(client, settings_file) -> None:

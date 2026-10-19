@@ -3,7 +3,7 @@
 import functools
 import hashlib
 import json
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Callable
 from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Annotated, Any
@@ -846,12 +846,22 @@ def create_app(state: AppState) -> FastAPI:
         return render(request, "admin_plugins.html", {"tab": "admin", "section": "plugins", "points": points})
 
     @app.get("/admin/profiles", response_class=HTMLResponse)
-    def profiles_page(request: Request, saved: str | None = None) -> HTMLResponse:
-        return render(request, "admin_settings.html", settings_context(PROFILES, saved=saved))
+    def profiles_page(request: Request, saved: str | None = None, deleted: str | None = None) -> HTMLResponse:
+        return render(request, "admin_settings.html", settings_context(PROFILES, saved=saved, deleted=deleted))
 
     @app.post("/admin/profiles", response_model=None)
     async def save_profiles_page(request: Request) -> HTMLResponse | RedirectResponse:
         return await save_section(request, PROFILES)
+
+    @app.post("/admin/profiles/{name}/delete", response_model=None)
+    def delete_profile(request: Request, name: str) -> HTMLResponse | RedirectResponse:
+        if name not in state.settings.profiles:
+            raise NotFoundError(f"no profile {name!r}")
+        path = state.settings.file or user_settings_path()
+        failure = write_and_reload(path, lambda: save_settings(path, {}, source_classes(), [f"profiles.{name}"]))
+        if failure:
+            return render(request, "admin_settings.html", settings_context(PROFILES, failure=failure), 400)
+        return RedirectResponse(f"/admin/{PROFILES}?{urlencode({'deleted': name})}", status_code=303)
 
     def section_groups(section: str) -> list[FormGroup]:
         if section == PROFILES:
@@ -863,24 +873,16 @@ def create_app(state: AppState) -> FastAPI:
         }
         return form_groups(state.settings, source_classes(), plugin_choices)
 
-    async def save_section(request: Request, section: str) -> HTMLResponse | RedirectResponse:
-        """Save the tables of one Admin tab; the other tables and the comments of the file stay."""
-        installed = source_classes()
-        groups = section_groups(section)
-        posted = {key: str(value) for key, value in (await request.form()).items()}
-        path = state.settings.file or user_settings_path()
+    def write_and_reload(path: Path, write: Callable[[], None]) -> str | None:
+        """Change the settings file with `write`, then reload; the reason it failed, or None.
+
+        A `SettingsError` of `write` goes to the caller; the file is as before when this fails.
+        """
         previous = path.read_bytes() if path.is_file() else None
         try:
-            parsed = parse_form(posted, groups)
-            save_settings(path, parsed.values, installed, parsed.removed)
-        except SettingsError as error:
-            errors = errors_by_field(error.errors, groups, posted.get(NEW_PROFILE_NAME, "").strip())
-            context = settings_context(section, errors=errors, posted=posted)
-            return render(request, "admin_settings.html", context, 400)
+            write()
         except OSError as error:
-            context = settings_context(section, failure=f"{path}: {error.strerror}", posted=posted)
-            return render(request, "admin_settings.html", context, 400)
-        started = [getattr(state.settings.web, key) for key in START_KEYS]
+            return f"{path}: {error.strerror}"
         try:
             state.reload()
             configure_logging(state.settings.snapshot.log_level)
@@ -890,7 +892,24 @@ def create_app(state: AppState) -> FastAPI:
                 path.unlink(missing_ok=True)
             else:
                 path.write_bytes(previous)
-            failure = f"the store or the settings cannot be opened: {error}"
+            return f"the store or the settings cannot be opened: {error}"
+        return None
+
+    async def save_section(request: Request, section: str) -> HTMLResponse | RedirectResponse:
+        """Save the tables of one Admin tab; the other tables and the comments of the file stay."""
+        installed = source_classes()
+        groups = section_groups(section)
+        posted = {key: str(value) for key, value in (await request.form()).items()}
+        path = state.settings.file or user_settings_path()
+        started = [getattr(state.settings.web, key) for key in START_KEYS]
+        try:
+            parsed = parse_form(posted, groups)
+            failure = write_and_reload(path, lambda: save_settings(path, parsed, installed))
+        except SettingsError as error:
+            errors = errors_by_field(error.errors, groups, posted.get(NEW_PROFILE_NAME, "").strip())
+            context = settings_context(section, errors=errors, posted=posted)
+            return render(request, "admin_settings.html", context, 400)
+        if failure:
             context = settings_context(section, failure=failure, posted=posted)
             return render(request, "admin_settings.html", context, 400)
         changed = started != [getattr(state.settings.web, key) for key in START_KEYS]
@@ -909,6 +928,7 @@ def create_app(state: AppState) -> FastAPI:
             "posted": None,
             "failure": None,
             "saved": None,
+            "deleted": None,
             "restart": False,
             "secret_backends": sorted(discover(SECRETS).plugins),
         } | extra

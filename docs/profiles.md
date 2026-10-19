@@ -52,7 +52,7 @@ In the web UI, the **New diff** page and the **Compare with live** button of a s
 
 - `ignore` is one pattern per line; `tolerance`, `counts` and `pairs` are one `KEY = VALUE` per line (`bgp_peer.prefixes_received = 5%`, `ge-0/0/6 = 1/1/1`).
 - The `?` next to each field shows its help, and an empty field shows an example. **Admin**, then **Models**, gives the names of the models and attributes (`snapdelta models` in a terminal).
-- To add a profile, give its name (letters, digits, `_` and `-`) and its rules in **New profile**. To delete one, check **Remove profile** in its group.
+- To add a profile, give its name (letters, digits, `_` and `-`) and its rules in **New profile**. To delete one, click **Delete** in its group and confirm: the profile goes at once, with no need to save, and other edits of the page that are not saved yet are lost.
 - **Save settings** checks the rules as the CLI does: a wrong line comes back in red on its field, and the file does not change. The other tables of the file and its comments stay.
 
 ## How a profile changes a compare
