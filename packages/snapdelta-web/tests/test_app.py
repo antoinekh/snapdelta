@@ -268,6 +268,7 @@ def test_a_target_name_is_escaped_in_its_chip_and_encoded_in_the_links(store, ma
     page = client.get("/snapshots", params={"target": ["A&B", "<c>"]}).text
     assert re.findall(r'name="target" value="([^"]+)" checked', page) == ["A&amp;B", "&lt;c&gt;"]
     assert "<c>" not in page
+    assert 'href="/snapshots/A%26B/20260925T100000Z"' in page and 'href="/snapshots/A%26B"' in page
     [link] = re.findall(r'<a class="button quiet" href="([^"]+)"', page)
     assert html.unescape(link) == "/snapshots?target=A%26B&target=%3Cc%3E&page=2"
     monkeypatch.setattr(store, "snapshot_entries", lambda query: [])
@@ -279,7 +280,8 @@ def test_the_snapshots_picker_lists_the_targets_of_the_store_without_the_chosen_
     client = TestClient(make_app(two_targets), base_url="http://127.0.0.1")
     matches = client.get("/targets/matches", params={"q": "r", "target": ["R1"]}).text
     assert 'name="target" value="R2"' in matches and 'value="R1"' not in matches
-    assert 'name="target" value="Z' not in client.get("/targets/matches", params={"q": "R1"}).text
+    only_r1 = client.get("/targets/matches", params={"q": "R1"}).text
+    assert 'value="R1"' in only_r1 and 'value="R2"' not in only_r1
     assert "No match" in client.get("/targets/matches", params={"q": "zzz"}).text
     assert "Use" not in client.get("/targets/matches", params={"q": "zzz"}).text
 
