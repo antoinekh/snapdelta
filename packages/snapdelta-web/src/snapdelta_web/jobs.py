@@ -40,6 +40,7 @@ class TakeJob:
     id: str
     source: str
     label: str | None
+    ticket: str | None
     lines: dict[str, TargetLine]
     started_at: datetime = field(default_factory=lambda: datetime.now(UTC))
     ended_at: datetime | None = None
@@ -72,8 +73,10 @@ class TakeJobs:
         self._jobs: dict[str, TakeJob] = {}
         self._lock = threading.Lock()
 
-    def start(self, state: AppState, plan: dict[str, type[Source]], source: str, label: str | None) -> TakeJob:
-        job = TakeJob(secrets.token_hex(4), source, label, {name: TargetLine(name) for name in plan})
+    def start(
+        self, state: AppState, plan: dict[str, type[Source]], source: str, label: str | None, ticket: str | None
+    ) -> TakeJob:
+        job = TakeJob(secrets.token_hex(4), source, label, ticket, {name: TargetLine(name) for name in plan})
         with self._lock:
             self._jobs[job.id] = job
             for old in list(self._jobs)[:-JOBS_KEPT]:
@@ -104,6 +107,7 @@ class TakeJobs:
                 settings=state.settings,
                 origin="web",
                 progress=job.update,
+                ticket=job.ticket,
             )
         except SnapdeltaError as error:
             job.error = str(error)

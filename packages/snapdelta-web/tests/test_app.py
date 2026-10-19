@@ -363,6 +363,22 @@ def test_take_several_targets_at_once(client, store) -> None:
         assert f'href="/snapshots/{reference}"' in page
 
 
+def test_take_with_a_ticket_saves_it_on_each_snapshot(client, store) -> None:
+    form = client.get("/take").text
+    assert form.index('name="label"') < form.index('name="ticket"') and 'name="ticket" maxlength="80"' in form
+    data = {"source": "example-live", "target": ["R1", "R2"], "label": "live", "ticket": "  CHG-5 "}
+    taken = client.post("/take", data=data, follow_redirects=False)
+    page = finished_job(client, taken)
+    assert '<span class="ticket-chip">CHG-5</span>' in page
+    for target in ("R1", "R2"):
+        assert store.snapshot_entries(target, "chg-5")[0].reference.endswith("-live")
+    assert store.snapshot_entries("R2", "CHG-6") == []
+    unreachable = client.post("/take", data=data | {"target": "R9"}, follow_redirects=False)
+    finished_job(client, unreachable)
+    retried = client.post(unreachable.headers["location"] + "/retry", follow_redirects=False)
+    assert '<span class="ticket-chip">CHG-5</span>' in finished_job(client, retried)
+
+
 def test_take_all_targets_reports_the_failures(client, store) -> None:
     taken = client.post(
         "/take", data={"source": "example-live", "all_targets": "true", "target": ["R9"]}, follow_redirects=False
@@ -604,15 +620,17 @@ def test_the_inventory_tab(store, client, make_app) -> None:
     assert "No inventory." in client.get("/admin/inventory").text
 
 
-def test_a_diff_gets_a_title_at_the_compare_and_later(client, store, names) -> None:
-    data = {"left": names.before, "right": names.after, "title": "Change 42", "description": "New uplink"}
+def test_a_diff_gets_a_note_at_the_compare_and_later(client, store, names) -> None:
+    data = {"left": names.before, "right": names.after, "note": "New uplink\nSecond line"}
     name = client.post("/diffs", data=data, follow_redirects=False).headers["location"].removeprefix("/diffs/")
     page = client.get(f"/diffs/{name}").text
-    assert '<h1 class="diff-title">Change 42</h1>' in page and "New uplink" in page
-    assert ">Change 42</a>" in client.get("/diffs").text
-    client.post(f"/diffs/{name}/describe", data={"title": "Change 43", "description": ""})
-    assert (store.load_output(name).title, store.load_output(name).description) == ("Change 43", None)
-    assert ">Change 43</a>" in client.get("/diffs").text
+    assert '<p class="diff-note">New uplink\nSecond line</p>' in page
+    assert ">New uplink</a>" in client.get("/diffs").text
+    client.post(f"/diffs/{name}/describe", data={"note": "Done"})
+    assert store.load_output(name).note == "Done"
+    assert ">Done</a>" in client.get("/diffs").text
+    client.post(f"/diffs/{name}/describe", data={"note": ""})
+    assert store.load_output(name).note is None
 
 
 def test_every_page_links_the_project_and_the_about_tab_shows_the_versions(client) -> None:
@@ -695,6 +713,13 @@ def test_a_card_has_a_link_and_the_diff_an_api_call(client, names) -> None:
     assert 'id="card-interface:eth0"' in linked and 'id="card-interface:eth3"' not in linked
 
 
+def test_the_palette_finds_a_diff_by_ticket_and_note(client, names, store) -> None:
+    store.describe_output(names.same, ticket="CHG-77", note="Core uplink\nsecond")
+    for query in ("chg-77", "uplink"):
+        found = client.get("/palette", params={"q": query}).text
+        assert f'href="/diffs/{names.same}"' in found and "Core uplink" in found
+
+
 def test_the_palette_finds_targets_diffs_and_pages(client, names) -> None:
     empty = client.get("/palette").text
     assert "Diffs" in empty and 'href="/admin/profiles"' in empty and "Targets" not in empty
@@ -710,60 +735,110 @@ def test_every_page_has_the_shortcuts_window(client) -> None:
     assert "data-shortcuts-open" in page
 
 
-def test_new_diff_keeps_the_title_and_tells_a_missing_label(client, names) -> None:
+def test_new_diff_keeps_the_ticket_and_tells_a_missing_label(client, names) -> None:
     page = client.get(
-        "/new", params={"left": "R1@before", "right": "R1@nope", "title": "Change 7", "profile": "none"}
+        "/new", params={"left": "R1@before", "right": "R1@nope", "ticket": "CHG-7", "note": "Uplink", "profile": "none"}
     ).text
     assert f'value="{names.before}" checked' in page and 'value="R1@latest" checked' in page
     assert "No snapshot of R1 is labelled nope: the newest snapshot is selected." in page
-    assert 'value="Change 7"' in page and "data-swap-sides" in page and 'data-preset-labels="before after"' in page
+    assert 'value="CHG-7"' in page and ">Uplink</textarea>" in page
+    assert "data-swap-sides" in page and 'data-preset-labels="before after"' in page
 
 
-def test_the_diffs_list_shows_the_change_column(client, names, store) -> None:
-    store.describe_output(names.same, "CHG-9: first", None, "CHG-9")
+def test_the_diffs_list_shows_the_ticket_column(client, names, store) -> None:
+    store.describe_output(names.same, ticket="CHG-9", note="first")
     page = client.get("/diffs").text
-    assert "<th>Change</th>" in page and page.count('<span class="change-chip">CHG-9</span>') == 1
-    assert ">CHG-9: first</a>" in page and "group-change" not in page and "in-change" not in page
-    assert page.count('<td class="change-cell"></td>') == len(store.output_entries()) - 1
-    assert 'placeholder="Filter by target or change"' in page
+    assert "<th>Ticket</th>" in page
+    assert page.count('<a class="ticket-chip" href="/diffs?ticket=CHG-9">CHG-9</a>') == 1
+    assert ">first</a>" in page and "change-chip" not in page
+    assert page.count('<td class="ticket-cell"></td>') == len(store.output_entries()) - 1
+    assert 'placeholder="Filter by target or ticket"' in page
 
 
-def test_the_diffs_list_filters_by_change(client, names, store) -> None:
-    store.describe_output(names.same, None, None, "CHG-9")
-    page = client.get("/diffs", params={"q": "chg-9"}).text
-    assert f"/diffs/{names.same}" in page and f"/diffs/{names.partial}" not in page
+def test_the_ticket_chip_links_to_the_list_of_its_ticket(client, names, store) -> None:
+    store.describe_output(names.same, ticket="Migration Lyon #2")
+    page = client.get("/diffs").text
+    assert 'href="/diffs?ticket=Migration%20Lyon%20%232"' in page
 
 
-def test_a_change_is_escaped_in_the_list_and_on_the_diff_page(client, names, store) -> None:
-    store.describe_output(names.same, None, None, "<b>&")
-    assert '<span class="change-chip">&lt;b&gt;&amp;</span>' in client.get("/diffs").text
-    assert '<span class="change-chip">&lt;b&gt;&amp;</span>' in client.get(f"/diffs/{names.same}").text
+def test_the_diffs_list_filters_by_ticket(client, names, store) -> None:
+    store.describe_output(names.same, ticket="CHG-1")
+    store.describe_output(names.partial, ticket="CHG-10")
+    lower = client.get("/diffs", params={"ticket": "chg-1"}).text
+    assert f"/diffs/{names.same}" in lower and f"/diffs/{names.partial}" not in lower
+    page = client.get("/diffs", params={"ticket": "CHG-1"}).text
+    assert '<a href="/diffs">All diffs</a>' in page and '<span class="ticket-chip">CHG-1</span>' in page
+    assert 'name="ticket" value="CHG-1"' in page
+    searched = client.get("/diffs", params={"q": "chg-1"}).text
+    assert f"/diffs/{names.same}" in searched and f"/diffs/{names.partial}" in searched
+    assert "No diff of the ticket CHG-5." in client.get("/diffs", params={"ticket": "CHG-5"}).text
 
 
-def test_a_diff_gets_a_change_at_the_compare_and_later(client, store, names) -> None:
-    data = {"left": names.before, "right": names.after, "title": "r1", "change": "CHG-9"}
+def test_the_list_shows_the_first_line_of_a_note_cut_at_120_characters(client, names, store) -> None:
+    long_line = "x" * 130
+    store.describe_output(names.same, note=f"\n  {long_line}\nsecond\nthird")
+    page = client.get("/diffs").text
+    assert f">{'x' * 119}…</a><div" in page
+
+
+def test_a_ticket_and_a_note_are_escaped_in_the_list_and_on_the_diff_page(client, names, store) -> None:
+    store.describe_output(names.same, ticket="<b>&", note="<i>")
+    listed = client.get("/diffs").text
+    assert ">&lt;b&gt;&amp;</a>" in listed and ">&lt;i&gt;</a>" in listed
+    page = client.get(f"/diffs/{names.same}").text
+    assert '<a class="ticket-chip" href="/diffs?ticket=%3Cb%3E%26">&lt;b&gt;&amp;</a>' in page
+    assert '<p class="diff-note">&lt;i&gt;</p>' in page
+
+
+def test_a_diff_gets_a_ticket_at_the_compare_and_later(client, store, names) -> None:
+    data = {"left": names.before, "right": names.after, "ticket": "CHG-9"}
     name = client.post("/diffs", data=data, follow_redirects=False).headers["location"].removeprefix("/diffs/")
-    assert store.load_output(name).change == "CHG-9"
+    assert store.load_output(name).ticket == "CHG-9"
     page = client.get(f"/diffs/{name}").text
-    assert '<span class="change-chip">CHG-9</span>' in page and ">Edit</summary>" in page
-    assert page.index('name="change"') < page.index('name="title"')
-    client.post(f"/diffs/{name}/describe", data={"change": "", "title": "r1", "description": ""})
-    assert store.load_output(name).change is None
+    assert 'class="ticket-chip" href="/diffs?ticket=CHG-9">CHG-9</a>' in page and ">Edit</summary>" in page
+    assert 'name="ticket" value="CHG-9" maxlength="80"' in page and 'name="note" rows="3" maxlength="2000"' in page
+    assert page.index('name="ticket"') < page.index('name="note"')
+    client.post(f"/diffs/{name}/describe", data={"ticket": "", "note": "kept"})
+    assert (store.load_output(name).ticket, store.load_output(name).note) == (None, "kept")
 
 
-def test_many_targets_get_the_change(client, store) -> None:
-    data = {"left": "before", "right": "after", "live": "false", "title": "VLAN 20", "change": "CHG-9"}
+def test_describing_with_an_empty_note_keeps_the_ticket(client, store, names) -> None:
+    store.describe_output(names.same, ticket="CHG-9", note="old")
+    client.post(f"/diffs/{names.same}/describe", data={"ticket": "CHG-9", "note": ""})
+    assert (store.load_output(names.same).ticket, store.load_output(names.same).note) == ("CHG-9", None)
+    client.post(f"/diffs/{names.same}/describe", data={"ticket": "CHG-9", "note": "new"})
+    assert (store.load_output(names.same).ticket, store.load_output(names.same).note) == ("CHG-9", "new")
+
+
+def test_a_diff_without_ticket_has_an_edit_button_that_adds_one(client, names) -> None:
+    page = client.get(f"/diffs/{names.same}").text
+    assert ">Edit</summary>" in page and "ticket-chip" not in page and "diff-note" not in page
+
+
+def test_new_diff_compares_the_snapshots_of_its_ticket(client, store, ticketed) -> None:
+    data = {"left": "R1@before", "right": "R1@after", "ticket": "chg-1"}
+    name = client.post("/diffs", data=data, follow_redirects=False).headers["location"].removeprefix("/diffs/")
+    output = store.load_output(name)
+    assert output.ticket == "chg-1" and output.left.snapshot == "R1/20260926T100000Z-before"
+    other = client.post("/diffs", data={"left": "R1@before", "right": "R1@after", "ticket": "CHG-2"})
+    assert other.status_code == 404
+
+
+def test_many_targets_get_the_ticket_and_the_note(client, store, ticketed) -> None:
+    data = {"left": "before", "right": "after", "live": "false", "ticket": "CHG-1", "note": "VLAN 20"}
     result = client.post("/diffs/targets", data=data).text
-    assert '<span class="change-chip">CHG-9</span>' in result
+    assert '<span class="ticket-chip">CHG-1</span>' in result and "<h1>Diffs of many targets</h1>" in result
     newest = max(store.output_entries(), key=lambda entry: entry.created_at)
-    assert store.load_output(newest.name).change == "CHG-9"
+    assert (store.load_output(newest.name).ticket, store.load_output(newest.name).note) == ("CHG-1", "VLAN 20")
 
 
-def test_the_new_diff_forms_have_a_change_field(client) -> None:
-    for params in ({"change": "CHG-9"}, {"change": "CHG-9", "many": "true"}):
+def test_the_new_diff_forms_have_a_ticket_and_a_note_field(client) -> None:
+    for params in ({"ticket": "CHG-9"}, {"ticket": "CHG-9", "many": "true"}):
         page = client.get("/new", params=params).text
-        assert 'name="change" maxlength="80"' in page and 'value="CHG-9"' in page
-        assert page.index('name="change"') < page.index('name="title"')
+        assert 'name="ticket" maxlength="80"' in page and 'value="CHG-9"' in page
+        assert 'name="note"' in page and 'maxlength="2000"' in page
+        assert page.index('name="ticket"') < page.index('name="note"')
+        assert 'name="title"' not in page and 'name="change"' not in page
 
 
 def wait_for_runs(store, count: int = 1) -> None:
@@ -800,15 +875,15 @@ def test_the_activity_lists_the_runs_and_shows_their_log(client, store, monkeypa
     assert client.get(f"/api/v1/runs/{run.id}").json()["log"][0]["target"] == "R1"
 
 
-def test_the_new_diff_page_compares_many_targets(client, store) -> None:
+def test_the_new_diff_page_compares_many_targets(client, store, ticketed) -> None:
     page = client.get("/new", params={"many": "true"}).text
     assert 'action="/diffs/targets"' in page and 'name="live" value="true"' in page and 'action="/diffs"' not in page
-    data = {"left": "before", "right": "after", "live": "false", "title": "CHG-9", "description": "Swap of the core"}
+    data = {"left": "before", "right": "after", "live": "false", "ticket": "CHG-1", "note": "Swap of the core"}
     result = client.post("/diffs/targets", data=data)
     assert result.status_code == 200
-    assert "<h1>CHG-9</h1>" in result.text and "1 changed, 0 unchanged, 0 failed" in result.text
+    assert "<h1>Diffs of many targets</h1>" in result.text and "1 changed, 0 unchanged, 0 failed" in result.text
     newest = max(store.output_entries(), key=lambda entry: entry.created_at)
-    assert store.load_output(newest.name).description == "Swap of the core"
+    assert store.load_output(newest.name).note == "Swap of the core"
     assert 'href="/diffs/' in result.text
     refused = client.post("/diffs/targets", data={"left": "nope", "right": "after"})
     assert refused.status_code == 400 and "give targets, groups or all_targets" in refused.text

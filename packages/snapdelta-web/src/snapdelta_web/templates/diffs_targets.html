@@ -2,7 +2,7 @@
 {% block title %}Diffs of many targets · snapdelta{% endblock %}
 {% block content %}
 <nav class="crumbs" aria-label="Breadcrumb"><a href="/diffs">Diffs</a></nav>
-<div class="title-row">{% if change %}<span class="change-chip">{{ change }}</span>{% endif %}<h1>{{ title or "Diffs of many targets" }}</h1><span class="tag label">{{ left }} → {{ right }}</span></div>
+<div class="title-row">{% if ticket %}<span class="ticket-chip">{{ ticket }}</span>{% endif %}<h1>Diffs of many targets</h1><span class="tag label">{{ left }} → {{ right }}</span></div>
 <p class="muted">{{ changed | length }} changed, {{ unchanged | length }} unchanged, {{ failed | length }} failed.</p>
 <table class="list result-tags">
   <thead><tr><th>Target</th><th>Result</th><th>Diff or error</th></tr></thead>

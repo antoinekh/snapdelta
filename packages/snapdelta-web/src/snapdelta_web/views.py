@@ -19,7 +19,7 @@ from markupsafe import Markup, escape
 from snapdelta.activity import LogLine
 from snapdelta.catalog import context_fields
 from snapdelta.errors import SnapdeltaError
-from snapdelta.output import Output, Review, Side, change_key, compare
+from snapdelta.output import Output, Review, Side, change_key, compare, note_line
 from snapdelta.profile import accepted
 from snapdelta.settings import Profile
 from snapdelta.source import Source
@@ -127,8 +127,8 @@ class OutputRow:
     left: Side
     right: Side
     delta: Delta
-    title: str | None = None
-    change: str | None = None
+    ticket: str | None = None
+    note: str | None = None
     # Accepted changes, and all the changes.
     reviewed: tuple[int, int] = (0, 0)
 
@@ -448,10 +448,15 @@ RowCache = LruCache[tuple[str, str], "OutputRow"]
 
 
 def output_rows(
-    store: Store, query: str = "", page: int = 1, size: int = 50, cache: RowCache | None = None
+    store: Store,
+    query: str = "",
+    page: int = 1,
+    size: int = 50,
+    cache: RowCache | None = None,
+    ticket: str | None = None,
 ) -> tuple[list[OutputRow], list[str], Pager]:
     """One page of the outputs; `cache` keeps the small rows, so that a page does not read whole outputs again."""
-    entries, pager = page_of(store.output_entries(query), page, size)
+    entries, pager = page_of(store.output_entries(query, ticket), page, size)
     rows: list[OutputRow] = []
     unreadable: list[str] = []
     for entry in entries:
@@ -478,7 +483,7 @@ PALETTE_PAGES = [
     ("MCP server", "/mcp/docs"),
 ]
 PALETTE_LIMIT = 8
-# The palette searches the titles of the newest diffs only: each one is a row to read.
+# The palette searches the notes of the newest diffs only: each one is a row to read.
 PALETTE_DIFFS = 300
 
 
@@ -506,9 +511,13 @@ def palette(store: Store, query: str, cache: RowCache | None = None) -> list[Pal
     targets = [PaletteItem(target, f"/snapshots/{quote(target, safe='')}") for target in store.targets() if hit(target)]
     rows, _, _ = output_rows(store, "", 1, PALETTE_DIFFS, cache)
     diffs = [
-        PaletteItem(row.title or f"{row.left.target} vs {row.right.target}", f"/diffs/{row.name}", when(row.created_at))
+        PaletteItem(
+            note_line(row.note) or f"{row.left.target} vs {row.right.target}",
+            f"/diffs/{row.name}",
+            when(row.created_at),
+        )
         for row in rows
-        if hit(row.change, row.title, row.left.target, row.right.target, row.left.label, row.right.label)
+        if hit(row.ticket, row.note, row.left.target, row.right.target, row.left.label, row.right.label)
     ]
     pages = [PaletteItem(label, url) for label, url in PALETTE_PAGES if hit(label)]
     groups = [
@@ -543,7 +552,7 @@ def _output_row(store: Store, name: str) -> OutputRow:
     output = store.load_output(name)
     delta = output_delta(output)
     return OutputRow(
-        name, output.created_at, output.left, output.right, delta, output.title, output.change, output.review_counts()
+        name, output.created_at, output.left, output.right, delta, output.ticket, output.note, output.review_counts()
     )
 
 

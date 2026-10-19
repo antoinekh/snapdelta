@@ -24,7 +24,7 @@ from snapdelta.catalog import catalog
 from snapdelta.doctor import plugin_reports
 from snapdelta.errors import NotFoundError, SnapdeltaError
 from snapdelta.inventory import INVENTORIES
-from snapdelta.output import Output, common_models, new_review, skipped_models
+from snapdelta.output import Output, common_models, new_review, note_line, skipped_models
 from snapdelta.plugins import discover, extension_points
 from snapdelta.render import renderer, renderers
 from snapdelta.runners import RUNNERS
@@ -34,6 +34,7 @@ from snapdelta.snapshot import top_level_models
 from snapdelta.source import Source, broken_sources, source_classes
 from snapdelta.store import LATEST, PrunePlan, Store, age_cutoff
 from snapdelta.take import diff_snapshots, diff_targets, plan_sources, platform_source, target_names
+from snapdelta.ticket import normalize_ticket
 
 from . import views
 from .access import LruCache, SnapshotCache
@@ -161,6 +162,7 @@ def create_app(state: AppState) -> FastAPI:
     templates = Jinja2Templates(directory=HERE / "templates")
     templates.env.filters["when"] = views.when
     templates.env.filters["size"] = views.size_text
+    templates.env.filters["note_line"] = note_line
     templates.env.filters["ticks"] = views.ticks
     templates.env.filters["id_label"] = views.id_label
     templates.env.globals["asset"] = asset_url
@@ -290,9 +292,13 @@ def create_app(state: AppState) -> FastAPI:
         return RedirectResponse("/diffs")
 
     @app.get("/diffs", response_class=HTMLResponse)
-    def diffs(request: Request, q: str = "", page: int = 1, deleted: int | None = None) -> HTMLResponse:
-        rows, unreadable, pager = views.output_rows(state.store, q, page, PAGE_SIZE, row_cache)
+    def diffs(
+        request: Request, q: str = "", ticket: str = "", page: int = 1, deleted: int | None = None
+    ) -> HTMLResponse:
+        wanted = normalize_ticket(ticket)
+        rows, unreadable, pager = views.output_rows(state.store, q, page, PAGE_SIZE, row_cache, wanted)
         context = {"tab": "diffs", "rows": rows, "unreadable": unreadable, "pager": pager, "q": q, "deleted": deleted}
+        context["ticket"] = wanted
         context["groups"] = views.output_groups(rows)
         return render(request, "diffs.html", context)
 
@@ -336,9 +342,8 @@ def create_app(state: AppState) -> FastAPI:
         models: Annotated[list[str] | None, Form()] = None,
         pick_models: Annotated[bool, Form()] = False,
         profile: Annotated[str, Form()] = "",
-        change: Annotated[str, Form()] = "",
-        title: Annotated[str, Form()] = "",
-        description: Annotated[str, Form()] = "",
+        ticket: Annotated[str, Form()] = "",
+        note: Annotated[str, Form()] = "",
     ) -> RedirectResponse:
         if not left or not right:
             raise SnapdeltaError("select a left and a right snapshot")
@@ -351,9 +356,8 @@ def create_app(state: AppState) -> FastAPI:
             right,
             models=models,
             profile=profile or None,
-            change=change,
-            title=title,
-            description=description,
+            ticket=ticket,
+            note=note,
             origin="web",
         )
         return RedirectResponse(f"/diffs/{done.name}", status_code=303)
@@ -366,9 +370,8 @@ def create_app(state: AppState) -> FastAPI:
         group: Annotated[str, Form()] = "",
         live: Annotated[bool, Form()] = False,
         profile: Annotated[str, Form()] = "",
-        change: Annotated[str, Form()] = "",
-        title: Annotated[str, Form()] = "",
-        description: Annotated[str, Form()] = "",
+        ticket: Annotated[str, Form()] = "",
+        note: Annotated[str, Form()] = "",
     ) -> HTMLResponse:
         """For each host of the group, or each target of the store, TARGET@LEFT with TARGET@RIGHT or the target now."""
         results = diff_targets(
@@ -380,9 +383,8 @@ def create_app(state: AppState) -> FastAPI:
             all_targets=not group,
             live=live,
             profile=profile or None,
-            change=change,
-            title=title,
-            description=description,
+            ticket=ticket,
+            note=note,
             origin="web",
         )
         items = list(results.values())
@@ -391,8 +393,7 @@ def create_app(state: AppState) -> FastAPI:
             "results": items,
             "left": left.strip(),
             "right": "now" if live else right.strip(),
-            "title": title.strip(),
-            "change": change.strip(),
+            "ticket": normalize_ticket(ticket),
             "changed": [item for item in items if item.changed],
             "unchanged": [item for item in items if item.output is not None and not item.changed],
             "failed": [item for item in items if item.error],
@@ -402,12 +403,11 @@ def create_app(state: AppState) -> FastAPI:
     @app.post("/diffs/{name}/describe")
     def describe_diff(
         name: str,
-        change: Annotated[str, Form()] = "",
-        title: Annotated[str, Form()] = "",
-        description: Annotated[str, Form()] = "",
+        ticket: Annotated[str, Form()] = "",
+        note: Annotated[str, Form()] = "",
     ) -> RedirectResponse:
         resolved = state.store.resolve_output(name)
-        state.store.describe_output(resolved, title, description, change)
+        state.store.describe_output(resolved, ticket=ticket, note=note)
         row_cache.discard((state.store.location, resolved))
         return RedirectResponse(f"/diffs/{resolved}", status_code=303)
 
@@ -593,9 +593,8 @@ def create_app(state: AppState) -> FastAPI:
         request: Request,
         left: str | None = None,
         right: str | None = None,
-        change: str = "",
-        title: str = "",
-        description: str = "",
+        ticket: str = "",
+        note: str = "",
         profile: str = "",
         many: bool = False,
     ) -> HTMLResponse:
@@ -622,9 +621,8 @@ def create_app(state: AppState) -> FastAPI:
         context = {"tab": "new", "pickers": pickers, "profiles": profile_choices(), "groups": groups, "many": many}
         context |= {
             "missing": missing,
-            "change": change,
-            "title": title,
-            "description": description,
+            "ticket": ticket,
+            "note": note,
             "profile": profile,
         }
         context |= {"group_members": members}
@@ -634,6 +632,7 @@ def create_app(state: AppState) -> FastAPI:
     def delete_diffs(
         names: Annotated[list[str] | None, Form()] = None,
         q: Annotated[str, Form()] = "",
+        ticket: Annotated[str, Form()] = "",
         page: Annotated[int, Form()] = 1,
     ) -> RedirectResponse:
         resolved = [state.store.resolve_output(name) for name in _selected(names)]
@@ -641,7 +640,8 @@ def create_app(state: AppState) -> FastAPI:
             state.store.delete_output(name)
             row_cache.discard((state.store.location, name))
         query = urlencode(
-            {key: value for key, value in (("q", q), ("page", page)) if value} | {"deleted": len(resolved)}
+            {key: value for key, value in (("q", q), ("ticket", ticket), ("page", page)) if value}
+            | {"deleted": len(resolved)}
         )
         return RedirectResponse(f"/diffs?{query}", status_code=303)
 
@@ -740,6 +740,7 @@ def create_app(state: AppState) -> FastAPI:
         group: Annotated[list[str] | None, Form()] = None,
         all_targets: Annotated[bool, Form()] = False,
         label: Annotated[str, Form()] = "",
+        ticket: Annotated[str, Form()] = "",
     ) -> HTMLResponse | RedirectResponse:
         cls = None if source == BY_PLATFORM else collector(source)
         names = target_names(cls, target or [], all_targets, state.settings, group or [])
@@ -747,7 +748,7 @@ def create_app(state: AppState) -> FastAPI:
             raise SnapdeltaError("select a target, a group, or all targets")
         plan = plan_sources(names, state.settings, cls)
         # The loads run in the background: the page of the job follows each target live.
-        job = take_jobs.start(state, plan, source, label.strip() or None)
+        job = take_jobs.start(state, plan, source, label.strip() or None, normalize_ticket(ticket))
         return RedirectResponse(f"/take/jobs/{job.id}", status_code=303)
 
     @app.get("/take/jobs/{job_id}", response_class=HTMLResponse)
@@ -760,12 +761,12 @@ def create_app(state: AppState) -> FastAPI:
 
     @app.post("/take/jobs/{job_id}/retry")
     def retry_take_job(job_id: str) -> RedirectResponse:
-        """A new job with the failed targets of this one, with the same source and label."""
+        """A new job with the failed targets of this one, with the same source, label and ticket."""
         job = take_jobs.get(job_id)
         if not job.failed:
             raise SnapdeltaError("no failed target to take again")
         cls = None if job.source == BY_PLATFORM else collector(job.source)
-        retry = take_jobs.start(state, plan_sources(job.failed, state.settings, cls), job.source, job.label)
+        retry = take_jobs.start(state, plan_sources(job.failed, state.settings, cls), job.source, job.label, job.ticket)
         return RedirectResponse(f"/take/jobs/{retry.id}", status_code=303)
 
     @app.get("/admin/settings", response_class=HTMLResponse)

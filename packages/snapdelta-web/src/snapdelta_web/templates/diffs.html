@@ -2,23 +2,27 @@
 {% from "_macros.html" import side_label, strip, counts, pager as pages, search %}
 {% block title %}Diffs · snapdelta{% endblock %}
 {% block content %}
-<div class="title-row"><h1>Diffs</h1>{{ search("/diffs", q, "Filter by target or change") }}<a class="button primary" href="/new">New diff</a></div>
+<div class="title-row">
+  {% if ticket %}<div class="ticket-heading"><h1>Diffs</h1><span class="ticket-chip">{{ ticket }}</span><a href="/diffs">All diffs</a></div>{% else %}<h1>Diffs</h1>{% endif %}
+  {{ search("/diffs", q, "Filter by target or ticket", ticket) }}<a class="button primary" href="/new">New diff</a>
+</div>
 <div id="results">
 {% if deleted %}<p class="notice">Deleted {{ deleted }}.</p>{% endif %}
 {% if unreadable %}<p class="notice warn">Unreadable: {{ unreadable | join(", ") }}</p>{% endif %}
 {% if rows %}
 <form method="post" action="/diffs/delete" data-confirm-selected="names">
-<input type="hidden" name="q" value="{{ q }}"><input type="hidden" name="page" value="{{ pager.number }}">
+<input type="hidden" name="q" value="{{ q }}">{% if ticket %}<input type="hidden" name="ticket" value="{{ ticket }}">{% endif %}<input type="hidden" name="page" value="{{ pager.number }}">
 <table class="list diffs">
-  <thead><tr><th class="pick"><input type="checkbox" data-select-all aria-label="Select all on this page"></th><th>Change</th><th>Compared</th><th>Left</th><th>Right</th><th>Delta</th></tr></thead>
+  <thead><tr><th class="pick"><input type="checkbox" data-select-all aria-label="Select all on this page"></th><th>Ticket</th><th>Compared</th><th>Left</th><th>Right</th><th>Delta</th></tr></thead>
   <tbody>
     {% for group in groups %}
     <tr class="group-day"><th colspan="6">{{ group.day }}</th></tr>
     {% for row in group.rows %}
     <tr>
       <td class="pick"><input type="checkbox" name="names" value="{{ row.name }}" aria-label="Select"></td>
-      <td class="change-cell">{% if row.change %}<span class="change-chip">{{ row.change }}</span>{% endif %}</td>
-      <td>{% if row.title %}<a class="row-link" href="/diffs/{{ row.name }}" title="{{ row.title }}">{{ row.title }}</a><div class="muted small">{{ row.created_at | when }}</div>{% else %}<a class="row-link" href="/diffs/{{ row.name }}">{{ row.created_at | when }}</a>{% endif %}</td>
+      <td class="ticket-cell">{% if row.ticket %}<a class="ticket-chip" href="/diffs?ticket={{ row.ticket | urlencode }}">{{ row.ticket }}</a>{% endif %}</td>
+      {% set line = row.note | note_line %}
+      <td>{% if line %}<a class="row-link" href="/diffs/{{ row.name }}" title="{{ row.note }}">{{ line }}</a><div class="muted small">{{ row.created_at | when }}</div>{% else %}<a class="row-link" href="/diffs/{{ row.name }}">{{ row.created_at | when }}</a>{% endif %}</td>
       <td>{{ side_label(row.left) }}</td>
       <td>{{ side_label(row.right) }}</td>
       <td><span class="delta-wrap">{{ strip(row.delta) }}{{ counts(row.delta) }}{% if row.reviewed[0] %}<span class="reviewed-tag{{ ' complete' if row.reviewed[0] == row.reviewed[1] }}" title="Changes accepted">✓ {{ row.reviewed[0] }}/{{ row.reviewed[1] }}</span>{% endif %}</span></td>
@@ -29,9 +33,11 @@
 </table>
 <div class="bulk"><span class="bulk-count"></span><button type="reset" class="button quiet">Clear</button><button type="submit" class="button danger">Delete</button></div>
 </form>
-{{ pages(pager, "/diffs", q) }}
+{{ pages(pager, "/diffs", q, "ticket=" ~ (ticket | urlencode) if ticket else "") }}
 {% elif q %}
 <p class="empty">No diff for a target that matches "{{ q }}".</p>
+{% elif ticket %}
+<p class="empty">No diff of the ticket {{ ticket }}.</p>
 {% else %}
 <div class="empty-state"><p>No diff yet.</p><a class="button primary" href="/new">New diff</a></div>
 {% endif %}

@@ -172,14 +172,13 @@ form:not(:has(tbody .pick input:checked)) .bulk { display: none; }
 /* Diff page */
 .diff-head { margin-bottom: 28px; }
 .diff-about { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 16px; margin-bottom: 18px; }
-.diff-title { font-size: 28px; }
-/* A full line keeps the description under a short title; the padding keeps its text to 80ch. */
-.diff-description { flex-basis: 100%; order: 2; margin: 0; padding-right: max(0px, 100% - 80ch); color: var(--ink-2); white-space: pre-line; }
+/* A full line keeps the note under the ticket; the padding keeps its text to 80ch. */
+.diff-note { flex-basis: 100%; order: 2; margin: 0; padding-right: max(0px, 100% - 80ch); color: var(--ink-2); white-space: pre-line; }
 .describe { order: 1; }
 .describe summary { list-style: none; height: 30px; padding: 0 10px; font-size: 13px; }
 .describe summary::-webkit-details-marker { display: none; }
 .describe-form { display: flex; flex-direction: column; gap: 10px; width: min(560px, 90vw); margin-top: 10px; padding: 16px; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); }
-.describe-form textarea { padding: 8px 12px; border-radius: var(--radius-small); border: 1px solid var(--line-strong); background: var(--surface); font: inherit; color: var(--ink); }
+.describe-form textarea, .form-foot textarea { padding: 8px 12px; border-radius: var(--radius-small); border: 1px solid var(--line-strong); background: var(--surface); font: inherit; color: var(--ink); }
 .describe-form .button { align-self: flex-end; }
 .versus { display: grid; grid-template-columns: 1fr 1fr auto; gap: 16px; align-items: end; }
 .side { display: flex; flex-direction: column; gap: 4px; padding-left: 14px; border-left: 3px solid; }
@@ -284,10 +283,9 @@ form:not(:has(tbody .pick input:checked)) .bulk { display: none; }
 .picker .field input { width: 100%; }
 .right-picker:has([name="live"][value="true"]:checked) .right-label { display: none; }
 .form-foot { grid-column: 1 / -1; display: flex; flex-wrap: wrap; align-items: flex-end; gap: 16px; }
-.form-foot .field input, .form-foot .field select { width: 100%; }
-.change-field { flex: 0 1 160px; }
-.title-field { flex: 1 1 220px; }
-.description-field { flex: 2 1 320px; }
+.form-foot .field input, .form-foot .field select, .form-foot .field textarea { width: 100%; }
+.ticket-field { flex: 0 1 200px; }
+.note-field { flex: 2 1 320px; }
 .profile-field { flex: 0 1 280px; }
 .result-tags .tag.changed { background: var(--change-soft); color: var(--change-text); }
 .result-tags .tag.failed { background: var(--left-soft); color: var(--left-text); }
@@ -327,7 +325,8 @@ form:not(:has(tbody .pick input:checked)) .bulk { display: none; }
 /* Take snapshot */
 .take-fields { display: flex; flex-wrap: wrap; gap: 12px 16px; }
 .take-fields .search-field { flex: 1 1 260px; }
-.take-form .title-field { flex: 0 1 360px; margin-right: auto; }
+.take-form .label-field { flex: 0 1 360px; }
+.take-form .ticket-field { margin-right: auto; }
 .picks { display: flex; flex-wrap: wrap; gap: 6px; }
 .group-picks { display: flex; flex-direction: column; gap: 6px; margin: 0; padding: 0; border: 0; }
 .group-picks legend { padding: 0 0 6px; font-size: 13px; font-weight: 500; color: var(--muted); }
@@ -539,8 +538,11 @@ kbd { padding: 1px 6px; border: 1px solid var(--line); border-bottom-width: 2px;
 .hide-accepted .card:has(> .review.done):not(:has(.review:not(.done))) { display: none; }
 .diffs .group-day th { padding: 22px 16px 8px; border-bottom: 1px solid var(--line); background: var(--canvas); color: var(--ink); font-size: 13px; font-weight: 600; text-align: left; }
 .diffs tbody tr.group-day:first-child th { padding-top: 12px; }
-.change-chip { display: inline-block; padding: 2px 8px; border-radius: 4px; background: var(--cobalt-soft); color: var(--cobalt-text); font: 600 12.5px/1.5 var(--mono); white-space: nowrap; }
-.diffs .change-cell { width: 1%; white-space: nowrap; }
+.ticket-chip { display: inline-block; padding: 2px 8px; border-radius: 4px; background: var(--cobalt-soft); color: var(--cobalt-text); font: 600 12.5px/1.5 var(--mono); white-space: nowrap; }
+a.ticket-chip:hover { text-decoration: underline; }
+.ticket-heading { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; margin-right: auto; }
+.title-row .ticket-heading h1 { margin-right: 0; }
+.diffs .ticket-cell { width: 1%; white-space: nowrap; }
 .reviewed-tag { margin-left: 8px; font: 500 12px/1 var(--mono); color: var(--muted); }
 .reviewed-tag.complete { color: var(--right-text); }
 

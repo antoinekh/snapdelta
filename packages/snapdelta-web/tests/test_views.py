@@ -235,10 +235,10 @@ def test_diffs_group_by_day(store, names) -> None:
 
     row = views.output_rows(store)[0][0]
     rows = [
-        replace(row, change="CHG-1"),
-        replace(row, change="CHG-1"),
-        replace(row, title="other"),
-        replace(row, change="CHG-1", created_at=datetime(2026, 9, 24, 9, 0, tzinfo=UTC)),
+        replace(row, ticket="CHG-1"),
+        replace(row, ticket="CHG-1"),
+        replace(row, note="other"),
+        replace(row, ticket="CHG-1", created_at=datetime(2026, 9, 24, 9, 0, tzinfo=UTC)),
     ]
     groups = views.output_groups(rows)
     assert [(group.day, len(group.rows)) for group in groups] == [("25 Sep 2026", 3), ("24 Sep 2026", 1)]
