@@ -64,7 +64,7 @@ HERE = Path(__file__).parent
 BY_PLATFORM = ""
 # The Admin tabs that edit the settings file.
 SETTINGS, PROFILES = "settings", "profiles"
-# The field of the form that creates a profile, in the errors and the posted values of the page.
+# The field of the form that creates a profile, in its form, the errors and the posted values of the page.
 NEW_PROFILE_FIELD = "name"
 # A filter of Activity reads this many of the newest runs, since a store lists its runs without a filter of its own.
 ACTIVITY_WINDOW = 1000
@@ -866,7 +866,9 @@ def create_app(state: AppState) -> FastAPI:
         return RedirectResponse(f"/admin/{PROFILES}?{urlencode({'deleted': name})}", status_code=303)
 
     @app.post("/admin/profiles/new", response_model=None)
-    def create_profile(request: Request, name: Annotated[str, Form()] = "") -> HTMLResponse | RedirectResponse:
+    def create_profile(
+        request: Request, name: Annotated[str, Form(alias=NEW_PROFILE_FIELD)] = ""
+    ) -> HTMLResponse | RedirectResponse:
         name = name.strip()
         path = state.settings.file or user_settings_path()
         posted = {NEW_PROFILE_FIELD: name}
@@ -946,6 +948,7 @@ def create_app(state: AppState) -> FastAPI:
             "target_file": state.settings.file or user_settings_path(),
             "warnings": state.settings.warnings,
             "errors": {},
+            "new_profile_field": NEW_PROFILE_FIELD,
             "posted": None,
             "failure": None,
             "saved": None,
