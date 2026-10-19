@@ -169,7 +169,7 @@ def test_a_pipeline_takes_snapshots_with_a_ticket(api, store) -> None:
 def test_a_pipeline_compares_inside_a_ticket(api, ticketed) -> None:
     body = {"left": "R1@before", "right": "R1@after", "ticket": "chg-1", "note": "x"}
     made = api.post("/api/v1/diffs", json=body).json()
-    assert (made["ticket"], made["note"]) == ("chg-1", "x") and made["has_differences"] is True
+    assert (made["ticket"], made["note"]) == ("CHG-1", "x") and made["has_differences"] is True
     assert made["left"]["snapshot"].startswith("R1/20260926T100000Z")
     missing = api.post("/api/v1/diffs", json=body | {"ticket": "CHG-9"})
     assert missing.status_code == 404 and "CHG-9" in missing.json()["error"]

@@ -338,7 +338,7 @@ def test_diff_resolves_its_labels_in_its_ticket(make_adapter, tmp_path) -> None:
     result = runner.invoke(app, [*base, "--ticket", "chg-1", "--note", "first\nsecond"])
     assert result.exit_code == 1, result.output
     saved = store.load_output(store.output_entries()[0].name)
-    assert (saved.ticket, saved.note) == ("chg-1", "first\nsecond")
+    assert (saved.ticket, saved.note) == ("CHG-1", "first\nsecond")
     assert '"old"' in result.output
 
 

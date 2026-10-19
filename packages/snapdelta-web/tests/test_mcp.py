@@ -155,9 +155,9 @@ def test_an_agent_sets_the_ticket_and_the_note_and_finds_the_diff(ticketed) -> N
         return name, compared, described, cleared, found, none, many
 
     name, compared, described, cleared, found, none, many = call(ticketed, steps)
-    assert (compared.structured_content["ticket"], compared.structured_content["note"]) == ("chg-1", "r1")
-    assert (described.structured_content["ticket"], described.structured_content["note"]) == ("chg-1", "r1 uplink")
-    assert (cleared.structured_content["ticket"], cleared.structured_content["note"]) == ("chg-1", None)
+    assert (compared.structured_content["ticket"], compared.structured_content["note"]) == ("CHG-1", "r1")
+    assert (described.structured_content["ticket"], described.structured_content["note"]) == ("CHG-1", "r1 uplink")
+    assert (cleared.structured_content["ticket"], cleared.structured_content["note"]) == ("CHG-1", None)
     assert [item["name"] for item in found.structured_content["result"]] == [name]
     assert none.structured_content["result"] == []
     diff = many.structured_content["diffs"][0]["diff"]

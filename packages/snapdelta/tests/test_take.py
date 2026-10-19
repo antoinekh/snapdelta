@@ -158,6 +158,20 @@ def test_diff_snapshots_looks_for_the_right_side_in_the_ticket_too(tmp_path) -> 
     assert done.output.right.snapshot == "R1/20260101T020000Z-after"
 
 
+def test_a_diff_keeps_the_text_of_the_ticket_of_its_sides_when_the_given_one_differs_in_case(tmp_path) -> None:
+    from snapdelta.source import register_source
+
+    register_source(ExampleLiveSource)
+    store = FileStore(tmp_path)
+    for label, hour in (("before", 1), ("after", 2)):
+        captured_at = datetime(2026, 1, 1, hour, tzinfo=UTC)
+        store.save_snapshot(
+            load_source(ExampleLiveSource, target="R1", label=label, ticket="CHG-1", captured_at=captured_at)
+        )
+    done = diff_snapshots(store, Settings(), "R1@before", "R1@after", ticket="chg-1", note="uplink")
+    assert (done.output.ticket, done.output.note) == ("CHG-1", "uplink")
+
+
 def test_a_ticket_or_a_note_that_is_too_long_stops_before_any_snapshot_is_taken(tmp_path) -> None:
     from snapdelta.source import register_source
 

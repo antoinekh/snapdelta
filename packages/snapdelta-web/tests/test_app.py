@@ -826,7 +826,7 @@ def test_new_diff_compares_the_snapshots_of_its_ticket(client, store, ticketed) 
     data = {"left": "R1@before", "right": "R1@after", "ticket": "chg-1"}
     name = client.post("/diffs", data=data, follow_redirects=False).headers["location"].removeprefix("/diffs/")
     output = store.load_output(name)
-    assert output.ticket == "chg-1" and output.left.snapshot == "R1/20260926T100000Z-before"
+    assert output.ticket == "CHG-1" and output.left.snapshot == "R1/20260926T100000Z-before"
     other = client.post("/diffs", data={"left": "R1@before", "right": "R1@after", "ticket": "CHG-2"})
     assert other.status_code == 404
 

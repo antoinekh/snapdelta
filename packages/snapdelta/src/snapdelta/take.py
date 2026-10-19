@@ -16,7 +16,7 @@ from .runners import RUNNERS, LoadTask, OnProgress
 from .settings import Settings, SourceSettings
 from .source import Source, require_source, source_classes
 from .store import Store
-from .ticket import check_ticket
+from .ticket import check_ticket, ticket_key
 
 
 @dataclass(frozen=True)
@@ -290,8 +290,7 @@ def diff_snapshots(
             right_adapter = take_live(store, left_adapter, settings, target, live_label, save, ticket)
             live_reference = getattr(right_adapter, "reference", None)
         output = compare(left_adapter, right_adapter, models or None, settings.profile(profile), profile)
-        if ticket or note:
-            output = described(output, ticket=ticket, note=note)
+        output = _described(output, ticket, note)
         if expected is not None:
             output = output.model_copy(update={"expectations": check_expected(output, expected)})
         name = store.save_output(output) if save else None
@@ -324,6 +323,13 @@ class TargetDiff:
         if self.output is None or self.output.expectations is None:
             return None
         return self.output.expectations.as_expected
+
+
+def _described(output: Output, ticket: str | None, note: str | None) -> Output:
+    """The output with the ticket and note given; a ticket that differs from its sides only in case is dropped."""
+    if ticket_key(ticket) == ticket_key(output.ticket):
+        ticket = None
+    return described(output, ticket=ticket, note=note) if ticket or note else output
 
 
 def diff_targets(
@@ -386,8 +392,7 @@ def diff_targets(
                 output = compare(
                     store.load_snapshot(lefts[name]), store.load_snapshot(rights[name]), models, chosen_profile, profile
                 )
-                if ticket or note:
-                    output = described(output, ticket=ticket, note=note)
+                output = _described(output, ticket, note)
                 if expected is not None:
                     output = output.model_copy(update={"expectations": check_expected(output, expected)})
                 saved = store.save_output(output) if save else None
