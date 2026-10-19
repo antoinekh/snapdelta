@@ -15,6 +15,7 @@ from typing import TYPE_CHECKING, Annotated, Any, Literal, cast
 
 import tomlkit
 from pydantic import AfterValidator, BaseModel, ConfigDict, Field, ValidationError, model_validator
+from tomlkit import TOMLDocument
 from tomlkit.container import Container
 from tomlkit.items import Comment, Item, Key, Null, Table, Whitespace
 
@@ -672,7 +673,7 @@ def save_settings(
         raise SettingsError("\n".join(f"{path}: {key}: {message}" for key, message in errors.items()), errors)
     document = tomlkit.parse(path.read_text()) if path.is_file() else tomlkit.document()
     for table in removed:
-        _remove_table(document, table.split("."))
+        document = _remove_table(document, table.split("."))
     created: list[tuple[Any, str]] = []
     for table, model in checked.items():
         defaults = type(model)()
@@ -693,30 +694,44 @@ def save_settings(
     _write_atomic(path, tomlkit.dumps(document))
 
 
-def _remove_table(document: Any, parts: list[str]) -> None:
-    nodes: list[Any] = [document]
-    for part in parts:
-        node = nodes[-1].get(part)
-        if node is None:
-            return
-        nodes.append(node)
-    # tomlkit stores the comment above a table in the table before it: move the one of the next table there.
-    if all(isinstance(node, Table) for node in nodes[1:]):
-        container, start, stop = _comment_run_above(document, parts)
-        kept = _tail(_last_container(nodes[-1]))
-        blank_before = not start or isinstance(container.body[start - 1][1], Whitespace)
-        if kept and isinstance(kept[0], Whitespace) and blank_before:
+def _remove_table(document: TOMLDocument, parts: list[str]) -> TOMLDocument:
+    path = _find_table(document, parts)
+    if path is not None:
+        container, start, stop = _comment_run_above(path)
+        kept = _tail(_last_container(_table_at(path[-1])))
+        previous = _previous_item(container.body, start)
+        if kept and isinstance(kept[0], Whitespace) and (previous is None or isinstance(previous, Whitespace)):
             kept = kept[1:]
-        _replace_run(container, start, stop, kept)
-    nodes[-2].pop(parts[-1])
+        # The splice leaves the key index of the container stale, so the pop below works on a parsed copy.
+        container.body[start:stop] = [(None, item) for item in kept]
+        document = tomlkit.parse(tomlkit.dumps(document))
+    parent: Any = document
+    for part in parts[:-1]:
+        parent = parent.get(part, {})
+    parent.pop(parts[-1], None)
+    return document
 
 
-def _node_container(node: Any) -> Container:
-    return node.value if isinstance(node, Table) else node
+def _find_table(container: Container, parts: list[str]) -> list[tuple[Container, int]] | None:
+    """Out-of-order tables sit in several places of the body, so the table is searched there and not by key."""
+    for index, (key, item) in enumerate(container.body):
+        if key is None or key.key != parts[0] or not isinstance(item, Table):
+            continue
+        if len(parts) == 1:
+            return [(container, index)]
+        below = _find_table(item.value, parts[1:])
+        if below is not None:
+            return [(container, index), *below]
+    return None
+
+
+def _table_at(entry: tuple[Container, int]) -> Table:
+    container, index = entry
+    return cast(Table, container.body[index][1])
 
 
 def _last_container(table: Table) -> Container:
-    """The container that ends the text of `table`, where a comment of the next table is stored."""
+    """The comment of the next table is stored at the end of the last table of the subtree."""
     container = table.value
     while True:
         last = next((item for key, item in reversed(container.body) if key is not None), None)
@@ -730,6 +745,10 @@ def _tail(container: Container) -> list[Item]:
     return [item for _, item in container.body[start:] if not isinstance(item, Null)]
 
 
+def _previous_item(body: list[tuple[Key | None, Item]], index: int) -> Item | None:
+    return next((item for _, item in reversed(body[:index]) if not isinstance(item, Null)), None)
+
+
 def _comment_start(body: list[tuple[Key | None, Item]], stop: int) -> int:
     start = stop
     for index in range(stop - 1, -1, -1):
@@ -741,37 +760,26 @@ def _comment_start(body: list[tuple[Key | None, Item]], stop: int) -> int:
     return start
 
 
-def _comment_run_above(document: Any, parts: list[str]) -> tuple[Container, int, int]:
-    """The container and the range of the comment lines right above the table `parts`."""
-    parent = document
-    for part in parts[:-1]:
-        parent = parent[part]
-    container = _node_container(parent)
+def _comment_run_above(path: list[tuple[Container, int]]) -> tuple[Container, int, int]:
+    """The comment lines above the table go with it, unless a note of the content before them could be among them."""
+    container, stop = path[-1]
     body = container.body
-    stop = next(index for index, (key, _) in enumerate(body) if key is not None and key.key == parts[-1])
     begin = stop
     while begin and body[begin - 1][0] is None:
         begin -= 1
     previous = body[begin - 1][1] if begin else None
     if isinstance(previous, Table):
-        tail = _last_container(previous)
-        return tail, _comment_start(tail.body, len(tail.body)), len(tail.body)
+        container = _last_container(previous)
+        body = container.body
+        stop = len(body)
     start = _comment_start(body, stop)
-    if begin == 0 and start == stop and isinstance(parent, Table) and parent.is_super_table():
-        return _comment_run_above(document, parts[:-1])
-    return container, start, stop
-
-
-def _replace_run(container: Container, start: int, stop: int, items: list[Item]) -> None:
-    """Replace `container.body[start:stop]` by `items` and move the index of the keys after it."""
-    shift = len(items) - (stop - start)
-    container.body[start:stop] = [(None, item) for item in items]
-    for key, index in container._map.items():
-        container._map[key] = (
-            tuple(i + shift if i >= stop else i for i in index)
-            if isinstance(index, tuple)
-            else (index + shift if index >= stop else index)
-        )
+    if start == stop and begin == 0 and len(path) > 1 and _table_at(path[-2]).is_super_table():
+        return _comment_run_above(path[:-1])
+    # A stale comment is harmless and a lost one is not, so a comment that nothing separates stays.
+    before = _previous_item(body, start)
+    if isinstance(before, Whitespace) or (before is None and not isinstance(container, TOMLDocument)):
+        return container, start, stop
+    return container, stop, stop
 
 
 def _table(document: Any, parts: list[str], created: list[tuple[Any, str]]) -> Any:
