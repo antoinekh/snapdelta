@@ -251,6 +251,17 @@ class StoreContract:
         future = datetime(2100, 1, 1, tzinfo=UTC)
         assert store.prune_plan(older_than=future, outputs=True).outputs == [name]
 
+    def test_prune_by_age_deletes_the_older_runs(self, store: Store) -> None:
+        for second in range(3):
+            store.save_run(sample_run(second))
+        cutoff = FIRST + timedelta(seconds=1)
+        assert store.prune_plan(keep=0).runs == []
+        assert store.prune_plan(target="R1", older_than=cutoff).runs == []
+        plan = store.prune_plan(older_than=cutoff)
+        assert plan.runs == [sample_run(0).id]
+        store.apply(plan)
+        assert [run.id for run in store.runs()] == [sample_run(2).id, sample_run(1).id]
+
     def test_the_runs_newest_first_and_the_newest_only(self, store: Store, monkeypatch: pytest.MonkeyPatch) -> None:
         from . import store as store_module
 

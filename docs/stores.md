@@ -102,11 +102,11 @@ snapdelta info                                     # backend, location, targets,
 snapdelta delete snapshot R1@latest R2/20261012T130856Z-before
 snapdelta delete output 20261012T130927Z-R1-vs-R2
 snapdelta prune --keep 10 --dry-run                # what would go: all but the 10 newest snapshots of each target
-snapdelta prune --older-than 90 --outputs          # snapshots and outputs older than 90 days
+snapdelta prune --older-than 90 --outputs          # snapshots, outputs and Activity runs older than 90 days
 snapdelta prune --target R1 --keep 3 --older-than 30
 ```
 
-A snapshot is kept when one of the rules that you give keeps it: it is among the `--keep` newest of its target, or it is newer than `--older-than`. Deleting a snapshot keeps the outputs that use it; their pages then show the changed values only. The web UI has the same actions in its Admin tab, with a preview before the delete, and Delete buttons on the lists and the detail pages.
+A snapshot is kept when one of the rules that you give keeps it: it is among the `--keep` newest of its target, or it is newer than `--older-than`. With `--older-than` and no `--target`, the runs of Activity older than the age go too; a run can be about many targets, so a prune of one target keeps them. Deleting a snapshot keeps the outputs that use it; their pages then show the changed values only. The web UI has the same actions in its Admin tab, with a preview before the delete, and Delete buttons on the lists and the detail pages.
 
 ## Use a store from Python
 

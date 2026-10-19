@@ -903,8 +903,7 @@ def create_app(state: AppState) -> FastAPI:
         plan = _prune_plan(state.store, target, keep, older_than, bool(outputs))
         if confirm:
             state.store.apply(plan)
-            counts = f"{len(plan.snapshots)} snapshots and {len(plan.outputs)} outputs"
-            return RedirectResponse(f"/admin?deleted={counts}", status_code=303)
+            return RedirectResponse(f"/admin?deleted={plan.counts}", status_code=303)
         form = {"target": target, "keep": keep, "older_than": older_than, "outputs": outputs}
         context = {"tab": "admin", "info": state.store.info(), "plan": plan, "form": form, "deleted": None}
         return render(request, "admin.html", context)

@@ -16,7 +16,7 @@ from typing import Any, ClassVar
 
 from pydantic import Field, ValidationError
 
-from .activity import Run
+from .activity import Run, run_started_at
 from .errors import NotFoundError, SnapdeltaError
 from .jsonfile import write_json
 from .output import SCHEMA as OUTPUT_SCHEMA
@@ -148,6 +148,11 @@ class StoreInfo:
 class PrunePlan:
     snapshots: list[str] = field(default_factory=list)
     outputs: list[str] = field(default_factory=list)
+    runs: list[str] = field(default_factory=list)
+
+    @property
+    def counts(self) -> str:
+        return f"{len(self.snapshots)} snapshots, {len(self.outputs)} outputs and {len(self.runs)} runs"
 
 
 def snapshot_entry(reference: str) -> SnapshotEntry | None:
@@ -349,7 +354,10 @@ class Store(ABC):
         older_than: datetime | None = None,
         outputs: bool = False,
     ) -> PrunePlan:
-        """A snapshot goes when it fails every rule given: among the `keep` newest, or not older than `older_than`."""
+        """A snapshot goes when it fails every rule given: among the `keep` newest, or not older than `older_than`.
+
+        With `older_than` and no `target`, the runs of the activity that started before it go too.
+        """
         if keep is not None and keep < 0:
             raise SnapdeltaError("the number of snapshots to keep cannot be negative")
         if keep is None and older_than is None:
@@ -369,6 +377,9 @@ class Store(ABC):
                 for entry in self.output_entries()
                 if entry.created_at < older_than and (target is None or target in (entry.left, entry.right))
             ]
+        # A run can be about many targets, so only a prune of every target deletes runs.
+        if older_than is not None and target is None:
+            plan.runs = [run_id for run_id in self._run_ids() if run_started_at(run_id) < older_than]
         return plan
 
     def apply(self, plan: PrunePlan) -> None:
@@ -376,6 +387,8 @@ class Store(ABC):
             self._delete_snapshot(reference)
         for name in plan.outputs:
             self._delete_output(name)
+        for run_id in plan.runs:
+            self._delete_run(run_id)
 
     # Backend primitives
 

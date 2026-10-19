@@ -28,6 +28,8 @@ _log = logging.getLogger(__name__)
 # The log that receives the messages of the current context, and the target that they are about.
 _lines: ContextVar[list[LogLine] | None] = ContextVar("snapdelta_log_lines", default=None)
 _target: ContextVar[str | None] = ContextVar("snapdelta_log_target", default=None)
+# Microseconds, so that the ids of two runs of the same second sort in their order.
+RUN_STAMP = "%Y%m%dT%H%M%S%fZ"
 # Only a load collects: the compare of a run logs too (diffsync), and that says nothing about the targets.
 _loading: ContextVar[bool] = ContextVar("snapdelta_loading", default=False)
 # The user who asks for the run, when a server knows it: the login of a web request.
@@ -79,6 +81,11 @@ class Run(BaseModel):
     @property
     def duration_s(self) -> float:
         return (self.ended_at - self.started_at).total_seconds()
+
+
+def run_started_at(run_id: str) -> datetime:
+    """The start of a run from its id alone, so that a prune reads no run."""
+    return datetime.strptime(run_id.partition("-")[0], RUN_STAMP).replace(tzinfo=UTC)
 
 
 class LogCollector(logging.Handler):
@@ -154,8 +161,7 @@ class RunRecord:
     def finished(self) -> Run:
         done = len(self.saved) + len(self.outputs)
         status = RunStatus.OK if not self.errors else RunStatus.PARTIAL if done else RunStatus.FAILED
-        # Microseconds, so that the ids of two runs of the same second sort in their order.
-        stamp = self.started_at.strftime("%Y%m%dT%H%M%S%fZ")
+        stamp = self.started_at.strftime(RUN_STAMP)
         return Run(
             id=f"{stamp}-{self.kind}-{secrets.token_hex(2)}",
             kind=self.kind,

@@ -27,9 +27,9 @@
   </form>
   {% if plan %}
   <div class="plan">
-    <p><b>{{ plan.snapshots | length }}</b> snapshots and <b>{{ plan.outputs | length }}</b> outputs would be deleted.</p>
-    {% if plan.snapshots or plan.outputs %}
-    <ul class="mono small">{% for reference in plan.snapshots %}<li>{{ reference }}</li>{% endfor %}{% for name in plan.outputs %}<li>{{ name }}</li>{% endfor %}</ul>
+    <p><b>{{ plan.snapshots | length }}</b> snapshots, <b>{{ plan.outputs | length }}</b> outputs and <b>{{ plan.runs | length }}</b> runs would be deleted.</p>
+    {% if plan.snapshots or plan.outputs or plan.runs %}
+    <ul class="mono small">{% for reference in plan.snapshots %}<li>{{ reference }}</li>{% endfor %}{% for name in plan.outputs %}<li>{{ name }}</li>{% endfor %}{% for run_id in plan.runs %}<li>{{ run_id }}</li>{% endfor %}</ul>
     <form method="post" action="/admin/prune" data-confirm="Delete these files?">
       {% for key, value in form.items() %}<input type="hidden" name="{{ key }}" value="{{ value }}">{% endfor %}
       <input type="hidden" name="confirm" value="1">

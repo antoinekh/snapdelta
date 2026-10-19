@@ -12,6 +12,7 @@
 - When a label does not resolve in a ticket but exists in a snapshot of no ticket or of another ticket, the error says so and what to do.
 - The text format shows the line `ticket: X` and the note; the Markdown format has the heading `# TICKET · LEFT vs RIGHT`.
 - A ticket over 80 characters or a note over 2000 characters is refused with a message before any target is fetched or any snapshot is saved; the API and MCP refuse it as an invalid argument.
+- A prune by age (`snapdelta prune --older-than`, the age in **Admin**) also deletes the runs of Activity older than the age, when it prunes every target; `PrunePlan` has `runs`.
 
 ### Changed
 

@@ -57,7 +57,7 @@ A switch at the top gives **One target** (the default) or **Many targets**.
 
 ## Activity
 
-Each command is a run: a snapshot of one or more targets, or a saved diff, from the web UI, the CLI, the API or MCP. **Activity** lists the newest runs with their origin, their targets, their result (OK, Partial when some targets failed, Failed) and the size of their log; a run page shows its snapshots, its diff, the error of each failed target and the log of its loads, from a chosen level. **Result**, **From** and **To** (UTC) filter the 1,000 newest runs.
+Each command is a run: a snapshot of one or more targets, or a saved diff, from the web UI, the CLI, the API or MCP. **Activity** lists the newest runs with their origin, their targets, their result (OK, Partial when some targets failed, Failed) and the size of their log; a run page shows its snapshots, its diff, the error of each failed target and the log of its loads, from a chosen level. **Result**, **From** and **To** (UTC) filter the 1,000 newest runs. The store keeps the 1,000 newest runs; a prune by age in **Admin** deletes the older ones too.
 
 The log holds the messages that the source plugins write with the standard `logging` module during a load, each with its target. The page of a snapshot shows the log of its own load. The store keeps the newest 1000 runs; `[snapshot] log_level` sets the lowest level that is kept.
 

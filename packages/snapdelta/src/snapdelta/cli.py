@@ -648,7 +648,7 @@ def prune(
     ] = False,
     dry_run: Annotated[bool, typer.Option("--dry-run", help="Only print what would be deleted.")] = False,
 ) -> None:
-    """Delete old snapshots (and outputs): a snapshot goes when no rule given keeps it."""
+    """Delete old snapshots (and outputs): a snapshot goes when no rule given keeps it; with an age, old runs too."""
     store = ctx.obj.store
     cutoff = age_cutoff(older_than) if older_than is not None else None
     plan = store.prune_plan(target=target, keep=keep, older_than=cutoff, outputs=outputs)
@@ -656,12 +656,13 @@ def prune(
         typer.echo(f"snapshot {reference}")
     for name in plan.outputs:
         typer.echo(f"output {name}")
-    counts = f"{len(plan.snapshots)} snapshots and {len(plan.outputs)} outputs"
+    for run_id in plan.runs:
+        typer.echo(f"run {run_id}")
     if dry_run:
-        typer.echo(f"would delete {counts}")
+        typer.echo(f"would delete {plan.counts}")
         return
     store.apply(plan)
-    typer.echo(f"deleted {counts}")
+    typer.echo(f"deleted {plan.counts}")
 
 
 def _print_output(output: Output, chosen: Renderer) -> None:

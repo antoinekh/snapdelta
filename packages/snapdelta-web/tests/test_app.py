@@ -6,6 +6,7 @@ from datetime import UTC, datetime
 import pytest
 from fastapi.testclient import TestClient
 
+from snapdelta.testing import sample_run
 from snapdelta_example import ExampleSource
 from snapdelta_web import views
 
@@ -237,6 +238,15 @@ def test_prune_previews_then_deletes(client, store) -> None:
     assert done.status_code == 303
     assert [entry.reference for entry in store.snapshot_entries("R1")] == ["R1/20260925T113000Z-config"]
     assert client.post("/admin/prune", data={}).status_code == 400
+
+
+def test_prune_by_age_previews_then_deletes_the_old_runs(client, store) -> None:
+    store.save_run(sample_run(0))
+    preview = client.post("/admin/prune", data={"older_than": "30"})
+    assert sample_run(0).id in preview.text and "<b>1</b> runs would be deleted" in preview.text
+    done = client.post("/admin/prune", data={"older_than": "30", "confirm": "1"}, follow_redirects=False)
+    assert done.status_code == 303 and "and%201%20runs" in done.headers["location"]
+    assert store.runs() == []
 
 
 def test_prune_refuses_a_bad_number(client, store) -> None:

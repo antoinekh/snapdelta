@@ -5,6 +5,7 @@ from typer.testing import CliRunner
 
 from snapdelta.cli import app
 from snapdelta.store import FileStore, SqliteStore
+from snapdelta.testing import sample_run
 
 runner = CliRunner()
 
@@ -113,10 +114,10 @@ def test_info_delete_and_prune(make_adapter, location) -> None:
     assert "snapshots: 3" in info.output and f"backend: {store.backend}" in info.output
     preview = runner.invoke(app, ["--store", location, "prune", "--keep", "1", "--dry-run"])
     assert preview.exit_code == 0, preview.output
-    assert "would delete 2 snapshots and 0 outputs" in preview.output
+    assert "would delete 2 snapshots, 0 outputs and 0 runs" in preview.output
     assert len(store.snapshot_entries("R1")) == 3
     pruned = runner.invoke(app, ["--store", location, "prune", "--keep", "2"])
-    assert "deleted 1 snapshots and 0 outputs" in pruned.output
+    assert "deleted 1 snapshots, 0 outputs and 0 runs" in pruned.output
     deleted = runner.invoke(app, ["--store", location, "delete", "snapshot", "R1@latest"])
     assert deleted.exit_code == 0, deleted.output
     assert "deleted R1/20260925T100000Z" in deleted.output
@@ -125,6 +126,15 @@ def test_info_delete_and_prune(make_adapter, location) -> None:
     assert missing.exit_code == 2
     no_rule = runner.invoke(app, ["--store", location, "prune"])
     assert no_rule.exit_code == 2 and "give a number of snapshots to keep" in no_rule.output
+
+
+def test_prune_by_age_deletes_the_old_runs(location) -> None:
+    store = open_location(location)
+    store.save_run(sample_run(0))
+    pruned = runner.invoke(app, ["--store", location, "prune", "--older-than", "30"])
+    assert pruned.exit_code == 0, pruned.output
+    assert f"run {sample_run(0).id}" in pruned.output and "deleted 0 snapshots, 0 outputs and 1 runs" in pruned.output
+    assert store.runs() == []
 
 
 def test_snapshot_from_a_device_needs_no_file(location) -> None:
