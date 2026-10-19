@@ -2,12 +2,14 @@ import json
 import re
 import time
 from datetime import UTC, datetime
+from urllib.parse import quote
 
 import pytest
 from fastapi.testclient import TestClient
 
+from snapdelta.output import compare
 from snapdelta.store import FileStore, SnapshotQuery
-from snapdelta.testing import sample_run
+from snapdelta.testing import sample, sample_run
 from snapdelta_example import ExampleSource
 from snapdelta_web import views
 
@@ -567,7 +569,9 @@ def test_export_a_diff_in_each_format(client, names) -> None:
     assert f'href="/diffs/{names.same}/export/markdown"' in page
     markdown = client.get(f"/diffs/{names.same}/export/markdown")
     assert markdown.headers["content-type"].startswith("text/markdown")
-    assert markdown.headers["content-disposition"] == f'attachment; filename="{names.same}.md"'
+    assert markdown.headers["content-disposition"] == (
+        f"attachment; filename=\"{names.same}.md\"; filename*=UTF-8''{names.same}.md"
+    )
     assert "## interface" in markdown.text
     assert client.get(f"/diffs/{names.same}/export/csv").text.startswith("model,object,parents")
     assert client.get(f"/diffs/{names.same}/export/pdf").status_code == 400
@@ -583,9 +587,25 @@ def test_the_snapshot_page_has_an_export_menu(client, names) -> None:
 def test_export_a_snapshot_as_json(client, store, names) -> None:
     export = client.get(f"/snapshots/{names.before}/export/json")
     assert export.headers["content-type"].startswith("application/json")
-    assert export.headers["content-disposition"] == 'attachment; filename="R1-20260925T100000Z-before.json"'
+    assert export.headers["content-disposition"] == (
+        "attachment; filename=\"R1-20260925T100000Z-before.json\"; filename*=UTF-8''R1-20260925T100000Z-before.json"
+    )
     assert export.text == store.read_snapshot(names.before).model_dump_json(by_alias=True, indent=2)
     assert client.get("/snapshots/R1/nope/export/json").status_code == 404
+
+
+def test_an_export_of_a_target_that_is_not_latin_1_has_an_ascii_and_an_encoded_file_name(client, store) -> None:
+    reference = store.save_snapshot(sample(target="Łódź-R1"))
+    stamp = reference.partition("/")[2]
+    snapshot = client.get(f"/snapshots/{reference}/export/json")
+    assert snapshot.status_code == 200
+    assert snapshot.headers["content-disposition"] == (
+        f"attachment; filename=\"__d_-R1-{stamp}.json\"; filename*=UTF-8''%C5%81%C3%B3d%C5%BA-R1-{stamp}.json"
+    )
+    name = store.save_output(compare(sample(target="Łódź-R1"), sample(target="Łódź-R2")))
+    diff = client.get(f"/diffs/{name}/export/csv")
+    assert diff.status_code == 200
+    assert diff.headers["content-disposition"].endswith(f"filename*=UTF-8''{quote(name)}.csv")
 
 
 def test_export_a_snapshot_in_an_unknown_format_is_refused(client, names) -> None:

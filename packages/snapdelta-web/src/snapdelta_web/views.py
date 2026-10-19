@@ -550,6 +550,12 @@ def _output_row(store: Store, name: str) -> OutputRow:
     )
 
 
+def attachment(filename: str) -> dict[str, str]:
+    """The header of a download, with an ASCII name for old clients and the real name for the others (RFC 6266)."""
+    fallback = re.sub(r"[^\x20-\x7e]", "_", filename)
+    return {"Content-Disposition": f"attachment; filename=\"{fallback}\"; filename*=UTF-8''{quote(filename, safe='')}"}
+
+
 def snapshot_query(target: str, label: str, ticket: str) -> SnapshotQuery:
     """The filters of the Snapshots page; a field left empty does not filter."""
     return SnapshotQuery(target.strip(), label.strip(), normalize_ticket(ticket))

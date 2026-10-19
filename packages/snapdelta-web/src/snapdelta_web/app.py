@@ -332,7 +332,7 @@ def create_app(state: AppState) -> FastAPI:
     def export_diff(name: str, output_format: str) -> Response:
         resolved = state.store.resolve_output(name)
         chosen = renderer(output_format)
-        headers = {"Content-Disposition": f'attachment; filename="{resolved}.{chosen.suffix}"'}
+        headers = views.attachment(f"{resolved}.{chosen.suffix}")
         return Response(chosen.render(state.store.load_output(resolved)), media_type=chosen.media_type, headers=headers)
 
     @app.post("/diffs")
@@ -511,7 +511,7 @@ def create_app(state: AppState) -> FastAPI:
     @app.get("/snapshots/{target}/{name}/export/json")
     def export_snapshot(target: str, name: str) -> Response:
         reference = state.store.resolve_snapshot(f"{target}/{name}")
-        headers = {"Content-Disposition": f'attachment; filename="{reference.replace("/", "-")}.json"'}
+        headers = views.attachment(f"{reference.replace('/', '-')}.json")
         body = state.store.read_snapshot(reference).model_dump_json(by_alias=True, indent=2)
         return Response(body, media_type="application/json", headers=headers)
 
