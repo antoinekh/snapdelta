@@ -62,7 +62,7 @@
         {% if field.note %}<span class="small warn-text">In use: {{ field.in_use }}, from {{ field.note }}, which wins over this file.</span>{% endif %}
         {% if field.key in errors %}<p class="field-error">{{ errors[field.key] }}</p>{% endif %}
       </div>
-      <span class="tag origin-{{ field.origin }}">{{ field.origin }}</span>
+      {% if section == "settings" %}<span class="tag origin-{{ field.origin }}">{{ field.origin }}</span>{% endif %}
     </div>
     {% endfor %}
   </fieldset>

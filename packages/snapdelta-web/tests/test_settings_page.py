@@ -182,6 +182,13 @@ def test_profiles_are_shown_and_edited(client, settings_file) -> None:
     assert "# my profiles" in settings_file.read_text()
 
 
+def test_only_the_settings_tab_shows_the_origin_of_a_value(client, settings_file) -> None:
+    settings_file.write_text(settings_file.read_text() + "\n[profiles.quiet]\nskip_only_left = true\n")
+    client.post("/admin/profiles", data=form(), follow_redirects=False)
+    assert 'class="tag origin-' not in client.get("/admin/profiles").text
+    assert 'class="tag origin-file"' in client.get("/admin/settings").text
+
+
 def test_each_profile_has_a_delete_button_in_its_own_form(client, settings_file) -> None:
     settings_file.write_text(settings_file.read_text() + "\n[profiles.quiet]\nskip_only_left = true\n")
     client.post("/admin/profiles", data=form(), follow_redirects=False)
