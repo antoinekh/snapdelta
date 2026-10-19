@@ -77,6 +77,8 @@ The log holds the messages that the source plugins write with the standard `logg
 | Plugins | Every plugin of each extension point: its package, its version, and the problems that `snapdelta doctor` finds |
 | About | The versions, the plugin packages, this server and the project links |
 
+The Settings and Profiles tabs end with a bar that says "Unsaved changes" only while a value differs from the saved one, and asks before the page is left in that case. **Discard** restores the saved values in the browser, and **Save** (Ctrl+S) writes the file.
+
 ![Admin, Store: the store and pruning](images/screenshots/admin-store.png)
 
 ![Admin, Profiles: one profile with help on each field](images/screenshots/admin-profiles.png)

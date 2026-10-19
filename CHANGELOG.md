@@ -36,6 +36,7 @@
 
 ### Fixed
 
+- The Profiles and Settings forms show "Unsaved changes" and ask before the page is left only while their values differ from the saved ones; checking then unchecking a box, or typing then deleting a text, no longer counts as a change. A **Discard** button next to **Save** restores the saved values.
 - The PostgreSQL collation test is skipped, not failed, on a server built without ICU or older than PostgreSQL 15.
 
 ## v0.2.0

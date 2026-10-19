@@ -362,21 +362,45 @@
     }
   });
 
-  // A form with data-track-changes says when it holds unsaved changes, and asks before the page is left.
+  // A form with data-track-changes holds unsaved changes only while its values differ from the ones it loaded with.
   var dirtyForm = null;
+  var loadedValues = new Map();
 
-  function markDirty(event) {
-    var form = event.target.closest && event.target.closest("form[data-track-changes]");
-    if (!form || form === dirtyForm) return;
-    dirtyForm = form;
-    var bar = form.querySelector(".save-bar");
-    if (bar) bar.classList.add("dirty");
-    var status = form.querySelector("[data-dirty-status]");
-    if (status) status.hidden = false;
+  function formValues(form) {
+    return new URLSearchParams(new FormData(form)).toString();
   }
 
-  document.addEventListener("input", markDirty);
-  document.addEventListener("change", markDirty);
+  function showChanges(form) {
+    var changed = formValues(form) !== loadedValues.get(form);
+    if (changed) dirtyForm = form;
+    else if (dirtyForm === form) dirtyForm = null;
+    var bar = form.querySelector(".save-bar");
+    if (bar) bar.classList.toggle("dirty", changed);
+    var status = form.querySelector("[data-dirty-status]");
+    if (status) status.hidden = !changed;
+    var discard = form.querySelector("[data-discard]");
+    if (discard) discard.disabled = !changed;
+  }
+
+  function trackChanges(event) {
+    var form = event.target.closest && event.target.closest("form[data-track-changes]");
+    if (form) showChanges(form);
+  }
+
+  document.querySelectorAll("form[data-track-changes]").forEach(function (form) {
+    loadedValues.set(form, formValues(form));
+  });
+
+  document.addEventListener("input", trackChanges);
+  document.addEventListener("change", trackChanges);
+
+  document.addEventListener("click", function (event) {
+    var discard = event.target.closest("[data-discard]");
+    if (!discard) return;
+    event.preventDefault();
+    discard.form.reset();
+    showChanges(discard.form);
+  });
 
   window.addEventListener("beforeunload", function (event) {
     if (dirtyForm) event.preventDefault();

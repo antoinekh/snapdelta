@@ -112,6 +112,7 @@ ul.notice { padding-left: 32px; }
 .button.quiet:hover { background: var(--sunken); }
 .button.large { height: 46px; padding: 0 28px; font-size: 16px; }
 .button:disabled { opacity: 0.6; cursor: progress; }
+.button[data-discard]:disabled { cursor: default; }
 input, select { font: inherit; color: var(--ink); }
 input[type="search"], input[type="password"], input[type="datetime-local"], input:not([type]), select { height: 38px; padding: 0 12px; border-radius: var(--radius-small); border: 1px solid var(--line-strong); background: var(--surface); }
 input[type="search"]:focus, input[type="password"]:focus, input[type="datetime-local"]:focus, input:not([type]):focus, select:focus { outline: none; border-color: var(--cobalt); box-shadow: 0 0 0 3px var(--cobalt-soft); }
