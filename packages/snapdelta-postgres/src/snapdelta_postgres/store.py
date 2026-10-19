@@ -149,7 +149,8 @@ class PostgresStore(Store):
         wanted = query.strip().lower()
         with self._connect() as db:
             rows = db.execute(
-                "select distinct target from snapdelta_snapshots where strpos(lower(target), %s) > 0 order by target",
+                "select target from snapdelta_snapshots where strpos(lower(target), %s) > 0 "
+                'group by target order by target collate "C"',
                 (wanted,),
             ).fetchall()
         return [row[0] for row in rows]
@@ -159,7 +160,8 @@ class PostgresStore(Store):
         filters = [sql.SQL("{} = %s").format(sql.Identifier(column)) for column, _ in conditions]
         where = sql.SQL(" where {}").format(sql.SQL(" and ").join(filters)) if filters else sql.SQL("")
         statement = sql.SQL(
-            "select reference, ticket, source from snapdelta_snapshots{} order by captured_at desc, reference desc"
+            "select reference, ticket, source from snapdelta_snapshots{} "
+            'order by captured_at desc, reference collate "C" desc'
         ).format(where)
         with self._connect() as db:
             rows = db.execute(statement, [value for _, value in conditions]).fetchall()
@@ -173,7 +175,7 @@ class PostgresStore(Store):
                 "select name from snapdelta_outputs "
                 "where (strpos(lower(left_target), %s) > 0 or strpos(lower(right_target), %s) > 0 "
                 "or strpos(coalesce(ticket_key, ''), %s) > 0) and (%s::text is null or ticket_key = %s) "
-                "order by name desc",
+                'order by name collate "C" desc',
                 (wanted, wanted, wanted, key, key),
             ).fetchall()
         return [entry for (name,) in rows if (entry := output_entry(name))]
@@ -277,7 +279,8 @@ class PostgresStore(Store):
 
     def _run_ids(self) -> list[str]:
         with self._connect() as db:
-            return [row[0] for row in db.execute("select id from snapdelta_runs order by id desc").fetchall()]
+            rows = db.execute('select id from snapdelta_runs order by id collate "C" desc').fetchall()
+        return [row[0] for row in rows]
 
     def _delete_run(self, run_id: str) -> None:
         with self._connect() as db:
