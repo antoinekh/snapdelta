@@ -37,27 +37,33 @@ def test_a_pipeline_takes_before_and_after_then_compares(api) -> None:
     assert {"name": "example-live", "distribution": "snapdelta-example", "fetches": True} in api.get(
         "/api/v1/sources"
     ).json()
-    before = api.post("/api/v1/snapshots", json={"source": "example-live", "targets": ["R1", "R9"], "label": "before"})
+    ticket = "CHG-42"
+    before = api.post(
+        "/api/v1/snapshots",
+        json={"source": "example-live", "targets": ["R1", "R9"], "label": "before", "ticket": ticket},
+    )
     assert before.status_code == 200
     result = before.json()
     assert result["ok"] is False and result["saved"]["R1"].endswith("-before") and "R9" in result["failed"]
-    api.post("/api/v1/snapshots", json={"source": "example-live", "targets": ["R1"], "label": "after"})
-    body = {"left": "R1@before", "right": "R1@after", "title": "Change 42", "description": "Nothing should move"}
+    api.post(
+        "/api/v1/snapshots", json={"source": "example-live", "targets": ["R1"], "label": "after", "ticket": ticket}
+    )
+    body = {"left": "R1@before", "right": "R1@after", "ticket": ticket, "note": "Nothing should move"}
     diff = api.post("/api/v1/diffs", json=body).json()
-    assert diff["has_differences"] is False and diff["title"] == "Change 42" and diff["url"] == f"/diffs/{diff['name']}"
-    assert diff["output"] is None
+    assert diff["has_differences"] is False and diff["note"] == "Nothing should move"
+    assert diff["url"] == f"/diffs/{diff['name']}" and diff["output"] is None
     markdown = api.get(f"/api/v1/diffs/{diff['name']}", params={"format": "markdown"})
-    assert markdown.headers["content-type"].startswith("text/markdown") and markdown.text.startswith("# Change 42")
-    assert api.get(f"/api/v1/diffs/{diff['name']}").json()["title"] == "Change 42"
-    changed = api.patch(f"/api/v1/diffs/{diff['name']}", json={"title": "Change 43"}).json()
-    assert (changed["title"], api.get("/api/v1/diffs").json()[0]["title"]) == ("Change 43", "Change 43")
+    assert markdown.headers["content-type"].startswith("text/markdown") and markdown.text.startswith("# CHG-42")
+    assert api.get(f"/api/v1/diffs/{diff['name']}").json()["note"] == "Nothing should move"
+    changed = api.patch(f"/api/v1/diffs/{diff['name']}", json={"note": "Moved nothing"}).json()
+    assert (changed["note"], api.get("/api/v1/diffs").json()[0]["note"]) == ("Moved nothing", "Moved nothing")
 
 
 def test_a_live_diff_without_saving_returns_the_whole_output(api, store) -> None:
     api.post("/api/v1/snapshots", json={"source": "example-live", "targets": ["R2"]})
     outputs, snapshots = len(store.output_entries()), len(store.snapshot_entries("R2"))
     diff = api.post("/api/v1/diffs?include_output=true", json={"left": "R2@latest", "live": True, "save": False})
-    assert diff.status_code == 200 and diff.json()["name"] is None and diff.json()["output"]["schema"] == 2
+    assert diff.status_code == 200 and diff.json()["name"] is None and diff.json()["output"]["schema"] == 3
     assert (len(store.output_entries()), len(store.snapshot_entries("R2"))) == (outputs, snapshots)
 
 
@@ -139,13 +145,13 @@ def test_a_pipeline_reads_and_accepts_the_changes(api, names) -> None:
 
 
 def test_a_pipeline_compares_many_targets_at_once(api, store) -> None:
-    body = {"targets": ["R1", "R9"], "left": "before", "right": "after", "title": "VLAN 20", "change": "CHG-8"}
+    body = {"targets": ["R1", "R9"], "left": "before", "right": "after", "note": "VLAN 20"}
     result = api.post("/api/v1/diffs/targets", json=body).json()
     assert result["has_differences"] is True and result["changed"] == ["R1"] and result["unchanged"] == []
     assert result["failed"] == {"R9": f"no snapshot labelled 'before' of R9 in {store.location}"}
     [first, second] = result["diffs"]
-    assert first["diff"]["title"] == "VLAN 20" and first["diff"]["output"] is None and second["diff"] is None
-    assert first["diff"]["change"] == "CHG-8"
+    assert first["diff"]["note"] == "VLAN 20" and first["diff"]["output"] is None and second["diff"] is None
+    assert first["diff"]["ticket"] is None
     assert api.post("/api/v1/diffs/targets", json={"targets": ["R1"], "left": "before"}).status_code == 400
 
 
@@ -154,12 +160,46 @@ def test_the_health_check_needs_no_login(guarded) -> None:
     assert guarded.get("/api/v1/targets").status_code == 401
 
 
-def test_a_pipeline_sets_the_change_of_a_diff_and_finds_it(api) -> None:
-    body = {"left": "R1@before", "right": "R1@after", "title": "r1", "change": "CHG-8"}
+def test_a_pipeline_takes_snapshots_with_a_ticket(api, store) -> None:
+    body = {"source": "example-live", "targets": ["R1"], "label": "live", "ticket": "  CHG-1  "}
+    assert api.post("/api/v1/snapshots", json=body).status_code == 200
+    assert store.load_snapshot(store.resolve_snapshot("R1@live")).ticket == "CHG-1"
+
+
+def test_a_pipeline_compares_inside_a_ticket(api, ticketed) -> None:
+    body = {"left": "R1@before", "right": "R1@after", "ticket": "chg-1", "note": "x"}
     made = api.post("/api/v1/diffs", json=body).json()
-    assert made["change"] == "CHG-8"
-    kept = api.patch(f"/api/v1/diffs/{made['name']}", json={"title": "r1 uplink"}).json()
-    assert (kept["change"], kept["title"]) == ("CHG-8", "r1 uplink")
-    assert [item["name"] for item in api.get("/api/v1/diffs", params={"q": "chg-8"}).json()] == [made["name"]]
-    removed = api.patch(f"/api/v1/diffs/{made['name']}", json={"change": ""}).json()
-    assert removed["change"] is None and api.get("/api/v1/diffs", params={"q": "chg-8"}).json() == []
+    assert (made["ticket"], made["note"]) == ("chg-1", "x") and made["has_differences"] is True
+    assert made["left"]["snapshot"].startswith("R1/20260926T100000Z")
+    missing = api.post("/api/v1/diffs", json=body | {"ticket": "CHG-9"})
+    assert missing.status_code == 404 and "CHG-9" in missing.json()["error"]
+    inherited = api.post("/api/v1/diffs", json={"left": "R1/20260926T100000Z-before", "right": "R1@after"}).json()
+    assert inherited["ticket"] == "CHG-1"
+
+
+def test_a_pipeline_compares_many_targets_inside_a_ticket(api, ticketed) -> None:
+    body = {"targets": ["R1"], "left": "before", "right": "after", "ticket": "CHG-1", "note": "many"}
+    [item] = api.post("/api/v1/diffs/targets", json=body).json()["diffs"]
+    assert (item["diff"]["ticket"], item["diff"]["note"]) == ("CHG-1", "many")
+    assert item["diff"]["left"]["snapshot"].startswith("R1/20260926T100000Z")
+
+
+def test_the_snapshots_of_a_target_filter_by_ticket(api, ticketed) -> None:
+    listed = api.get("/api/v1/snapshots", params={"target": "R1", "ticket": "chg-1"}).json()
+    assert [item["label"] for item in listed] == ["after", "before"] and "ticket" not in listed[0]
+    assert len(api.get("/api/v1/snapshots", params={"target": "R1"}).json()) == 6
+    assert api.get(f"/api/v1/snapshots/{listed[0]['reference']}").json()["ticket"] == "CHG-1"
+
+
+def test_a_pipeline_describes_a_diff_and_finds_it_by_ticket(api, ticketed) -> None:
+    body = {"left": "R1@before", "right": "R1@after", "ticket": "CHG-1", "note": "r1"}
+    made = api.post("/api/v1/diffs", json=body).json()
+    kept = api.patch(f"/api/v1/diffs/{made['name']}", json={"note": "r1 uplink"}).json()
+    assert (kept["ticket"], kept["note"]) == ("CHG-1", "r1 uplink")
+    assert api.patch(f"/api/v1/diffs/{made['name']}", json={"note": ""}).json() | {"note": 0} == kept | {"note": 0}
+    exact = api.get("/api/v1/diffs", params={"ticket": "chg-1"}).json()
+    assert [item["name"] for item in exact] == [made["name"]] and exact[0]["note"] is None
+    assert api.get("/api/v1/diffs", params={"ticket": "chg"}).json() == []
+    assert [item["name"] for item in api.get("/api/v1/diffs", params={"q": "chg"}).json()] == [made["name"]]
+    removed = api.patch(f"/api/v1/diffs/{made['name']}", json={"ticket": ""}).json()
+    assert removed["ticket"] is None and api.get("/api/v1/diffs", params={"ticket": "chg-1"}).json() == []

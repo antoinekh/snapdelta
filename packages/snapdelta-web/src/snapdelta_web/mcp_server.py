@@ -43,8 +43,8 @@ from .state import AppState
 GUIDE = (Path(__file__).parent / "mcp_guide.md").read_text(encoding="utf-8")
 INSTRUCTIONS = (
     "snapdelta snapshots devices and compares the snapshots. To check a change: take_snapshots with the label "
-    "before, the change, take_snapshots with the label after, then compare TARGET@before with TARGET@after and read "
-    "the changes. Read the resource snapdelta://guide first."
+    "before and a ticket, the change, take_snapshots with the label after and the same ticket, then compare "
+    "TARGET@before with TARGET@after in that ticket and read the changes. Read the resource snapdelta://guide first."
 )
 READ_ONLY = ToolAnnotations(read_only_hint=True, open_world_hint=False)
 # A snapshot reads the devices: open world, but it changes nothing on them.
@@ -53,6 +53,9 @@ WRITES = ToolAnnotations(read_only_hint=False, destructive_hint=False, idempoten
 PAGE = 100
 Reference = Annotated[str, Field(description="A snapshot: TARGET/NAME, TARGET@latest, or TARGET@LABEL (r1@before).")]
 DiffName = Annotated[str, Field(description="The name of a saved diff, as compare or list_diffs give it.")]
+TICKET_HELP = "The ticket, issue or any reference of the work: CHG-1042, #216."
+DIFF_TICKET_HELP = f"{TICKET_HELP} The labels are looked up in the snapshots of that ticket."
+NOTE_HELP = "Free text about the diff."
 
 
 class TargetItem(BaseModel):
@@ -78,8 +81,8 @@ class Change(BaseModel):
 
 class ChangePage(BaseModel):
     name: str
-    change: str | None
-    title: str | None
+    ticket: str | None
+    note: str | None
     has_differences: bool
     summary: dict[str, int]
     changes: list[Change]
@@ -166,6 +169,7 @@ def create_mcp(state: AppState) -> MCPServer:
     @tool(READ_ONLY)
     def list_snapshots(
         target: str,
+        ticket: Annotated[str | None, Field(description="Only the snapshots of this ticket (any case).")] = None,
         limit: Annotated[int, Field(ge=1, le=MAX_LIMIT, description="How many snapshots, newest first.")] = 20,
     ) -> list[SnapshotInfo]:
         """The snapshots of one target, newest first."""
@@ -173,7 +177,7 @@ def create_mcp(state: AppState) -> MCPServer:
             SnapshotInfo(
                 reference=entry.reference, target=entry.target, label=entry.label, captured_at=entry.captured_at
             )
-            for entry in state.store.snapshot_entries(target)[:limit]
+            for entry in state.store.snapshot_entries(target, ticket)[:limit]
         ]
 
     @tool(FETCHES)
@@ -183,13 +187,22 @@ def create_mcp(state: AppState) -> MCPServer:
         all_targets: Annotated[bool, Field(description="Every host of the inventory.")] = False,
         label: Annotated[str | None, Field(description="The label of the snapshots: before, after.")] = None,
         source: Annotated[str | None, Field(description="One source for all; none: the platform of each.")] = None,
+        ticket: Annotated[str | None, Field(description=TICKET_HELP)] = None,
     ) -> SnapshotResult:
-        """Fetch the targets at the same time and save a snapshot of each, with `label` (before, after).
+        """Fetch the targets at the same time and save a snapshot of each, with `label` (before, after) and `ticket`.
 
         Without `source`, each target uses the source of its platform in the inventory.
         """
         taken, failures = snapshot_targets(
-            state.store, state.settings, source, targets or [], groups or [], all_targets, label, origin="mcp"
+            state.store,
+            state.settings,
+            source,
+            targets or [],
+            groups or [],
+            all_targets,
+            label,
+            origin="mcp",
+            ticket=ticket,
         )
         saved = {target: item.reference for target, item in taken.items()}
         return SnapshotResult(ok=not failures, saved=saved, failed=failures)
@@ -202,11 +215,8 @@ def create_mcp(state: AppState) -> MCPServer:
         target: Annotated[str | None, Field(description="With live: another target than the one of left.")] = None,
         models: Annotated[list[str] | None, Field(description="Only these models; none: all.")] = None,
         profile: Annotated[str | None, Field(description="A profile of the settings, see list_profiles.")] = None,
-        change: Annotated[
-            str | None, Field(description="The change that the diff belongs to: CHG-1042, #216, any reference.")
-        ] = None,
-        title: Annotated[str | None, Field(description="What the diff is about: VLAN 20, r1.")] = None,
-        description: Annotated[str | None, Field(description="More words about the change.")] = None,
+        ticket: Annotated[str | None, Field(description=DIFF_TICKET_HELP)] = None,
+        note: Annotated[str | None, Field(description=NOTE_HELP)] = None,
         expected: Annotated[
             list[ExpectedChange] | None,
             Field(
@@ -228,9 +238,8 @@ def create_mcp(state: AppState) -> MCPServer:
             target=target,
             models=models,
             profile=profile,
-            change=change,
-            title=title,
-            description=description,
+            ticket=ticket,
+            note=note,
             expected=expected,
             save=save,
             origin="mcp",
@@ -246,10 +255,8 @@ def create_mcp(state: AppState) -> MCPServer:
         all_targets: Annotated[bool, Field(description="Every target that has a left snapshot.")] = False,
         live: Annotated[bool, Field(description="Fetch each target now as the right side, at the same time.")] = False,
         profile: Annotated[str | None, Field(description="A profile of the settings, see list_profiles.")] = None,
-        change: Annotated[
-            str | None, Field(description="The change that the diff belongs to: CHG-1042, #216, any reference.")
-        ] = None,
-        title: Annotated[str | None, Field(description="What the diffs are about: VLAN 20 on core.")] = None,
+        ticket: Annotated[str | None, Field(description=DIFF_TICKET_HELP)] = None,
+        note: Annotated[str | None, Field(description=NOTE_HELP)] = None,
         expected: Annotated[
             list[ExpectedChange] | None,
             Field(description="The changes that must happen, on each target or on the one that each names."),
@@ -269,8 +276,8 @@ def create_mcp(state: AppState) -> MCPServer:
             all_targets=all_targets,
             live=live,
             profile=profile,
-            change=change,
-            title=title,
+            ticket=ticket,
+            note=note,
             expected=expected,
             origin="mcp",
         )
@@ -290,12 +297,13 @@ def create_mcp(state: AppState) -> MCPServer:
     @tool(READ_ONLY)
     def list_diffs(
         query: str = "",
+        ticket: Annotated[str | None, Field(description="Only the diffs of exactly this ticket (any case).")] = None,
         limit: Annotated[int, Field(ge=1, le=MAX_LIMIT, description="How many diffs, newest first.")] = 20,
     ) -> list[DiffItem]:
-        """The newest saved diffs whose left target, right target or change contains `query`."""
+        """The newest saved diffs whose left target, right target or ticket contains `query`."""
         return [
             DiffItem.of(entry.name, state.store.load_output(entry.name))
-            for entry in state.store.output_entries(query)[:limit]
+            for entry in state.store.output_entries(query, ticket)[:limit]
         ]
 
     @tool(WRITES)
@@ -318,18 +326,10 @@ def create_mcp(state: AppState) -> MCPServer:
         return review_state(output)
 
     @tool(WRITES)
-    def describe_diff(
-        name: str, change: str | None = None, title: str | None = None, description: str | None = None
-    ) -> DiffItem:
-        """Give a saved diff a change (CHG-1042), a title (VLAN 20, r1) and a description; an empty text removes one."""
+    def describe_diff(name: DiffName, ticket: str | None = None, note: str | None = None) -> DiffItem:
+        """Give a saved diff a ticket (CHG-1042) and a note; what is not given stays, an empty text removes one."""
         resolved = state.store.resolve_output(name)
-        current = state.store.load_output(resolved)
-        chosen_change = current.change if change is None else change
-        chosen_title = current.title if title is None else title
-        chosen_description = current.description if description is None else description
-        return DiffItem.of(
-            resolved, state.store.describe_output(resolved, chosen_title, chosen_description, chosen_change)
-        )
+        return DiffItem.of(resolved, state.store.describe_output(resolved, ticket=ticket, note=note))
 
     @tool(READ_ONLY)
     def list_profiles() -> list[ProfileItem]:
@@ -369,13 +369,19 @@ def create_mcp(state: AppState) -> MCPServer:
         return state.store.load_run(run_id)
 
     @server.prompt(title="Check a change")
-    def check_change(targets: str, change: str) -> str:
+    def check_change(targets: str, change: str, ticket: str = "") -> str:
         """Snapshot the targets before and after a change, compare them, and review the changes against the intent."""
+        tracked = (
+            f" Give the ticket {ticket} to take_snapshots, both times, and to compare_targets, so that the labels "
+            "stay inside that ticket."
+            if ticket
+            else ""
+        )
         return (
             f"Check this change on {targets}: {change}\n\n"
             "Follow the steps of the resource snapdelta://guide: take_snapshots with the label before, wait until "
             "the change is applied (ask me when it is), take_snapshots with the label after, then compare "
-            "TARGET@before with TARGET@after for each target, with the change reference in change. Accept the "
+            f"TARGET@before with TARGET@after for each target.{tracked} Accept the "
             "changes that the change explains, with a comment. List every other change for me, with its target."
         )
 
@@ -398,8 +404,8 @@ def _page(name: str, output: Any, model: str | None, offset: int, limit: int) ->
     end = offset + len(window)
     return ChangePage(
         name=name,
-        change=output.change,
-        title=output.title,
+        ticket=output.ticket,
+        note=output.note,
         has_differences=output.has_differences(),
         summary=output.summary,
         changes=[_change(row, output.reviews) for row in window],

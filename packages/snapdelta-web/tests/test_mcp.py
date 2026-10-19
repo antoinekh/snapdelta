@@ -38,7 +38,7 @@ def test_an_agent_checks_a_change_and_accepts_it(store) -> None:
             "take_snapshots", {"targets": ["R1"], "label": "before", "source": "example-live"}
         )
         await client.call_tool("take_snapshots", {"targets": ["R1"], "label": "after", "source": "example-live"})
-        compared = await client.call_tool("compare", {"left": "R1@before", "right": "R1@after", "title": "nothing"})
+        compared = await client.call_tool("compare", {"left": "R1@before", "right": "R1@after", "note": "nothing"})
         name = compared.structured_content["name"]
         diff = await client.call_tool("read_diff", {"name": "20260925T110000Z-R1-vs-R1", "limit": 1})
         accepted = await client.call_tool(
@@ -62,7 +62,7 @@ def test_an_agent_checks_a_change_and_accepts_it(store) -> None:
 
     before, (name, compared), diff, (accepted, runs) = call(store, steps)
     assert before["ok"] and before["saved"]["R1"].endswith("-before")
-    assert compared["has_differences"] is False and compared["title"] == "nothing" and name
+    assert compared["has_differences"] is False and compared["note"] == "nothing" and name
     assert diff["total"] > 1 and diff["next_offset"] == 1 and diff["changes"][0]["accepted"] is False
     assert accepted["accepted"] == 1
     origins = {run["origin"] for run in runs["result"]}
@@ -128,21 +128,50 @@ def test_an_agent_compares_many_targets_at_once(store) -> None:
     assert result["diffs"][0]["diff"]["url"].startswith("/diffs/")
 
 
-def test_an_agent_sets_the_change_of_a_diff_and_finds_it(store) -> None:
+def test_an_agent_takes_snapshots_with_a_ticket_and_lists_them_by_ticket(store) -> None:
+    async def steps(client: Client) -> Any:
+        body = {"targets": ["R1"], "label": "live", "source": "example-live", "ticket": "CHG-7"}
+        await client.call_tool("take_snapshots", body)
+        return await client.call_tool("list_snapshots", {"target": "R1", "ticket": "chg-7"})
+
+    listed = call(store, steps)
+    assert [item["label"] for item in listed.structured_content["result"]] == ["live"]
+
+
+def test_an_agent_sets_the_ticket_and_the_note_and_finds_the_diff(ticketed) -> None:
     async def steps(client: Client) -> Any:
         compared = await client.call_tool(
-            "compare", {"left": "R1@before", "right": "R1@after", "title": "r1", "change": "CHG-7"}
+            "compare", {"left": "R1@before", "right": "R1@after", "note": "r1", "ticket": "chg-1"}
         )
         name = compared.structured_content["name"]
-        described = await client.call_tool("describe_diff", {"name": name, "title": "r1 uplink"})
-        found = await client.call_tool("list_diffs", {"query": "chg-7"})
+        described = await client.call_tool("describe_diff", {"name": name, "note": "r1 uplink"})
+        cleared = await client.call_tool("describe_diff", {"name": name, "note": ""})
+        found = await client.call_tool("list_diffs", {"ticket": "CHG-1"})
+        none = await client.call_tool("list_diffs", {"ticket": "CHG"})
         many = await client.call_tool(
-            "compare_targets", {"left": "before", "right": "after", "targets": ["R1"], "change": "CHG-8"}
+            "compare_targets",
+            {"left": "before", "right": "after", "targets": ["R1"], "ticket": "CHG-1", "note": "many"},
         )
-        return name, compared.structured_content, described.structured_content, found.structured_content, many
+        return name, compared, described, cleared, found, none, many
 
-    name, compared, described, found, many = call(store, steps)
-    assert compared["change"] == "CHG-7"
-    assert (described["change"], described["title"]) == ("CHG-7", "r1 uplink")
-    assert [item["name"] for item in found["result"]] == [name]
-    assert many.structured_content["diffs"][0]["diff"]["change"] == "CHG-8"
+    name, compared, described, cleared, found, none, many = call(ticketed, steps)
+    assert (compared.structured_content["ticket"], compared.structured_content["note"]) == ("chg-1", "r1")
+    assert (described.structured_content["ticket"], described.structured_content["note"]) == ("chg-1", "r1 uplink")
+    assert (cleared.structured_content["ticket"], cleared.structured_content["note"]) == ("chg-1", None)
+    assert [item["name"] for item in found.structured_content["result"]] == [name]
+    assert none.structured_content["result"] == []
+    diff = many.structured_content["diffs"][0]["diff"]
+    assert (diff["ticket"], diff["note"]) == ("CHG-1", "many")
+    assert diff["left"]["snapshot"].startswith("R1/20260926T100000Z")
+
+
+def test_the_check_change_prompt_passes_the_ticket_on(store) -> None:
+    async def steps(client: Client) -> tuple[str, str]:
+        arguments = {"targets": "r1", "change": "VLAN 20"}
+        with_ticket = await client.get_prompt("check_change", arguments | {"ticket": "CHG-7"})
+        without = await client.get_prompt("check_change", arguments)
+        return with_ticket.messages[0].content.text, without.messages[0].content.text
+
+    with_ticket, without = call(store, steps)
+    assert "CHG-7" in with_ticket and "take_snapshots" in with_ticket and "compare_targets" in with_ticket
+    assert "CHG-7" not in without and "ticket" not in without

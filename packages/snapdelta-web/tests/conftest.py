@@ -62,6 +62,21 @@ def store(base_store: Path, tmp_path: Path) -> Store:
 
 
 @pytest.fixture
+def ticketed(store: Store) -> Store:
+    """R1 before in two tickets (CHG-2 the newer) and R1 after in CHG-1, next to the snapshots of no ticket."""
+    day = BEFORE + timedelta(days=1)
+    for sample, label, ticket, moment in [
+        ("r1-before", "before", "CHG-1", day),
+        ("r1-before", "before", "CHG-2", day + timedelta(hours=1)),
+        ("r1-after", "after", "CHG-1", day + timedelta(hours=2)),
+    ]:
+        adapter = ExampleSource(files=[SAMPLES / f"{sample}.json"], label=label, ticket=ticket, captured_at=moment)
+        adapter.load()
+        store.save_snapshot(adapter)
+    return store
+
+
+@pytest.fixture
 def names() -> Names:
     return Names()
 
