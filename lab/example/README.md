@@ -241,7 +241,7 @@ All the commands run in `lab/example`, so snapdelta reads the settings file of t
 
 4. **Take snapshot** again, with **All targets**, the label `after` and the ticket `CHG-1042`.
 
-5. **New diff**: pick `r1` on the left, then **Before → after** selects its `before` and `after` snapshots. Give the ticket `CHG-1042` and a note, then **Compare**.
+5. **New diff**: pick `r1` and its `before` snapshot on the left, then its `after` snapshot on the right. Give the ticket `CHG-1042` and a note, then **Compare**.
 
 6. The diff page: the two sides, the delta strip, the chips and the search that filter the objects, the change map at the right edge, and **Accept** on each change. `?` lists the keyboard shortcuts; see [docs/web-ui.md](../../docs/web-ui.md).
 

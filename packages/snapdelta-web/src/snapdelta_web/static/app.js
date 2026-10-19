@@ -149,19 +149,8 @@
   document.addEventListener("click", function (event) {
     var form = document.querySelector("form.new-diff");
     if (!form) return;
-    if (event.target.closest("[data-swap-sides]")) {
-      reloadNewDiff(form, sideValue(form, "right"), sideValue(form, "left"));
-      return;
-    }
-    var preset = event.target.closest("[data-preset-labels]");
-    if (!preset) return;
-    var target = (sideValue(form, "left") || sideValue(form, "right")).split(/[@/]/)[0];
-    if (!target) {
-      form.querySelector('input[type="search"]').focus();
-      return;
-    }
-    var labels = preset.dataset.presetLabels.split(" ");
-    reloadNewDiff(form, target + "@" + labels[0], target + "@" + labels[1]);
+    if (!event.target.closest("[data-swap-sides]")) return;
+    reloadNewDiff(form, sideValue(form, "right"), sideValue(form, "left"));
   });
 
   // The After side follows the target of the Before side, until the user picks another target for it.

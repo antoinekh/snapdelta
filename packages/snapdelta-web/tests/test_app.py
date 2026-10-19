@@ -749,7 +749,7 @@ def test_new_diff_keeps_the_ticket_and_tells_a_missing_label(client, ticketed) -
     assert 'value="R1/20260926T100000Z-before" checked' in page and 'value="R1@latest" checked' in page
     assert "No snapshot of R1 is labelled nope in the ticket CHG-1: the newest snapshot is selected." in page
     assert 'value="CHG-1"' in page and ">Uplink</textarea>" in page
-    assert "data-swap-sides" in page and 'data-preset-labels="before after"' in page
+    assert "data-swap-sides" in page and "data-preset-labels" not in page
 
 
 def test_the_diffs_list_shows_the_ticket_column(client, names, store) -> None:

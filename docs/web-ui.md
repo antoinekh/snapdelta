@@ -51,7 +51,7 @@ The metadata of the load (time, models, inputs, warnings), then one table per mo
 
 A switch at the top gives **One target** (the default) or **Many targets**.
 
-**One target**: choose a target, then a snapshot, for **Before** and **After**; with an inventory, a group list filters the targets. The After side takes the target of the Before side until you choose another one for it. Then the models in common, a ticket, a note and a profile. **⇄** between the two sides swaps them; **Before → after** selects the newest snapshots labelled `before` and `after` of the target of the Before side.
+**One target**: choose a target, then a snapshot, for **Before** and **After**; with an inventory, a group list filters the targets. The After side takes the target of the Before side until you choose another one for it. Then the models in common, a ticket, a note and a profile. **⇄** between the two sides swaps them.
 
 **Many targets** compares `TARGET@BEFORE` with `TARGET@AFTER` for each host of a group (the page lists its hosts), or for each target of the store that has a Before snapshot; **Now** on the After side takes it from the targets, at the same time. It has the same ticket, note and profile as One target, and gives them to each diff; with a ticket, the labels of Before and After name the snapshots of that ticket only. The page that follows lists each target as changed, unchanged or failed, with the link of its diff.
 
