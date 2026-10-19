@@ -175,3 +175,23 @@ def test_the_check_change_prompt_passes_the_ticket_on(store) -> None:
     with_ticket, without = call(store, steps)
     assert "CHG-7" in with_ticket and "take_snapshots" in with_ticket and "compare_targets" in with_ticket
     assert "CHG-7" not in without and "ticket" not in without
+
+
+def test_a_ticket_or_a_note_that_is_too_long_is_refused_before_any_work(store) -> None:
+    calls = [
+        ("take_snapshots", {"targets": ["R1"], "source": "example-live", "ticket": "x" * 81}),
+        ("compare", {"left": "R1@before", "right": "R1@after", "ticket": "x" * 81}),
+        ("compare", {"left": "R1@before", "right": "R1@after", "note": "x" * 2001}),
+        ("compare_targets", {"targets": ["R1"], "left": "before", "live": True, "ticket": "x" * 81}),
+        ("compare_targets", {"targets": ["R1"], "left": "before", "live": True, "note": "x" * 2001}),
+        ("describe_diff", {"name": "any", "ticket": "x" * 81}),
+        ("describe_diff", {"name": "any", "note": "x" * 2001}),
+    ]
+
+    async def steps(client: Client) -> list[Any]:
+        return [await client.call_tool(name, arguments) for name, arguments in calls]
+
+    before = (len(store.output_entries()), [len(store.snapshot_entries(target)) for target in store.targets()])
+    results = call(store, steps)
+    assert all(result.is_error and "String should have at most" in result.content[0].text for result in results)
+    assert before == (len(store.output_entries()), [len(store.snapshot_entries(t)) for t in store.targets()])

@@ -24,6 +24,7 @@ from .ticket import TicketText, normalize_ticket, ticket_key
 
 SCHEMA = 3
 NOTE_LINE_MAX = 120
+NOTE_MAX = 2000
 
 
 CHANGES = ("create", "update", "delete")
@@ -62,7 +63,7 @@ class Output(BaseModel):
     profile: AppliedProfile | None = None
     # Given by the user, at the compare or later: the work that the diff belongs to, and what the diff is about.
     ticket: TicketText
-    note: str | None = Field(default=None, max_length=2000)
+    note: str | None = Field(default=None, max_length=NOTE_MAX)
     # By the key of a changed object, `MODEL:UNIQUE_ID`: the changes that a person accepted.
     reviews: dict[str, Review] = {}
     # The check against the changes that the compare was given as expected, when it was given some.
@@ -125,6 +126,12 @@ def described(output: Output, *, ticket: str | None = None, note: str | None = N
     except ValidationError as error:
         problems = "; ".join(f"{item['loc'][0]}: {item['msg']}" for item in error.errors())
         raise SnapdeltaError(f"not a valid ticket or note ({problems})") from error
+
+
+def check_note(note: str | None) -> None:
+    """A note that is too long fails here, before any work, not when the output is described."""
+    if note is not None and len(note.strip()) > NOTE_MAX:
+        raise SnapdeltaError(f"not a valid note: {NOTE_MAX} characters at most")
 
 
 def note_line(note: str | None) -> str | None:

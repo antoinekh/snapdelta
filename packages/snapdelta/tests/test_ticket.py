@@ -1,4 +1,7 @@
-from snapdelta.ticket import normalize_ticket, ticket_key
+import pytest
+
+from snapdelta.errors import SnapdeltaError
+from snapdelta.ticket import TICKET_MAX, check_ticket, normalize_ticket, ticket_key
 
 
 def test_a_ticket_is_trimmed_and_its_spaces_collapse() -> None:
@@ -14,3 +17,10 @@ def test_two_tickets_are_the_same_with_any_case() -> None:
 
 def test_a_ticket_keeps_any_character() -> None:
     assert normalize_ticket("#216 / Évolution réseau") == "#216 / Évolution réseau"
+
+
+def test_a_ticket_is_checked_before_any_work() -> None:
+    assert check_ticket("  CHG-1 ") == "CHG-1" and check_ticket(None) is None and check_ticket(" ") is None
+    assert check_ticket("x" * TICKET_MAX) == "x" * TICKET_MAX
+    with pytest.raises(SnapdeltaError, match="not a valid ticket: 80 characters at most"):
+        check_ticket("x" * (TICKET_MAX + 1))

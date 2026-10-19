@@ -18,13 +18,14 @@ from snapdelta.catalog import catalog
 from snapdelta.cli import SettingsOption, StoreOption
 from snapdelta.errors import SnapdeltaError
 from snapdelta.expected import ExpectationCheck, ExpectedChange
-from snapdelta.output import change_key, new_review
+from snapdelta.output import NOTE_MAX, change_key, new_review
 from snapdelta.plugins import package_of
 from snapdelta.render import change_rows
 from snapdelta.settings import Profile, load_settings
 from snapdelta.source import SOURCES, source_classes
 from snapdelta.store import open_store_from
 from snapdelta.take import diff_snapshots, diff_targets, snapshot_targets
+from snapdelta.ticket import TICKET_MAX
 
 from .api import (
     MAX_LIMIT,
@@ -187,7 +188,7 @@ def create_mcp(state: AppState) -> MCPServer:
         all_targets: Annotated[bool, Field(description="Every host of the inventory.")] = False,
         label: Annotated[str | None, Field(description="The label of the snapshots: before, after.")] = None,
         source: Annotated[str | None, Field(description="One source for all; none: the platform of each.")] = None,
-        ticket: Annotated[str | None, Field(description=TICKET_HELP)] = None,
+        ticket: Annotated[str | None, Field(description=TICKET_HELP, max_length=TICKET_MAX)] = None,
     ) -> SnapshotResult:
         """Fetch the targets at the same time and save a snapshot of each, with `label` (before, after) and `ticket`.
 
@@ -215,8 +216,8 @@ def create_mcp(state: AppState) -> MCPServer:
         target: Annotated[str | None, Field(description="With live: another target than the one of left.")] = None,
         models: Annotated[list[str] | None, Field(description="Only these models; none: all.")] = None,
         profile: Annotated[str | None, Field(description="A profile of the settings, see list_profiles.")] = None,
-        ticket: Annotated[str | None, Field(description=DIFF_TICKET_HELP)] = None,
-        note: Annotated[str | None, Field(description=NOTE_HELP)] = None,
+        ticket: Annotated[str | None, Field(description=DIFF_TICKET_HELP, max_length=TICKET_MAX)] = None,
+        note: Annotated[str | None, Field(description=NOTE_HELP, max_length=NOTE_MAX)] = None,
         expected: Annotated[
             list[ExpectedChange] | None,
             Field(
@@ -255,8 +256,8 @@ def create_mcp(state: AppState) -> MCPServer:
         all_targets: Annotated[bool, Field(description="Every target that has a left snapshot.")] = False,
         live: Annotated[bool, Field(description="Fetch each target now as the right side, at the same time.")] = False,
         profile: Annotated[str | None, Field(description="A profile of the settings, see list_profiles.")] = None,
-        ticket: Annotated[str | None, Field(description=DIFF_TICKET_HELP)] = None,
-        note: Annotated[str | None, Field(description=NOTE_HELP)] = None,
+        ticket: Annotated[str | None, Field(description=DIFF_TICKET_HELP, max_length=TICKET_MAX)] = None,
+        note: Annotated[str | None, Field(description=NOTE_HELP, max_length=NOTE_MAX)] = None,
         expected: Annotated[
             list[ExpectedChange] | None,
             Field(description="The changes that must happen, on each target or on the one that each names."),
@@ -326,7 +327,11 @@ def create_mcp(state: AppState) -> MCPServer:
         return review_state(output)
 
     @tool(WRITES)
-    def describe_diff(name: DiffName, ticket: str | None = None, note: str | None = None) -> DiffItem:
+    def describe_diff(
+        name: DiffName,
+        ticket: Annotated[str | None, Field(max_length=TICKET_MAX)] = None,
+        note: Annotated[str | None, Field(max_length=NOTE_MAX)] = None,
+    ) -> DiffItem:
         """Give a saved diff a ticket (CHG-1042) and a note; what is not given stays, an empty text removes one."""
         resolved = state.store.resolve_output(name)
         return DiffItem.of(resolved, state.store.describe_output(resolved, ticket=ticket, note=note))

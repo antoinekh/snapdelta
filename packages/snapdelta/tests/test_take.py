@@ -7,7 +7,15 @@ import pytest
 from snapdelta.errors import LoadError, SnapdeltaError
 from snapdelta.settings import Settings, SourceSettings
 from snapdelta.store import FileStore
-from snapdelta.take import diff_snapshots, load_source, snapshot_targets, take_live, take_snapshots, target_names
+from snapdelta.take import (
+    diff_snapshots,
+    diff_targets,
+    load_source,
+    snapshot_targets,
+    take_live,
+    take_snapshots,
+    target_names,
+)
 from snapdelta_example import ExampleLiveSource, ExampleSource
 
 
@@ -148,3 +156,26 @@ def test_diff_snapshots_looks_for_the_right_side_in_the_ticket_too(tmp_path) -> 
         )
     done = diff_snapshots(store, Settings(), "R1@before", "R1@after", ticket="CHG-1")
     assert done.output.right.snapshot == "R1/20260101T020000Z-after"
+
+
+def test_a_ticket_or_a_note_that_is_too_long_stops_before_any_snapshot_is_taken(tmp_path) -> None:
+    from snapdelta.source import register_source
+
+    register_source(ExampleLiveSource)
+    store = FileStore(tmp_path)
+    settings = Settings()
+    store.save_snapshot(load_source(ExampleLiveSource, target="R1", label="before"))
+    long_ticket, long_note = "x" * 81, "x" * 2001
+    with pytest.raises(SnapdeltaError, match="not a valid ticket"):
+        take_snapshots(store, {"R2": ExampleLiveSource}, ticket=long_ticket)
+    with pytest.raises(SnapdeltaError, match="not a valid ticket"):
+        load_source(ExampleLiveSource, target="R2", ticket=long_ticket)
+    with pytest.raises(SnapdeltaError, match="not a valid ticket"):
+        diff_snapshots(store, settings, "R1@before", live=True, ticket=long_ticket)
+    with pytest.raises(SnapdeltaError, match="not a valid note: 2000 characters at most"):
+        diff_snapshots(store, settings, "R1@before", live=True, note=long_note)
+    with pytest.raises(SnapdeltaError, match="not a valid note: 2000 characters at most"):
+        diff_targets(store, settings, "before", live=True, targets=["R1"], note=long_note)
+    with pytest.raises(SnapdeltaError, match="not a valid ticket"):
+        diff_targets(store, settings, "before", live=True, targets=["R1"], ticket=long_ticket)
+    assert store.targets() == ["R1"] and len(store.snapshot_entries("R1")) == 1 and store.output_entries() == []

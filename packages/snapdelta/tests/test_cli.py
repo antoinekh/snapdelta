@@ -320,6 +320,14 @@ def test_snapshot_saves_the_ticket(tmp_path) -> None:
     assert store.load_snapshot(store.resolve_snapshot("R1@latest")).ticket == "CHG-1"
 
 
+def test_snapshot_refuses_a_ticket_that_is_too_long_before_it_loads_anything(tmp_path) -> None:
+    store = FileStore(tmp_path / "store")
+    args = ["--store", str(tmp_path / "store"), "snapshot", "--source", "example-live", "--target", "R1"]
+    result = runner.invoke(app, [*args, "--ticket", "x" * 81])
+    assert result.exit_code == 2 and "not a valid ticket: 80 characters at most" in result.output
+    assert "Traceback" not in result.output and store.targets() == []
+
+
 def test_diff_resolves_its_labels_in_its_ticket(make_adapter, tmp_path) -> None:
     store = FileStore(tmp_path / "store")
     older = datetime(2026, 9, 25, 9, 0, tzinfo=UTC)

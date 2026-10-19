@@ -14,12 +14,13 @@ from snapdelta.activity import Run, RunStatus
 from snapdelta.doctor import plugin_reports
 from snapdelta.errors import NotFoundError, SnapdeltaError
 from snapdelta.expected import ExpectationCheck, ExpectedChange
-from snapdelta.output import Output, Review, Side, new_review
+from snapdelta.output import NOTE_MAX, Output, Review, Side, new_review
 from snapdelta.plugins import package_of
 from snapdelta.render import renderer
 from snapdelta.snapshot import SnapshotFile
 from snapdelta.source import SOURCES, source_classes
 from snapdelta.take import TargetDiff, diff_snapshots, diff_targets, snapshot_targets
+from snapdelta.ticket import TICKET_MAX
 
 from .access import LruCache
 from .state import AppState
@@ -75,7 +76,9 @@ class SnapshotRequest(BaseModel):
     groups: list[str] = Field(default=[], description="Inventory groups: every host of each group.")
     all_targets: bool = Field(default=False, description="Every target of the source, or every inventory host.")
     label: str | None = Field(default=None, description="The label of the snapshots, for example before.")
-    ticket: str | None = Field(default=None, description="The ticket, issue or any reference of the work.")
+    ticket: str | None = Field(
+        default=None, max_length=TICKET_MAX, description="The ticket, issue or any reference of the work."
+    )
 
 
 class SnapshotResult(BaseModel):
@@ -93,9 +96,12 @@ class DiffRequest(BaseModel):
     profile: str | None = Field(default=None, description="A compare profile of the settings.")
     ticket: str | None = Field(
         default=None,
+        max_length=TICKET_MAX,
         description="The ticket of the diff; the labels are looked up in the snapshots of that ticket.",
     )
-    note: str | None = Field(default=None, description="Free text about the diff, on many lines when needed.")
+    note: str | None = Field(
+        default=None, max_length=NOTE_MAX, description="Free text about the diff, on many lines when needed."
+    )
     expected: list[ExpectedChange] | None = Field(
         default=None, description="The changes that must happen; the result says whether the diff is them and no other."
     )
@@ -113,9 +119,12 @@ class TargetsDiffRequest(BaseModel):
     profile: str | None = Field(default=None, description="A compare profile of the settings.")
     ticket: str | None = Field(
         default=None,
+        max_length=TICKET_MAX,
         description="The ticket of the diff; the labels are looked up in the snapshots of that ticket.",
     )
-    note: str | None = Field(default=None, description="Free text about the diff, on many lines when needed.")
+    note: str | None = Field(
+        default=None, max_length=NOTE_MAX, description="Free text about the diff, on many lines when needed."
+    )
     expected: list[ExpectedChange] | None = Field(
         default=None, description="The changes that must happen, on each target or on the one that each names."
     )
@@ -259,8 +268,12 @@ class ReviewState(BaseModel):
 
 
 class DescribeRequest(BaseModel):
-    ticket: str | None = Field(default=None, description="The new ticket; none keeps it, an empty text removes it.")
-    note: str | None = Field(default=None, description="The new note; none keeps it, an empty text removes it.")
+    ticket: str | None = Field(
+        default=None, max_length=TICKET_MAX, description="The new ticket; none keeps it, an empty text removes it."
+    )
+    note: str | None = Field(
+        default=None, max_length=NOTE_MAX, description="The new note; none keeps it, an empty text removes it."
+    )
 
 
 def create_api(state: AppState, row_cache: LruCache[Any, Any]) -> FastAPI:

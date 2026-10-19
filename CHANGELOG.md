@@ -10,6 +10,7 @@
 - The exact filter by ticket: `snapdelta list --ticket`, `GET /api/v1/diffs?ticket=`, `GET /api/v1/snapshots?ticket=`, the `ticket` argument of the MCP tools `list_diffs` and `list_snapshots`, and `/diffs?ticket=` in the web UI, where the chip of a ticket opens it. The search (`snapdelta list --target`, `q`, `query`) also finds a part of a ticket.
 - The prompt `check_change` of MCP takes an optional `ticket`, which it gives to the snapshots and the diffs.
 - The text format shows the line `ticket: X` and the note; the Markdown format has the heading `# TICKET · LEFT vs RIGHT`.
+- A ticket over 80 characters or a note over 2000 characters is refused with a message before any target is fetched or any snapshot is saved; the API and MCP refuse it as an invalid argument.
 
 ### Changed
 

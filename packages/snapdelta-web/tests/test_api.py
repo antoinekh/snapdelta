@@ -203,3 +203,22 @@ def test_a_pipeline_describes_a_diff_and_finds_it_by_ticket(api, ticketed) -> No
     assert [item["name"] for item in api.get("/api/v1/diffs", params={"q": "chg"}).json()] == [made["name"]]
     removed = api.patch(f"/api/v1/diffs/{made['name']}", json={"ticket": ""}).json()
     assert removed["ticket"] is None and api.get("/api/v1/diffs", params={"ticket": "chg-1"}).json() == []
+
+
+@pytest.mark.parametrize(
+    ("method", "path", "body"),
+    [
+        ("post", "/api/v1/snapshots", {"targets": ["R1"], "source": "example-live", "ticket": "x" * 81}),
+        ("post", "/api/v1/diffs", {"left": "R1@before", "right": "R1@after", "ticket": "x" * 81}),
+        ("post", "/api/v1/diffs", {"left": "R1@before", "right": "R1@after", "note": "x" * 2001}),
+        ("post", "/api/v1/diffs/targets", {"targets": ["R1"], "left": "before", "live": True, "ticket": "x" * 81}),
+        ("post", "/api/v1/diffs/targets", {"targets": ["R1"], "left": "before", "live": True, "note": "x" * 2001}),
+        ("patch", "/api/v1/diffs/any", {"ticket": "x" * 81}),
+        ("patch", "/api/v1/diffs/any", {"note": "x" * 2001}),
+    ],
+)
+def test_a_ticket_or_a_note_that_is_too_long_is_refused_before_any_work(api, store, method, path, body) -> None:
+    before = (len(store.output_entries()), [len(store.snapshot_entries(target)) for target in store.targets()])
+    response = getattr(api, method)(path, json=body)
+    assert response.status_code == 422
+    assert before == (len(store.output_entries()), [len(store.snapshot_entries(t)) for t in store.targets()])

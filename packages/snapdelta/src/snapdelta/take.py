@@ -10,13 +10,13 @@ from .activity import collecting, recorded
 from .errors import LoadError, SnapdeltaError
 from .expected import ExpectedChange, check_expected
 from .inventory import Host
-from .output import Output, compare, described
+from .output import Output, check_note, compare, described
 from .plugins import require
 from .runners import RUNNERS, LoadTask, OnProgress
 from .settings import Settings, SourceSettings
 from .source import Source, require_source, source_classes
 from .store import Store
-from .ticket import normalize_ticket
+from .ticket import check_ticket
 
 
 @dataclass(frozen=True)
@@ -120,6 +120,7 @@ def take_snapshots(
         if require_source(cls.source) is not cls:
             # A task names its source, so the runner would load with the installed class of that name.
             raise SnapdeltaError(f"{cls.__qualname__} is not the source {cls.source!r} of the registry: register it")
+    ticket = check_ticket(ticket)
     chosen = settings or Settings()
     name = chosen.snapshot.runner
     runner = require(RUNNERS, name)
@@ -189,6 +190,7 @@ def load_source(
     ticket: str | None = None,
 ) -> Source:
     """A loaded source; any error of the plugin becomes a LoadError, which the CLI and the web show as a message."""
+    ticket = check_ticket(ticket)
     adapter = cls(
         files=files, target=target, label=label, ticket=ticket, captured_at=captured_at, settings=settings, host=host
     )
@@ -232,7 +234,7 @@ def take_live(
         label=label,
         settings=settings.source(cls),
         host=host,
-        ticket=normalize_ticket(ticket) or left.ticket,
+        ticket=check_ticket(ticket) or left.ticket,
     )
     if not save:
         return loaded
@@ -273,7 +275,8 @@ def diff_snapshots(
     """
     if (right is None) == (not live):
         raise SnapdeltaError("give right, or live, not both")
-    ticket = normalize_ticket(ticket)
+    ticket = check_ticket(ticket)
+    check_note(note)
     left_adapter = store.load_snapshot(store.resolve_snapshot(left, ticket))
     _check_expected_targets(expected, [target or left_adapter.target or left])
     run = recorded(store, "diff", origin, [left_adapter.target or left], settings) if save else contextlib.nullcontext()
@@ -353,7 +356,8 @@ def diff_targets(
     left, right = left.removeprefix("@"), right.removeprefix("@") if right is not None else None
     if (right is None) == (not live):
         raise SnapdeltaError("give the label of the right side, or live, not both")
-    ticket = normalize_ticket(ticket)
+    ticket = check_ticket(ticket)
+    check_note(note)
     if live and not save:
         raise SnapdeltaError("a live diff of many targets saves the snapshots that it takes")
     chosen_profile = settings.profile(profile)
