@@ -21,7 +21,7 @@ docker run -d -p 8765:8765 -e SNAPDELTA_TOKEN="$(openssl rand -hex 32)" -v snapd
 The image holds no source: add your plugins in an image of your own.
 
 ```dockerfile
-FROM ghcr.io/antoinekh/snapdelta:v0.2.0
+FROM ghcr.io/antoinekh/snapdelta:v0.3.0
 RUN pip install --no-cache-dir my-snapdelta-plugin
 COPY snapdelta.toml /etc/snapdelta/snapdelta.toml
 COPY inventory /data/inventory
