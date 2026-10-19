@@ -3,7 +3,7 @@ import json
 import pytest
 
 from snapdelta.errors import NoCommonModelError, SnapdeltaError
-from snapdelta.output import common_models, compare, load_output, save_output, skipped_models
+from snapdelta.output import common_models, compare, described, load_output, note_line, save_output, skipped_models
 
 
 def test_identical_loads_have_no_difference(make_adapter) -> None:
@@ -50,7 +50,7 @@ def test_output_round_trip(make_adapter, tmp_path) -> None:
     output = compare(make_adapter(description="old"), make_adapter(description="new"))
     path = tmp_path / "outputs" / "o.json"
     save_output(output, path)
-    assert json.loads(path.read_text())["schema"] == 2
+    assert json.loads(path.read_text())["schema"] == 3
     assert load_output(path) == output
 
 
@@ -99,3 +99,27 @@ def test_a_change_can_be_accepted_and_withdrawn(make_adapter, tmp_path) -> None:
         reviewed(accepted, "interface:nope", None)
     with pytest.raises(SnapdeltaError, match="not a valid review"):
         new_review("a" * 81, None)
+
+
+def test_described_keeps_what_is_not_given_and_removes_an_empty_text(make_adapter) -> None:
+    output = described(compare(make_adapter(), make_adapter(description="other")), ticket="CHG-1", note="first\nsecond")
+    assert described(output, note="other").ticket == "CHG-1"
+    assert described(output, ticket="").ticket is None
+    assert described(output).note == "first\nsecond"
+    assert described(output, note="  ").note is None
+
+
+def test_a_ticket_is_normalized_and_the_note_is_trimmed(make_adapter) -> None:
+    output = described(compare(make_adapter(), make_adapter()), ticket="  CHG-1 \t phase 2 ", note=" text \n")
+    assert (output.ticket, output.note) == ("CHG-1 phase 2", "text")
+
+
+def test_a_ticket_longer_than_80_is_refused(make_adapter) -> None:
+    with pytest.raises(SnapdeltaError, match="not a valid ticket or note"):
+        described(compare(make_adapter(), make_adapter()), ticket="x" * 81)
+
+
+def test_note_line_is_the_first_line_cut_at_120() -> None:
+    assert note_line("\n first \nsecond") == "first"
+    assert note_line("y" * 130) == "y" * 119 + "…"
+    assert note_line(None) is None

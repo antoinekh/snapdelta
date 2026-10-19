@@ -1,4 +1,4 @@
-from snapdelta.output import compare
+from snapdelta.output import compare, described
 from snapdelta.render import change_rows, render_csv, render_markdown, render_output, render_snapshot, renderers
 
 
@@ -73,12 +73,17 @@ def test_the_profile_and_its_count_checks_are_printed(make_adapter) -> None:
     assert "- Count interface: 2 -> 3" in render_markdown(output)
 
 
-def test_text_and_markdown_show_the_change_before_the_title(make_adapter) -> None:
+def test_the_text_shows_the_ticket_then_the_note(make_adapter) -> None:
+    output = described(
+        compare(make_adapter(), make_adapter(description="other")), ticket="CHG-1042", note="VLAN 20\non the trunk"
+    )
+    assert render_output(output).startswith("ticket: CHG-1042\nVLAN 20\non the trunk\n\nleft:")
+    assert render_output(described(output, note="")).startswith("ticket: CHG-1042\n\nleft:")
+    assert render_output(described(output, ticket="")).startswith("VLAN 20\non the trunk\n\nleft:")
+
+
+def test_the_markdown_heading_is_the_ticket_and_the_targets(make_adapter) -> None:
     output = compare(make_adapter(), make_adapter(description="other"))
-    both = output.model_copy(update={"change": "CHG-1", "title": "r1"})
-    assert render_output(both).splitlines()[:3] == ["change: CHG-1", "title: r1", ""]
-    assert render_markdown(both).splitlines()[0] == "# CHG-1 · r1"
-    alone = output.model_copy(update={"change": "CHG-1"})
-    assert render_output(alone).splitlines()[:2] == ["change: CHG-1", ""]
-    assert render_markdown(alone).splitlines()[0] == "# CHG-1"
-    assert render_markdown(output).splitlines()[0] == "# R1 vs R1"
+    ticketed = described(output, ticket="CHG-1042", note="VLAN 20")
+    assert render_markdown(ticketed).startswith("# CHG-1042 · R1 vs R1\n\nVLAN 20\n\n| Side")
+    assert render_markdown(output).startswith("# R1 vs R1\n")

@@ -20,8 +20,10 @@ from .profile import AppliedProfile, flags, paired, refine
 from .settings import Profile
 from .snapshot import StoredSource
 from .source import Source
+from .ticket import TicketText, normalize_ticket
 
-SCHEMA = 2
+SCHEMA = 3
+NOTE_LINE_MAX = 120
 
 
 CHANGES = ("create", "update", "delete")
@@ -59,9 +61,8 @@ class Output(BaseModel):
     diff: dict[str, Any]
     profile: AppliedProfile | None = None
     # Given by the user, at the compare or later: the work that the diff belongs to, and what the diff is about.
-    change: str | None = Field(default=None, max_length=80, pattern=r"^[^\n]*$")
-    title: str | None = Field(default=None, max_length=120, pattern=r"^[^\n]*$")
-    description: str | None = Field(default=None, max_length=2000)
+    ticket: TicketText
+    note: str | None = Field(default=None, max_length=2000)
     # By the key of a changed object, `MODEL:UNIQUE_ID`: the changes that a person accepted.
     reviews: dict[str, Review] = {}
     # The check against the changes that the compare was given as expected, when it was given some.
@@ -112,16 +113,26 @@ def new_review(by: str | None, comment: str | None) -> Review:
         raise SnapdeltaError(f"not a valid review ({problems})") from error
 
 
-def described(output: Output, title: str | None, description: str | None, change: str | None) -> Output:
-    """The output with this title, description and change; an empty text removes it."""
+def described(output: Output, *, ticket: str | None = None, note: str | None = None) -> Output:
+    """The output with this ticket and note; None keeps the current one, an empty text removes it."""
     values = output.model_dump(by_alias=True)
-    given = {"title": title, "description": description, "change": change}
-    values |= {key: (text or "").strip() or None for key, text in given.items()}
+    if ticket is not None:
+        values["ticket"] = normalize_ticket(ticket)
+    if note is not None:
+        values["note"] = note.strip() or None
     try:
         return Output.model_validate(values)
     except ValidationError as error:
         problems = "; ".join(f"{item['loc'][0]}: {item['msg']}" for item in error.errors())
-        raise SnapdeltaError(f"not a valid title, description or change ({problems})") from error
+        raise SnapdeltaError(f"not a valid ticket or note ({problems})") from error
+
+
+def note_line(note: str | None) -> str | None:
+    """The first non-empty line of a note, cut for a list."""
+    line = next((line.strip() for line in (note or "").splitlines() if line.strip()), None)
+    if line is not None and len(line) > NOTE_LINE_MAX:
+        return f"{line[: NOTE_LINE_MAX - 1]}…"
+    return line
 
 
 def common_models(left: Sequence[str], right: Sequence[str]) -> list[str]:
