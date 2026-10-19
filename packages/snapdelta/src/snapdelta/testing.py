@@ -168,6 +168,16 @@ class StoreContract:
         with pytest.raises(NotFoundError, match="in ticket 'CHG-3'"):
             store.resolve_snapshot("R1@before", ticket="CHG-3")
 
+    def test_a_label_outside_the_ticket_is_named_in_the_error(self, store: Store) -> None:
+        store.save_snapshot(sample(label="before"))
+        with pytest.raises(NotFoundError, match="R1@before exists outside this ticket"):
+            store.resolve_snapshot("R1@before", ticket="CHG-1")
+        with pytest.raises(NotFoundError, match="R1@latest exists outside this ticket"):
+            store.resolve_snapshot("R1@latest", ticket="CHG-1")
+        with pytest.raises(NotFoundError) as unknown:
+            store.resolve_snapshot("R1@after", ticket="CHG-1")
+        assert "exists outside" not in str(unknown.value)
+
     def test_the_snapshots_of_a_ticket(self, store: Store) -> None:
         store.save_snapshot(sample(label="before"))
         marked = store.save_snapshot(

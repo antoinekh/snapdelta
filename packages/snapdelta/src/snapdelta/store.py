@@ -233,7 +233,17 @@ class Store(ABC):
             if not entries:
                 which = "snapshot" if tag == LATEST else f"snapshot labelled {tag!r}"
                 scope = f" in ticket {ticket!r}" if ticket else ""
-                raise NotFoundError(f"no {which} of {target}{scope} in {self.location}")
+                # Snapshots taken without the ticket never resolve with it, so say where they are.
+                outside = ticket and any(
+                    tag == LATEST or entry.label == _safe(tag) for entry in self.snapshot_entries(target)
+                )
+                hint = (
+                    f"; {target}@{tag} exists outside this ticket: compare without the ticket, then give the diff "
+                    "the ticket"
+                    if outside
+                    else ""
+                )
+                raise NotFoundError(f"no {which} of {target}{scope} in {self.location}{hint}")
             return entries[0].reference
         wanted = reference.removesuffix(".json").removeprefix("snapshots/")
         if self._valid_reference(wanted) and self._has_snapshot(wanted):

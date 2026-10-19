@@ -24,7 +24,7 @@ snapdelta takes snapshots of targets (routers, services) through source plugins,
 - `snapdelta settings` shows the settings file and the store in use. `file: none, defaults` means no project settings and the default store `~/.local/share/snapdelta`: ask the user if this is the right place before you take snapshots.
 - `snapdelta inventory` lists the targets with their platform (the source) and their groups; `snapdelta sources` lists the installed sources; `snapdelta doctor` checks the plugins, the settings, the store and the inventory when a command fails for no clear reason.
 - No project yet: follow `docs/getting-started.md`, or show the demo of the README (the example plugin, in the web UI).
-- A snapshot reference is `TARGET/NAME`, `TARGET@latest`, or `TARGET@LABEL` (the newest snapshot with that label, for example `r1@before`). With `--ticket`, the labels look inside the snapshots of that ticket only.
+- A snapshot reference is `TARGET/NAME`, `TARGET@latest`, or `TARGET@LABEL` (the newest snapshot with that label, for example `r1@before`). With `--ticket`, the labels look inside the snapshots of that ticket only: give the ticket when you take the snapshots, else their labels do not resolve with it.
 
 ## Check a change
 
