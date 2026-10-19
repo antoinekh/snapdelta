@@ -9,7 +9,7 @@ import sqlite3
 from abc import ABC, abstractmethod
 from collections.abc import Collection, Iterator, Mapping
 from contextlib import closing, contextmanager
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any, ClassVar
@@ -115,12 +115,42 @@ def _valid_part(part: str) -> bool:
 
 @dataclass(frozen=True)
 class SnapshotEntry:
-    """A snapshot known from its reference only, so that long lists read no snapshot."""
+    """A row of a snapshot list: what the reference tells, and the ticket and the source of the snapshot."""
 
     target: str
     reference: str
     captured_at: datetime
     label: str | None
+    ticket: str | None
+    source: str
+
+
+@dataclass(frozen=True)
+class SnapshotQuery:
+    """The snapshots to list; every field given applies, and none given means every snapshot of every target."""
+
+    target: str | None = None
+    label: str | None = None
+    ticket: str | None = None
+
+    def conditions(self) -> list[tuple[str, str]]:
+        """The column and the value of each filter given, for a store that answers with SQL."""
+        key = ticket_key(self.ticket)
+        wanted = [("target", self.target), ("label", self.safe_label), ("ticket_key", key)]
+        return [(column, value) for column, value in wanted if value is not None]
+
+    @property
+    def safe_label(self) -> str | None:
+        """The label as a reference writes it, so that `before swap` and `before_swap` find the same snapshots."""
+        return None if self.label is None else _safe(self.label)
+
+
+@dataclass(frozen=True)
+class OutputQuery:
+    """The outputs to list; `search` is part of the left target, the right target or the ticket, in any case."""
+
+    search: str = ""
+    ticket: str | None = None
 
 
 @dataclass(frozen=True)
@@ -155,13 +185,21 @@ class PrunePlan:
         return f"{len(self.snapshots)} snapshots, {len(self.outputs)} outputs and {len(self.runs)} runs"
 
 
-def snapshot_entry(reference: str) -> SnapshotEntry | None:
-    """The entry of a snapshot from its reference alone, TARGET/TIME-LABEL; None for another name."""
+def snapshot_entry(reference: str, ticket: str | None = None, source: str = "") -> SnapshotEntry | None:
+    """The entry of a snapshot from its reference, TARGET/TIME-LABEL, and what is given; None for another name."""
     target, _, name = reference.partition("/")
     match = SNAPSHOT_NAME_RE.match(name)
     if match is None:
         return None
-    return SnapshotEntry(target, reference, _parse_stamp(match["stamp"]), match["label"])
+    return SnapshotEntry(target, reference, _parse_stamp(match["stamp"]), match["label"], ticket, source)
+
+
+def snapshot_row(reference: str, snapshot: SnapshotFile) -> SnapshotEntry:
+    """The entry of a snapshot to save, whose fields a SQL store keeps in columns, so that a list never reads a body."""
+    entry = snapshot_entry(reference, snapshot.ticket, snapshot.source)
+    if entry is None:
+        raise SnapdeltaError(f"{reference!r} is not the reference of a snapshot")
+    return entry
 
 
 def output_entry(name: str) -> OutputEntry | None:
@@ -232,16 +270,13 @@ class Store(ABC):
         if at:
             # TARGET@latest is the newest snapshot of the target; TARGET@LABEL the newest with that label.
             ticket = normalize_ticket(ticket)
-            entries = self.snapshot_entries(target, ticket)
-            if tag != LATEST:
-                entries = [entry for entry in entries if entry.label == _safe(tag)]
+            label = None if tag == LATEST else tag
+            entries = self.snapshot_entries(SnapshotQuery(target=target, label=label, ticket=ticket))
             if not entries:
                 which = "snapshot" if tag == LATEST else f"snapshot labelled {tag!r}"
                 scope = f" in ticket {ticket!r}" if ticket else ""
                 # Snapshots taken without the ticket never resolve with it, so say where they are.
-                outside = ticket and any(
-                    tag == LATEST or entry.label == _safe(tag) for entry in self.snapshot_entries(target)
-                )
+                outside = ticket and self.snapshot_entries(SnapshotQuery(target=target, label=label))
                 hint = (
                     f"; {target}@{tag} exists outside this ticket: compare without the ticket, then give the diff "
                     "the ticket"
@@ -253,12 +288,7 @@ class Store(ABC):
         wanted = reference.removesuffix(".json").removeprefix("snapshots/")
         if self._valid_reference(wanted) and self._has_snapshot(wanted):
             return wanted
-        matches = [
-            entry.reference
-            for name in self.targets()
-            for entry in self.snapshot_entries(name)
-            if entry.reference.partition("/")[2] == wanted
-        ]
+        matches = [entry.reference for entry in self.snapshot_entries() if entry.reference.partition("/")[2] == wanted]
         return _one(matches, reference, "snapshot", self.location)
 
     def delete_snapshot(self, reference: str) -> None:
@@ -270,8 +300,8 @@ class Store(ABC):
         """The target names that contain `query` (any case), sorted."""
 
     @abstractmethod
-    def snapshot_entries(self, target: str, ticket: str | None = None) -> list[SnapshotEntry]:
-        """The snapshots of one target, of one ticket when `ticket` is given (any case), newest first."""
+    def snapshot_entries(self, query: SnapshotQuery = SnapshotQuery()) -> list[SnapshotEntry]:
+        """The snapshots that match the query, newest first: by capture time, then by reference, both descending."""
 
     # Outputs
 
@@ -313,10 +343,10 @@ class Store(ABC):
         return output
 
     @abstractmethod
-    def output_entries(self, query: str = "", ticket: str | None = None) -> list[OutputEntry]:
-        """The outputs whose left target, right target or ticket contains `query` (any case), newest first.
+    def output_entries(self, query: OutputQuery = OutputQuery()) -> list[OutputEntry]:
+        """The outputs whose left target, right target or ticket contains `query.search` (any case), newest first.
 
-        With `ticket`, only the outputs of that ticket (any case); both given: both apply.
+        With `query.ticket`, only the outputs of that ticket (any case); both given: both apply.
         """
 
     # Activity
@@ -366,7 +396,7 @@ class Store(ABC):
             raise SnapdeltaError("pruning outputs needs an age")
         plan = PrunePlan()
         for name in [target] if target else self.targets():
-            for index, entry in enumerate(self.snapshot_entries(name)):
+            for index, entry in enumerate(self.snapshot_entries(SnapshotQuery(target=name))):
                 kept_by_rank = keep is not None and index < keep
                 kept_by_age = older_than is not None and entry.captured_at >= older_than
                 if not kept_by_rank and not kept_by_age:
@@ -512,27 +542,36 @@ class FileStore(Store):
             path.name for path in self.snapshots_dir.iterdir() if path.is_dir() and wanted in path.name.lower()
         )
 
-    def snapshot_entries(self, target: str, ticket: str | None = None) -> list[SnapshotEntry]:
-        if not _valid_part(target):
+    def snapshot_entries(self, query: SnapshotQuery = SnapshotQuery()) -> list[SnapshotEntry]:
+        key = ticket_key(query.ticket)
+        entries = [self._with_document(named) for named in self._named_entries(query)]
+        wanted = [entry for entry in entries if key is None or ticket_key(entry.ticket) == key]
+        return sorted(wanted, key=lambda entry: (entry.captured_at, entry.reference), reverse=True)
+
+    def _named_entries(self, query: SnapshotQuery) -> list[SnapshotEntry]:
+        """The snapshots of the target and the label of the query, known from their names alone."""
+        if query.target is not None and not _valid_part(query.target):
             return []
-        directory = self.snapshots_dir / target
-        references = [f"{target}/{path.stem}" for path in directory.glob("*.json")] if directory.is_dir() else []
-        entries = [entry for reference in references if (entry := snapshot_entry(reference))]
-        key = ticket_key(ticket)
-        if key is not None:
-            # No index: the ticket is in the document only.
-            entries = [entry for entry in entries if self._snapshot_ticket_key(entry.reference) == key]
-        return sorted(entries, key=lambda entry: entry.reference, reverse=True)
+        entries = []
+        for target in [query.target] if query.target is not None else self.targets():
+            directory = self.snapshots_dir / target
+            for path in directory.glob("*.json") if directory.is_dir() else []:
+                entry = snapshot_entry(f"{target}/{path.stem}")
+                if entry and (query.label is None or entry.label == query.safe_label):
+                    entries.append(entry)
+        return entries
 
-    def _snapshot_ticket_key(self, reference: str) -> str | None:
+    def _with_document(self, named: SnapshotEntry) -> SnapshotEntry:
+        """The entry with the ticket and the source of its document; a document that does not read has neither."""
         try:
-            return ticket_key(self._read_snapshot(reference).ticket)
+            snapshot = self._read_snapshot(named.reference)
         except SnapdeltaError:
-            return None
+            return named
+        return replace(named, ticket=snapshot.ticket, source=snapshot.source)
 
-    def output_entries(self, query: str = "", ticket: str | None = None) -> list[OutputEntry]:
-        wanted = ticket_key(query) or ""
-        key = ticket_key(ticket)
+    def output_entries(self, query: OutputQuery = OutputQuery()) -> list[OutputEntry]:
+        wanted = ticket_key(query.search) or ""
+        key = ticket_key(query.ticket)
         paths = self.outputs_dir.glob("*.json") if self.outputs_dir.is_dir() else []
         entries = [entry for path in paths if (entry := output_entry(path.stem))]
         selected = [entry for entry in entries if self._matches(entry, wanted, key)]
@@ -558,7 +597,7 @@ class FileStore(Store):
             backend=self.backend,
             location=self.location,
             targets=len(targets),
-            snapshots=sum(len(self.snapshot_entries(target)) for target in targets),
+            snapshots=len(self._named_entries(SnapshotQuery())),
             outputs=len(self.output_entries()),
             size_bytes=sum(path.stat().st_size for path in files),
             runs=len(self._run_ids()),
@@ -632,6 +671,7 @@ create table if not exists snapshots (
 );
 create index if not exists snapshots_by_target on snapshots (target, reference);
 create index if not exists snapshots_by_ticket on snapshots (ticket_key);
+create index if not exists snapshots_by_label on snapshots (label);
 create table if not exists outputs (
     name text primary key,
     created_at text not null,
@@ -702,19 +742,19 @@ class SqliteStore(Store):
             ).fetchall()
         return [row[0] for row in rows]
 
-    def snapshot_entries(self, target: str, ticket: str | None = None) -> list[SnapshotEntry]:
-        key = ticket_key(ticket)
+    def snapshot_entries(self, query: SnapshotQuery = SnapshotQuery()) -> list[SnapshotEntry]:
+        conditions = query.conditions()
+        where = f" where {' and '.join(f'{column} = ?' for column, _ in conditions)}" if conditions else ""
         with self._connect() as db:
             rows = db.execute(
-                "select reference from snapshots where target = ? and (? is null or ticket_key = ?) "
-                "order by reference desc",
-                (target, key, key),
+                f"select reference, ticket, source from snapshots{where} order by captured_at desc, reference desc",
+                [value for _, value in conditions],
             ).fetchall()
-        return [entry for (reference,) in rows if (entry := snapshot_entry(reference))]
+        return [entry for reference, ticket, source in rows if (entry := snapshot_entry(reference, ticket, source))]
 
-    def output_entries(self, query: str = "", ticket: str | None = None) -> list[OutputEntry]:
-        wanted = ticket_key(query) or ""
-        key = ticket_key(ticket)
+    def output_entries(self, query: OutputQuery = OutputQuery()) -> list[OutputEntry]:
+        wanted = ticket_key(query.search) or ""
+        key = ticket_key(query.ticket)
         with self._connect() as db:
             rows = db.execute(
                 "select name from outputs where (instr(lower(left_target), ?) > 0 or instr(lower(right_target), ?) > 0 "
@@ -736,14 +776,16 @@ class SqliteStore(Store):
             return db.execute("select 1 from snapshots where reference = ?", (reference,)).fetchone() is not None
 
     def _write_snapshot(self, reference: str, snapshot: SnapshotFile) -> None:
+        row = snapshot_row(reference, snapshot)
+        # The moment and the label of the reference, so that every store orders and filters the same way.
         values = (
             reference,
-            reference.partition("/")[0],
-            snapshot.captured_at.isoformat(),
-            snapshot.label,
-            snapshot.source,
-            snapshot.ticket,
-            ticket_key(snapshot.ticket),
+            row.target,
+            row.captured_at.isoformat(),
+            row.label,
+            row.source,
+            row.ticket,
+            ticket_key(row.ticket),
             snapshot.model_dump_json(by_alias=True),
         )
         with self._connect() as db:

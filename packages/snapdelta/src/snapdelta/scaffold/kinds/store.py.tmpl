@@ -13,14 +13,16 @@ from snapdelta.settings import StoreBackendSettings
 from snapdelta.snapshot import SnapshotFile
 from snapdelta.store import (
     OutputEntry,
+    OutputQuery,
     SnapshotEntry,
+    SnapshotQuery,
     Store,
     StoreInfo,
     output_entry,
     parse_output,
     parse_run,
     parse_snapshot,
-    snapshot_entry,
+    snapshot_row,
 )
 from snapdelta.ticket import ticket_key
 
@@ -62,20 +64,24 @@ class {{Class}}Store(Store):
         names = {reference.partition("/")[0] for reference in self.tables.snapshots}
         return sorted(name for name in names if query.strip().lower() in name.lower())
 
-    def snapshot_entries(self, target: str, ticket: str | None = None) -> list[SnapshotEntry]:
-        key = ticket_key(ticket)
-        references = [
-            reference
+    def snapshot_entries(self, query: SnapshotQuery = SnapshotQuery()) -> list[SnapshotEntry]:
+        key = ticket_key(query.ticket)
+        rows = [
+            snapshot_row(reference, parse_snapshot(body, reference))
             for reference, body in self.tables.snapshots.items()
-            if reference.partition("/")[0] == target
-            and (key is None or ticket_key(parse_snapshot(body, reference).ticket) == key)
         ]
-        entries = [entry for reference in references if (entry := snapshot_entry(reference))]
-        return sorted(entries, key=lambda entry: entry.reference, reverse=True)
+        wanted = [
+            row
+            for row in rows
+            if query.target in (None, row.target)
+            and query.safe_label in (None, row.label)
+            and key in (None, ticket_key(row.ticket))
+        ]
+        return sorted(wanted, key=lambda row: (row.captured_at, row.reference), reverse=True)
 
-    def output_entries(self, query: str = "", ticket: str | None = None) -> list[OutputEntry]:
-        wanted = ticket_key(query) or ""
-        key = ticket_key(ticket)
+    def output_entries(self, query: OutputQuery = OutputQuery()) -> list[OutputEntry]:
+        wanted = ticket_key(query.search) or ""
+        key = ticket_key(query.ticket)
         entries = [entry for name in self.tables.outputs if (entry := output_entry(name))]
         chosen = [entry for entry in entries if self._matches(entry, wanted, key)]
         return sorted(chosen, key=lambda entry: entry.name, reverse=True)

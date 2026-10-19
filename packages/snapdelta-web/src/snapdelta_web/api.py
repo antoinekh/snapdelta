@@ -19,6 +19,7 @@ from snapdelta.plugins import package_of
 from snapdelta.render import renderer
 from snapdelta.snapshot import SnapshotFile
 from snapdelta.source import SOURCES, source_classes
+from snapdelta.store import OutputQuery, SnapshotQuery
 from snapdelta.take import TargetDiff, diff_snapshots, diff_targets, snapshot_targets
 from snapdelta.ticket import TICKET_MAX
 
@@ -352,7 +353,7 @@ def create_api(state: AppState, row_cache: LruCache[Any, Any]) -> FastAPI:
             SnapshotInfo(
                 reference=entry.reference, target=entry.target, label=entry.label, captured_at=entry.captured_at
             )
-            for entry in state.store.snapshot_entries(target, ticket)
+            for entry in state.store.snapshot_entries(SnapshotQuery(target=target, ticket=ticket))
         ]
 
     @api.get("/snapshots/{target}/{name}")
@@ -426,7 +427,7 @@ def create_api(state: AppState, row_cache: LruCache[Any, Any]) -> FastAPI:
         """The newest saved diffs, whose left target, right target or ticket contains q; ticket: exactly that one."""
         return [
             DiffItem.of(entry.name, state.store.load_output(entry.name))
-            for entry in state.store.output_entries(q, ticket)[:limit]
+            for entry in state.store.output_entries(OutputQuery(search=q, ticket=ticket))[:limit]
         ]
 
     @api.get("/diffs/{name}", response_model=None)

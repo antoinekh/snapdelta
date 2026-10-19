@@ -6,7 +6,7 @@ import pytest
 
 from snapdelta.errors import LoadError, SnapdeltaError
 from snapdelta.settings import Settings, SourceSettings
-from snapdelta.store import FileStore
+from snapdelta.store import FileStore, SnapshotQuery
 from snapdelta.take import (
     diff_snapshots,
     diff_targets,
@@ -192,4 +192,8 @@ def test_a_ticket_or_a_note_that_is_too_long_stops_before_any_snapshot_is_taken(
         diff_targets(store, settings, "before", live=True, targets=["R1"], note=long_note)
     with pytest.raises(SnapdeltaError, match="not a valid ticket"):
         diff_targets(store, settings, "before", live=True, targets=["R1"], ticket=long_ticket)
-    assert store.targets() == ["R1"] and len(store.snapshot_entries("R1")) == 1 and store.output_entries() == []
+    assert (
+        store.targets() == ["R1"]
+        and len(store.snapshot_entries(SnapshotQuery(target="R1"))) == 1
+        and store.output_entries() == []
+    )

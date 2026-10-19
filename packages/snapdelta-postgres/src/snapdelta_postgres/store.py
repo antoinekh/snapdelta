@@ -11,6 +11,7 @@ from contextlib import contextmanager
 from typing import Any, LiteralString
 
 import psycopg
+from psycopg import sql
 from psycopg.conninfo import conninfo_to_dict
 from psycopg.types.json import Json
 from psycopg_pool import ConnectionPool, PoolTimeout
@@ -23,7 +24,9 @@ from snapdelta.settings import Secret, StoreBackendSettings
 from snapdelta.snapshot import SnapshotFile
 from snapdelta.store import (
     OutputEntry,
+    OutputQuery,
     SnapshotEntry,
+    SnapshotQuery,
     Store,
     StoreInfo,
     output_entry,
@@ -32,6 +35,7 @@ from snapdelta.store import (
     parse_snapshot,
     refuse_older_tables,
     snapshot_entry,
+    snapshot_row,
 )
 from snapdelta.ticket import ticket_key
 
@@ -49,6 +53,7 @@ create table if not exists snapdelta_snapshots (
 );
 create index if not exists snapdelta_snapshots_by_target on snapdelta_snapshots (target, reference);
 create index if not exists snapdelta_snapshots_by_ticket on snapdelta_snapshots (ticket_key);
+create index if not exists snapdelta_snapshots_by_label on snapdelta_snapshots (label);
 create table if not exists snapdelta_outputs (
     name text primary key,
     created_at timestamptz not null,
@@ -148,19 +153,20 @@ class PostgresStore(Store):
             ).fetchall()
         return [row[0] for row in rows]
 
-    def snapshot_entries(self, target: str, ticket: str | None = None) -> list[SnapshotEntry]:
-        key = ticket_key(ticket)
+    def snapshot_entries(self, query: SnapshotQuery = SnapshotQuery()) -> list[SnapshotEntry]:
+        conditions = query.conditions()
+        filters = [sql.SQL("{} = %s").format(sql.Identifier(column)) for column, _ in conditions]
+        where = sql.SQL(" where {}").format(sql.SQL(" and ").join(filters)) if filters else sql.SQL("")
+        statement = sql.SQL(
+            "select reference, ticket, source from snapdelta_snapshots{} order by captured_at desc, reference desc"
+        ).format(where)
         with self._connect() as db:
-            rows = db.execute(
-                "select reference from snapdelta_snapshots where target = %s and (%s::text is null or ticket_key = %s) "
-                "order by reference desc",
-                (target, key, key),
-            ).fetchall()
-        return [entry for (reference,) in rows if (entry := snapshot_entry(reference))]
+            rows = db.execute(statement, [value for _, value in conditions]).fetchall()
+        return [entry for reference, ticket, source in rows if (entry := snapshot_entry(reference, ticket, source))]
 
-    def output_entries(self, query: str = "", ticket: str | None = None) -> list[OutputEntry]:
-        wanted = ticket_key(query) or ""
-        key = ticket_key(ticket)
+    def output_entries(self, query: OutputQuery = OutputQuery()) -> list[OutputEntry]:
+        wanted = ticket_key(query.search) or ""
+        key = ticket_key(query.ticket)
         with self._connect() as db:
             rows = db.execute(
                 "select name from snapdelta_outputs "
@@ -190,14 +196,16 @@ class PostgresStore(Store):
         return found is not None
 
     def _write_snapshot(self, reference: str, snapshot: SnapshotFile) -> None:
+        row = snapshot_row(reference, snapshot)
+        # The moment and the label of the reference, so that every store orders and filters the same way.
         values = (
             reference,
-            reference.partition("/")[0],
-            snapshot.captured_at,
-            snapshot.label,
-            snapshot.source,
-            snapshot.ticket,
-            ticket_key(snapshot.ticket),
+            row.target,
+            row.captured_at,
+            row.label,
+            row.source,
+            row.ticket,
+            ticket_key(row.ticket),
             Json(snapshot.model_dump(mode="json", by_alias=True)),
         )
         try:

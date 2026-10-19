@@ -5,6 +5,7 @@ from fastapi.testclient import TestClient
 from mcp import Client
 
 from snapdelta.settings import Secret, Settings, StoreSettings, WebSettings
+from snapdelta.store import SnapshotQuery
 from snapdelta_web.mcp_server import create_mcp
 from snapdelta_web.state import AppState
 
@@ -191,7 +192,13 @@ def test_a_ticket_or_a_note_that_is_too_long_is_refused_before_any_work(store) -
     async def steps(client: Client) -> list[Any]:
         return [await client.call_tool(name, arguments) for name, arguments in calls]
 
-    before = (len(store.output_entries()), [len(store.snapshot_entries(target)) for target in store.targets()])
+    before = (
+        len(store.output_entries()),
+        [len(store.snapshot_entries(SnapshotQuery(target=target))) for target in store.targets()],
+    )
     results = call(store, steps)
     assert all(result.is_error and "String should have at most" in result.content[0].text for result in results)
-    assert before == (len(store.output_entries()), [len(store.snapshot_entries(t)) for t in store.targets()])
+    assert before == (
+        len(store.output_entries()),
+        [len(store.snapshot_entries(SnapshotQuery(target=t))) for t in store.targets()],
+    )

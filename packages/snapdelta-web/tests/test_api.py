@@ -2,6 +2,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from snapdelta.settings import Secret, Settings, StoreSettings, WebSettings
+from snapdelta.store import SnapshotQuery
 
 TOKEN = "t0ken-for-tests"
 
@@ -61,10 +62,13 @@ def test_a_pipeline_takes_before_and_after_then_compares(api) -> None:
 
 def test_a_live_diff_without_saving_returns_the_whole_output(api, store) -> None:
     api.post("/api/v1/snapshots", json={"source": "example-live", "targets": ["R2"]})
-    outputs, snapshots = len(store.output_entries()), len(store.snapshot_entries("R2"))
+    outputs, snapshots = len(store.output_entries()), len(store.snapshot_entries(SnapshotQuery(target="R2")))
     diff = api.post("/api/v1/diffs?include_output=true", json={"left": "R2@latest", "live": True, "save": False})
     assert diff.status_code == 200 and diff.json()["name"] is None and diff.json()["output"]["schema"] == 3
-    assert (len(store.output_entries()), len(store.snapshot_entries("R2"))) == (outputs, snapshots)
+    assert (len(store.output_entries()), len(store.snapshot_entries(SnapshotQuery(target="R2")))) == (
+        outputs,
+        snapshots,
+    )
 
 
 def test_api_errors_are_json(api, names) -> None:
@@ -218,7 +222,13 @@ def test_a_pipeline_describes_a_diff_and_finds_it_by_ticket(api, ticketed) -> No
     ],
 )
 def test_a_ticket_or_a_note_that_is_too_long_is_refused_before_any_work(api, store, method, path, body) -> None:
-    before = (len(store.output_entries()), [len(store.snapshot_entries(target)) for target in store.targets()])
+    before = (
+        len(store.output_entries()),
+        [len(store.snapshot_entries(SnapshotQuery(target=target))) for target in store.targets()],
+    )
     response = getattr(api, method)(path, json=body)
     assert response.status_code == 422
-    assert before == (len(store.output_entries()), [len(store.snapshot_entries(t)) for t in store.targets()])
+    assert before == (
+        len(store.output_entries()),
+        [len(store.snapshot_entries(SnapshotQuery(target=t))) for t in store.targets()],
+    )

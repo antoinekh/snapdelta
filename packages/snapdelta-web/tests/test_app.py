@@ -6,6 +6,7 @@ from datetime import UTC, datetime
 import pytest
 from fastapi.testclient import TestClient
 
+from snapdelta.store import SnapshotQuery
 from snapdelta.testing import sample_run
 from snapdelta_example import ExampleSource
 from snapdelta_web import views
@@ -149,7 +150,7 @@ def test_no_common_model_is_a_400_page(client, store, names, tmp_path) -> None:
 
 
 def test_deleted_snapshot_gives_the_changed_values_only(client, store, names) -> None:
-    for entry in store.snapshot_entries("R1"):
+    for entry in store.snapshot_entries(SnapshotQuery(target="R1")):
         store.delete_snapshot(entry.reference)
     page = client.get(f"/diffs/{names.same}")
     assert page.status_code == 200
@@ -233,10 +234,12 @@ def test_prune_previews_then_deletes(client, store) -> None:
     preview = client.post("/admin/prune", data={"keep": "1"})
     assert preview.status_code == 200
     assert "R1/20260925T110000Z-after" in preview.text and "R1/20260925T100000Z-before" in preview.text
-    assert len(store.snapshot_entries("R1")) == 3
+    assert len(store.snapshot_entries(SnapshotQuery(target="R1"))) == 3
     done = client.post("/admin/prune", data={"keep": "1", "confirm": "1"}, follow_redirects=False)
     assert done.status_code == 303
-    assert [entry.reference for entry in store.snapshot_entries("R1")] == ["R1/20260925T113000Z-config"]
+    assert [entry.reference for entry in store.snapshot_entries(SnapshotQuery(target="R1"))] == [
+        "R1/20260925T113000Z-config"
+    ]
     assert client.post("/admin/prune", data={}).status_code == 400
 
 
@@ -256,7 +259,7 @@ def test_prune_refuses_a_bad_number(client, store) -> None:
     assert keep.status_code == 400 and "cannot be negative" in keep.text
     assert age.status_code == 400 and "cannot be negative" in age.text
     assert too_big.status_code == 400 and "too big" in too_big.text
-    assert len(store.snapshot_entries("R1")) == 3
+    assert len(store.snapshot_entries(SnapshotQuery(target="R1"))) == 3
 
 
 def test_delete_buttons(client, store, names) -> None:
@@ -264,7 +267,7 @@ def test_delete_buttons(client, store, names) -> None:
     assert f'action="/snapshots/{names.config}/delete"' in page.text
     response = client.post(f"/snapshots/{names.config}/delete", follow_redirects=False)
     assert (response.status_code, response.headers["location"]) == (303, "/snapshots/R1")
-    assert names.config not in [entry.reference for entry in store.snapshot_entries("R1")]
+    assert names.config not in [entry.reference for entry in store.snapshot_entries(SnapshotQuery(target="R1"))]
     response = client.post(f"/diffs/{names.same}/delete", follow_redirects=False)
     assert (response.status_code, response.headers["location"]) == (303, "/diffs")
     assert names.same not in [entry.name for entry in store.output_entries()]
@@ -306,7 +309,7 @@ def test_take_a_snapshot_of_one_target(client, store) -> None:
         "/take", data={"source": "example-live", "target": "R2", "label": "live"}, follow_redirects=False
     )
     page = finished_job(client, taken)
-    [entry] = store.snapshot_entries("R2")
+    [entry] = store.snapshot_entries(SnapshotQuery(target="R2"))
     assert entry.reference.endswith("-live") and f'href="/snapshots/{entry.reference}"' in page
     assert '<span class="job-status saved">Saved</span>' in page and "Retry" not in page
     unreachable = client.post("/take", data={"source": "example-live", "target": "R9"}, follow_redirects=False)
@@ -355,7 +358,7 @@ def test_delete_selected_snapshots_of_a_target(client, store, names) -> None:
         "/snapshots/R1/delete", data={"references": [names.after], "page": "1"}, follow_redirects=False
     )
     assert (response.status_code, response.headers["location"]) == (303, "/snapshots/R1?page=1&deleted=1")
-    assert [entry.reference for entry in store.snapshot_entries("R1")] == [names.config]
+    assert [entry.reference for entry in store.snapshot_entries(SnapshotQuery(target="R1"))] == [names.config]
     assert "Deleted 1." in client.get(response.headers["location"]).text
     last = client.post("/snapshots/R1/delete", data={"references": [names.config]}, follow_redirects=False)
     assert last.headers["location"] == "/snapshots?deleted=1"
@@ -369,7 +372,7 @@ def test_take_several_targets_at_once(client, store) -> None:
     page = finished_job(client, taken)
     assert "<b>2</b> of <b>2</b> done: 2 saved, 0 failed" in page
     for target in ("R1", "R2"):
-        reference = store.snapshot_entries(target)[0].reference
+        reference = store.snapshot_entries(SnapshotQuery(target=target))[0].reference
         assert f'href="/snapshots/{reference}"' in page
 
 
@@ -381,8 +384,8 @@ def test_take_with_a_ticket_saves_it_on_each_snapshot(client, store) -> None:
     page = finished_job(client, taken)
     assert '<span class="ticket-chip">CHG-5</span>' in page
     for target in ("R1", "R2"):
-        assert store.snapshot_entries(target, "chg-5")[0].reference.endswith("-live")
-    assert store.snapshot_entries("R2", "CHG-6") == []
+        assert store.snapshot_entries(SnapshotQuery(target=target, ticket="chg-5"))[0].reference.endswith("-live")
+    assert store.snapshot_entries(SnapshotQuery(target="R2", ticket="CHG-6")) == []
     unreachable = client.post("/take", data=data | {"target": "R9"}, follow_redirects=False)
     finished_job(client, unreachable)
     retried = client.post(unreachable.headers["location"] + "/retry", follow_redirects=False)
@@ -516,7 +519,7 @@ def test_export_a_diff_in_each_format(client, names) -> None:
 def test_compare_a_snapshot_with_its_target_now(client, store) -> None:
     taken = client.post("/take", data={"source": "example-live", "target": ["R2"]}, follow_redirects=False)
     finished_job(client, taken)
-    reference = store.snapshot_entries("R2")[0].reference
+    reference = store.snapshot_entries(SnapshotQuery(target="R2"))[0].reference
     page = client.get(f"/snapshots/{reference}").text
     assert 'action="/diffs/live"' in page and "Compare with live" in page
     response = client.post("/diffs/live", data={"left": reference}, follow_redirects=False)
@@ -609,7 +612,7 @@ def test_take_a_group_by_platform(store, make_app) -> None:
     assert 'value="R1"' in targets and 'value="R2"' in targets
     taken = client.post("/take", data={"source": "", "group": ["core"], "label": "inv"}, follow_redirects=False)
     assert "2 saved, 0 failed" in finished_job(client, taken)
-    assert [entry.label for entry in store.snapshot_entries("R2")] == ["inv"]
+    assert [entry.label for entry in store.snapshot_entries(SnapshotQuery(target="R2"))] == ["inv"]
 
 
 def test_new_diff_filters_the_targets_by_group(store, make_app) -> None:

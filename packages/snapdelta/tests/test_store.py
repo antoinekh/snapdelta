@@ -6,7 +6,15 @@ from snapdelta.errors import NotFoundError, SnapdeltaError
 from snapdelta.output import compare
 from snapdelta.settings import Settings
 from snapdelta.snapshot import save_snapshot
-from snapdelta.store import FileStore, SqliteStore, default_store_location, open_store, open_store_from
+from snapdelta.store import (
+    FileStore,
+    OutputQuery,
+    SnapshotQuery,
+    SqliteStore,
+    default_store_location,
+    open_store,
+    open_store_from,
+)
 from snapdelta.testing import StoreContract
 
 
@@ -48,7 +56,7 @@ def test_prune_refuses_a_negative_keep(store, make_adapter) -> None:
     with pytest.raises(SnapdeltaError, match="cannot be negative"):
         store.prune_plan(keep=-1)
     assert len(store.prune_plan(keep=0).snapshots) == 1
-    assert len(store.snapshot_entries("R1")) == 1
+    assert len(store.snapshot_entries(SnapshotQuery(target="R1"))) == 1
 
 
 def test_prune_outputs_and_rules(store, make_adapter) -> None:
@@ -73,7 +81,7 @@ def test_file_store_reads_the_current_layout_and_paths(make_adapter, tmp_path) -
     with pytest.raises(NotFoundError):
         store.resolve_snapshot(str(outside))
     (tmp_path / "snapshots" / "R1" / "notes.json").write_text("{}")
-    assert [entry.reference for entry in store.snapshot_entries("R1")] == ["R1/20260925T100000Z"]
+    assert [entry.reference for entry in store.snapshot_entries(SnapshotQuery(target="R1"))] == ["R1/20260925T100000Z"]
 
 
 def test_a_snapshot_saved_with_unmapped_still_reads(make_adapter, tmp_path) -> None:
@@ -181,7 +189,7 @@ def test_the_file_store_reads_no_output_for_an_empty_query(tmp_path, make_adapte
         raise AssertionError("an empty query must not read an output")
 
     monkeypatch.setattr(FileStore, "_read_output", unread)
-    assert [entry.name for entry in store.output_entries("")] == [name]
+    assert [entry.name for entry in store.output_entries(OutputQuery(search=""))] == [name]
 
 
 def test_the_file_store_reads_no_output_for_a_query_that_names_a_target(tmp_path, make_adapter, monkeypatch) -> None:
@@ -193,12 +201,12 @@ def test_the_file_store_reads_no_output_for_a_query_that_names_a_target(tmp_path
         raise AssertionError("a query that names a target must not read an output")
 
     monkeypatch.setattr(FileStore, "_read_output", unread)
-    assert [entry.name for entry in store.output_entries(target.lower())] == [name]
+    assert [entry.name for entry in store.output_entries(OutputQuery(search=target.lower()))] == [name]
 
 
 def test_a_search_by_part_of_a_ticket_folds_the_case_beyond_ascii(tmp_path, make_adapter) -> None:
     for store in (FileStore(tmp_path / "store"), SqliteStore(tmp_path / "store.db")):
         name = store.save_output(compare(make_adapter(), make_adapter()))
         store.describe_output(name, ticket="Évolution LOT 2")
-        assert [entry.name for entry in store.output_entries("ÉVOLUTION")] == [name]
-        assert [entry.name for entry in store.output_entries("évolution lot")] == [name]
+        assert [entry.name for entry in store.output_entries(OutputQuery(search="ÉVOLUTION"))] == [name]
+        assert [entry.name for entry in store.output_entries(OutputQuery(search="évolution lot"))] == [name]

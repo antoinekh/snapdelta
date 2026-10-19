@@ -23,7 +23,7 @@ from snapdelta.output import Output, Review, Side, change_key, compare, note_lin
 from snapdelta.profile import accepted
 from snapdelta.settings import Profile
 from snapdelta.source import Source
-from snapdelta.store import SnapshotEntry, Store
+from snapdelta.store import OutputQuery, SnapshotEntry, SnapshotQuery, Store
 
 from .access import LruCache
 
@@ -456,7 +456,7 @@ def output_rows(
     ticket: str | None = None,
 ) -> tuple[list[OutputRow], list[str], Pager]:
     """One page of the outputs; `cache` keeps the small rows, so that a page does not read whole outputs again."""
-    entries, pager = page_of(store.output_entries(query, ticket), page, size)
+    entries, pager = page_of(store.output_entries(OutputQuery(search=query, ticket=ticket)), page, size)
     rows: list[OutputRow] = []
     unreadable: list[str] = []
     for entry in entries:
@@ -560,7 +560,7 @@ def target_rows(store: Store, query: str = "", page: int = 1, size: int = 50) ->
     names, pager = page_of(store.targets(query), page, size)
     rows = []
     for name in names:
-        entries = store.snapshot_entries(name)
+        entries = store.snapshot_entries(SnapshotQuery(target=name))
         rows.append(TargetRow(name, len(entries), entries[0].captured_at if entries else None))
     return rows, pager
 
@@ -622,7 +622,7 @@ def _period_end(text: str) -> datetime | None:
 def target_snapshot_rows(
     store: Store, target: str, page: int = 1, size: int = 50, period: Period = ALL_TIME
 ) -> tuple[list[SnapshotRow], list[str], Pager]:
-    entries, pager = page_of(period.select(store.snapshot_entries(target)), page, size)
+    entries, pager = page_of(period.select(store.snapshot_entries(SnapshotQuery(target=target))), page, size)
     rows: list[SnapshotRow] = []
     unreadable: list[str] = []
     for entry in entries:
@@ -704,7 +704,7 @@ def timeline(
     size: int = TIMELINE_SIZE,
     period: Period = ALL_TIME,
 ) -> Timeline:
-    entries = period.select(store.snapshot_entries(target))
+    entries = period.select(store.snapshot_entries(SnapshotQuery(target=target)))
     shown = list(reversed(entries[:size]))
     points = [TimelinePoint(entry.reference, entry.captured_at, entry.label) for entry in shown]
     steps = [

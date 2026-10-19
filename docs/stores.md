@@ -112,7 +112,7 @@ A snapshot is kept when one of the rules that you give keeps it: it is among the
 
 ```python
 from snapdelta.output import compare
-from snapdelta.store import open_store
+from snapdelta.store import OutputQuery, SnapshotQuery, open_store
 
 store = open_store("sqlite:///data/snapdelta.db")  # or a directory
 reference = store.save_snapshot(loaded_source)  # a Source after its load()
@@ -120,8 +120,10 @@ left = store.load_snapshot(store.resolve_snapshot("R1@latest"))
 right = store.load_snapshot("R1/20261012T130856Z-before")
 name = store.save_output(compare(left, right))
 for target in store.targets():
-    print(target, [entry.reference for entry in store.snapshot_entries(target)])
-for entry in store.output_entries(ticket="CHG-1042"):  # the diffs of one ticket
+    print(target, [entry.reference for entry in store.snapshot_entries(SnapshotQuery(target=target))])
+for entry in store.snapshot_entries(SnapshotQuery(ticket="CHG-1042", label="before")):  # every target, newest first
+    print(entry.reference, entry.ticket, entry.source)
+for entry in store.output_entries(OutputQuery(ticket="CHG-1042")):  # the diffs of one ticket
     print(entry.name)
 ```
 
@@ -132,9 +134,8 @@ from snapdelta.store import open_store
 
 source = open_store("/data/snapdelta")  # file store
 target = open_store("sqlite:///data/snapdelta.db")  # SQLite store
-for name in source.targets():
-    for entry in source.snapshot_entries(name):
-        target.save_snapshot(source.load_snapshot(entry.reference))
+for entry in source.snapshot_entries():
+    target.save_snapshot(source.load_snapshot(entry.reference))
 for entry in source.output_entries():
     target.save_output(source.load_output(entry.name))
 ```
@@ -147,11 +148,11 @@ A plugin package can add a backend, for example an object store or a database se
 
 - `open(address, settings)`, a class method: the store at `address`, the part of the location after `SCHEME://`; `settings` is its `[stores.SCHEME]` table, typed by `settings_class`;
 - `location`: the location that opens the store again, with its scheme;
-- `targets()`, `snapshot_entries(target, ticket)`, `output_entries(query, ticket)`, `info()`: `ticket` is optional, and a backend returns only the snapshots or outputs of that ticket (same text in any case, see `snapdelta.ticket.ticket_key()`); `query` matches a target or a part of the ticket;
+- `targets()`, `snapshot_entries(query)`, `output_entries(query)`, `info()`: `snapshot_entries` takes a `SnapshotQuery(target, label, ticket)` and returns the snapshots that match every field given, of every target when `target` is None, newest first (capture time, then reference, both descending); each `SnapshotEntry` carries its `ticket` and its `source`, so that a SQL backend keeps both in columns and a list reads no body. The `label` is compared in the form of the reference (`before swap` and `before_swap` are the same), the `ticket` in any case (see `snapdelta.ticket.ticket_key()`). `output_entries` takes an `OutputQuery(search, ticket)`: `search` matches a target or a part of the ticket, `ticket` only the outputs of that ticket;
 - `resolve_snapshot(reference, ticket)` is in the base class, and `describe_output(name, *, ticket, note)` sets the ticket and the note of a saved output through `_replace_output`, which must keep the ticket column;
 - the private primitives of the snapshots, `_has_snapshot`, `_write_snapshot`, `_read_snapshot`, `_delete_snapshot`; of the outputs, `_has_output`, `_write_output`, `_read_output`, `_replace_output`, `_delete_output`; and of Activity, `_write_run`, `_read_run`, `_run_ids` (newest first), `_delete_run`.
 
-The base class gives the naming, the resolution of `TARGET@latest`, the checks of names, and pruning. A backend that holds connections gives them back in `close()`. To read a saved document back, `snapdelta.store.parse_snapshot()`, `parse_output()` and `parse_run()` take its JSON text or its parsed JSON and refuse a document of a schema that this snapdelta does not read; `snapshot_entry()` and `output_entry()` read a snapshot or an output entry from its name alone, as `snapshot_entries()` and `output_entries()` return them. Declare the backend under its scheme in the `pyproject.toml` of the plugin:
+The base class gives the naming, the resolution of `TARGET@latest`, the checks of names, and pruning. A backend that holds connections gives them back in `close()`. To read a saved document back, `snapdelta.store.parse_snapshot()`, `parse_output()` and `parse_run()` take its JSON text or its parsed JSON and refuse a document of a schema that this snapdelta does not read; `snapshot_entry(reference, ticket, source)` and `output_entry()` build an entry from its name, and `snapshot_row(reference, snapshot)` gives the entry to keep in the columns of a snapshot being saved, as `snapshot_entries()` and `output_entries()` return them. Declare the backend under its scheme in the `pyproject.toml` of the plugin:
 
 ```toml
 [project.entry-points."snapdelta.stores"]

@@ -24,7 +24,7 @@ from .render import Renderer, render_snapshot, renderer
 from .scaffold import KINDS, new_plugin
 from .settings import Settings, load_settings, setting_rows
 from .source import SOURCES, Source, broken_sources, require_source, source_classes
-from .store import Store, age_cutoff, open_store_from
+from .store import OutputQuery, SnapshotQuery, Store, age_cutoff, open_store_from
 from .take import TargetDiff, diff_snapshots, diff_targets, load_source, platform_source, snapshot_targets, target_names
 
 app = typer.Typer(
@@ -367,10 +367,10 @@ def list_files(
     store = ctx.obj.store
     typer.echo("snapshots:")
     for name in store.targets(target or ""):
-        for entry in store.snapshot_entries(name):
+        for entry in store.snapshot_entries(SnapshotQuery(target=name)):
             typer.echo(f"  {entry.reference}")
     typer.echo("outputs:")
-    for output in store.output_entries(target or "", ticket):
+    for output in store.output_entries(OutputQuery(search=target or "", ticket=ticket)):
         typer.echo(f"  {output.name}")
 
 

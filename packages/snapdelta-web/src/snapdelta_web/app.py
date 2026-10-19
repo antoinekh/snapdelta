@@ -32,7 +32,7 @@ from snapdelta.secrets import SECRETS
 from snapdelta.settings import Settings, SettingsError, save_settings, user_settings_path
 from snapdelta.snapshot import top_level_models
 from snapdelta.source import Source, broken_sources, source_classes
-from snapdelta.store import LATEST, PrunePlan, Store, age_cutoff
+from snapdelta.store import LATEST, PrunePlan, SnapshotQuery, Store, age_cutoff
 from snapdelta.take import diff_snapshots, diff_targets, plan_sources, platform_source, target_names
 from snapdelta.ticket import normalize_ticket
 
@@ -251,7 +251,7 @@ def create_app(state: AppState) -> FastAPI:
             raise NotFoundError(f"no side {side!r}: left or right")
 
     def snapshot_options(target: str, side: str, offset: int, selected: str | None) -> dict[str, Any]:
-        entries = state.store.snapshot_entries(target)
+        entries = state.store.snapshot_entries(SnapshotQuery(target=target))
         start = max(offset, 0)
         return {
             "target": target,
@@ -653,7 +653,7 @@ def create_app(state: AppState) -> FastAPI:
         resolved = [state.store.resolve_snapshot(reference) for reference in _selected(references)]
         if len(resolved) != 2:
             raise SnapdeltaError(f"select two snapshots to compare, not {len(resolved)}")
-        newest_first = [entry.reference for entry in state.store.snapshot_entries(target)]
+        newest_first = [entry.reference for entry in state.store.snapshot_entries(SnapshotQuery(target=target))]
         if any(reference not in newest_first for reference in resolved):
             raise NotFoundError(f"a selected snapshot is not a snapshot of {target}")
         newer, older = sorted(resolved, key=newest_first.index)
@@ -673,7 +673,7 @@ def create_app(state: AppState) -> FastAPI:
             raise NotFoundError(f"a selected snapshot is not a snapshot of {target}")
         for reference in resolved:
             state.store.delete_snapshot(reference)
-        if not state.store.snapshot_entries(target):
+        if not state.store.snapshot_entries(SnapshotQuery(target=target)):
             return RedirectResponse(f"/snapshots?deleted={len(resolved)}", status_code=303)
         period = views.Period.parse(since, until)
         kept = f"{period.query}&" if period.active else ""
@@ -689,7 +689,7 @@ def create_app(state: AppState) -> FastAPI:
     @app.post("/snapshots/{target}/{name}/delete")
     def delete_snapshot(target: str, name: str) -> RedirectResponse:
         state.store.delete_snapshot(state.store.resolve_snapshot(f"{target}/{name}"))
-        target = f"/snapshots/{target}" if state.store.snapshot_entries(target) else "/snapshots"
+        target = f"/snapshots/{target}" if state.store.snapshot_entries(SnapshotQuery(target=target)) else "/snapshots"
         return RedirectResponse(target, status_code=303)
 
     def collectors() -> dict[str, type[Source]]:

@@ -23,7 +23,7 @@ from snapdelta.plugins import package_of
 from snapdelta.render import change_rows
 from snapdelta.settings import Profile, load_settings
 from snapdelta.source import SOURCES, source_classes
-from snapdelta.store import open_store_from
+from snapdelta.store import OutputQuery, SnapshotQuery, open_store_from
 from snapdelta.take import diff_snapshots, diff_targets, snapshot_targets
 from snapdelta.ticket import TICKET_MAX
 
@@ -162,7 +162,7 @@ def create_mcp(state: AppState) -> MCPServer:
         items = []
         for name in sorted(names):
             host = inventory.host(name) if inventory else None
-            count = len(state.store.snapshot_entries(name))
+            count = len(state.store.snapshot_entries(SnapshotQuery(target=name)))
             platform, groups = (host.platform, list(host.groups)) if host else (None, [])
             items.append(TargetItem(name=name, snapshots=count, platform=platform, groups=groups))
         return items
@@ -178,7 +178,7 @@ def create_mcp(state: AppState) -> MCPServer:
             SnapshotInfo(
                 reference=entry.reference, target=entry.target, label=entry.label, captured_at=entry.captured_at
             )
-            for entry in state.store.snapshot_entries(target, ticket)[:limit]
+            for entry in state.store.snapshot_entries(SnapshotQuery(target=target, ticket=ticket))[:limit]
         ]
 
     @tool(FETCHES)
@@ -304,7 +304,7 @@ def create_mcp(state: AppState) -> MCPServer:
         """The newest saved diffs whose left target, right target or ticket contains `query`."""
         return [
             DiffItem.of(entry.name, state.store.load_output(entry.name))
-            for entry in state.store.output_entries(query, ticket)[:limit]
+            for entry in state.store.output_entries(OutputQuery(search=query, ticket=ticket))[:limit]
         ]
 
     @tool(WRITES)

@@ -28,6 +28,9 @@ target-version = "py313"
 [tool.ruff.lint]
 select = ["E", "F", "W", "B", "UP", "I"]
 
+[tool.ruff.lint.flake8-bugbear]
+extend-immutable-calls = ["snapdelta.store.SnapshotQuery", "snapdelta.store.OutputQuery"]
+
 [tool.ruff.lint.isort]
 known-first-party = ["snapdelta", "snapdelta_web", "snapdelta_postgres", "snapdelta_example"]
 
