@@ -190,9 +190,23 @@ def test_a_pipeline_compares_many_targets_inside_a_ticket(api, ticketed) -> None
 
 def test_the_snapshots_of_a_target_filter_by_ticket(api, ticketed) -> None:
     listed = api.get("/api/v1/snapshots", params={"target": "R1", "ticket": "chg-1"}).json()
-    assert [item["label"] for item in listed] == ["after", "before"] and "ticket" not in listed[0]
+    assert [item["label"] for item in listed] == ["after", "before"]
+    assert [(item["ticket"], item["source"]) for item in listed] == [("CHG-1", "example")] * 2
     assert len(api.get("/api/v1/snapshots", params={"target": "R1"}).json()) == 6
     assert api.get(f"/api/v1/snapshots/{listed[0]['reference']}").json()["ticket"] == "CHG-1"
+
+
+def test_the_snapshots_are_found_across_targets_by_label_and_ticket(api, ticketed) -> None:
+    everything = api.get("/api/v1/snapshots").json()
+    assert len(everything) == 6 and everything[0]["ticket"] == "CHG-1" and everything[-1]["ticket"] is None
+    stamps = [item["captured_at"] for item in everything]
+    assert stamps == sorted(stamps, reverse=True)
+    found = api.get("/api/v1/snapshots", params={"label": "before", "ticket": "chg-2"}).json()
+    assert [(item["label"], item["ticket"]) for item in found] == [("before", "CHG-2")]
+    assert [item["label"] for item in api.get("/api/v1/snapshots", params={"label": "before"}).json()] == ["before"] * 3
+    assert len(api.get("/api/v1/snapshots", params={"limit": 2}).json()) == 2
+    assert api.get("/api/v1/snapshots", params={"limit": 0}).status_code == 422
+    assert api.get("/api/v1/snapshots", params={"limit": 501}).status_code == 422
 
 
 def test_a_pipeline_describes_a_diff_and_finds_it_by_ticket(api, ticketed) -> None:

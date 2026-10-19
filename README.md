@@ -103,7 +103,7 @@ uv run snapdelta diff --group core @before @after --ticket CHG-1042 --note "VLAN
 | `output NAME` | Print a saved output again (`--format text`, `json`, `markdown`, `csv`) |
 | `describe NAME` | Give a saved diff a ticket and a note, or change them (`--ticket`, `--note`) |
 | `accept NAME KEY...` | Accept changes after a review (`--all`, `--comment`, `--undo`); the Markdown report lists them |
-| `list`, `show REF` | List the snapshots and outputs (`--target` keeps the outputs whose target or ticket has this text, `--ticket` the outputs of exactly that ticket); print the data of a snapshot |
+| `list`, `show REF` | List the snapshots (newest first, with their ticket and source) and the outputs (`--target` keeps the targets and the outputs whose target or ticket has this text, `--label` the snapshots with that label, `--ticket` the snapshots and outputs of exactly that ticket); print the data of a snapshot |
 | `delete`, `prune`, `info` | Delete snapshots or outputs; keep the N newest or the last days, with the runs of Activity; show the store |
 | `activity [RUN]` | The runs: each snapshot and saved diff, from the CLI, the web UI, the API or MCP, with the log of its loads |
 | `sources`, `models`, `inventory` | The installed sources; their models and attributes; the hosts of the inventory |

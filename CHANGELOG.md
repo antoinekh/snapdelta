@@ -8,6 +8,7 @@
 - With a ticket, `TARGET@LABEL` and `TARGET@latest` name the snapshots of that ticket only, so `before` and `after` of one piece of work never mix with another one; `TARGET/NAME` is not scoped.
 - A diff with no ticket given takes the ticket of its two snapshots when they have the same one, and the live snapshot of `--live` takes the ticket given, else the ticket of its left side.
 - The exact filter by ticket: `snapdelta list --ticket`, `GET /api/v1/diffs?ticket=`, `GET /api/v1/snapshots?ticket=`, the `ticket` argument of the MCP tools `list_diffs` and `list_snapshots`, and `/diffs?ticket=` in the web UI, where the chip of a ticket opens it. The search (`snapdelta list --target`, `q`, `query`) also finds a part of a ticket.
+- The snapshot lists find snapshots across all targets by label and ticket, and each row has its `ticket` and `source`: `snapdelta list --label --ticket`, `GET /api/v1/snapshots?target=&label=&ticket=&limit=` and the MCP tool `list_snapshots(target, label, ticket, limit)`. The API and MCP no longer need a `target`; `snapdelta list --ticket` also filters the snapshots, not only the outputs.
 - The prompt `check_change` of MCP takes an optional `ticket`, which it gives to the snapshots and the diffs.
 - When a label does not resolve in a ticket but exists in a snapshot of no ticket or of another ticket, the error says so and what to do.
 - The text format shows the line `ticket: X` and the note; the Markdown format has the heading `# TICKET · LEFT vs RIGHT`.

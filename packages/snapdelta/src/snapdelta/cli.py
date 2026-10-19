@@ -361,14 +361,16 @@ def list_files(
     target: Annotated[
         str | None, typer.Option(help="Only the targets, and the outputs whose target or ticket has this.")
     ] = None,
-    ticket: Annotated[str | None, typer.Option(help="Only the outputs of this ticket.")] = None,
+    label: Annotated[str | None, typer.Option(help="Only the snapshots with this label.")] = None,
+    ticket: Annotated[str | None, typer.Option(help="Only the snapshots and the outputs of this ticket.")] = None,
 ) -> None:
-    """List the snapshots and the outputs of the store."""
+    """List the snapshots, newest first, and the outputs of the store."""
     store = ctx.obj.store
+    targets = set(store.targets(target or ""))
     typer.echo("snapshots:")
-    for name in store.targets(target or ""):
-        for entry in store.snapshot_entries(SnapshotQuery(target=name)):
-            typer.echo(f"  {entry.reference}")
+    for entry in store.snapshot_entries(SnapshotQuery(label=label, ticket=ticket)):
+        if entry.target in targets:
+            typer.echo("  " + "  ".join(part for part in (entry.reference, entry.ticket, entry.source) if part))
     typer.echo("outputs:")
     for output in store.output_entries(OutputQuery(search=target or "", ticket=ticket)):
         typer.echo(f"  {output.name}")

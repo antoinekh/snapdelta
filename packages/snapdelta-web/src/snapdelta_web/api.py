@@ -19,7 +19,7 @@ from snapdelta.plugins import package_of
 from snapdelta.render import renderer
 from snapdelta.snapshot import SnapshotFile
 from snapdelta.source import SOURCES, source_classes
-from snapdelta.store import OutputQuery, SnapshotQuery
+from snapdelta.store import OutputQuery, SnapshotEntry, SnapshotQuery
 from snapdelta.take import TargetDiff, diff_snapshots, diff_targets, snapshot_targets
 from snapdelta.ticket import TICKET_MAX
 
@@ -69,6 +69,19 @@ class SnapshotInfo(BaseModel):
     target: str
     label: str | None
     captured_at: datetime
+    ticket: str | None
+    source: str
+
+    @classmethod
+    def of(cls, entry: SnapshotEntry) -> Self:
+        return cls(
+            reference=entry.reference,
+            target=entry.target,
+            label=entry.label,
+            captured_at=entry.captured_at,
+            ticket=entry.ticket,
+            source=entry.source,
+        )
 
 
 class SnapshotRequest(BaseModel):
@@ -347,14 +360,15 @@ def create_api(state: AppState, row_cache: LruCache[Any, Any]) -> FastAPI:
         return state.store.targets(q)
 
     @api.get("/snapshots")
-    def snapshots(target: str, ticket: str | None = None) -> list[SnapshotInfo]:
-        """The snapshots of one target, newest first; with ticket, only the ones of that ticket (any case)."""
-        return [
-            SnapshotInfo(
-                reference=entry.reference, target=entry.target, label=entry.label, captured_at=entry.captured_at
-            )
-            for entry in state.store.snapshot_entries(SnapshotQuery(target=target, ticket=ticket))
-        ]
+    def snapshots(
+        target: str | None = None,
+        label: str | None = None,
+        ticket: str | None = None,
+        limit: Annotated[int, Query(ge=1, le=MAX_LIMIT)] = 50,
+    ) -> list[SnapshotInfo]:
+        """The snapshots of every target, newest first; target, label and ticket (any case) narrow them."""
+        entries = state.store.snapshot_entries(SnapshotQuery(target=target, label=label, ticket=ticket))
+        return [SnapshotInfo.of(entry) for entry in entries[:limit]]
 
     @api.get("/snapshots/{target}/{name}")
     def snapshot(target: str, name: str) -> SnapshotFile:

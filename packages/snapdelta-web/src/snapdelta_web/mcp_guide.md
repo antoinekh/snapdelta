@@ -24,7 +24,7 @@ snapdelta takes snapshots of devices (routers, services, APIs) through source pl
 6. `changed` lists the targets with differences: read the changes of each (`read_diff` with the name of its diff, by pages) and compare them with what the change meant to do. `failed` gives the reason of each target that has no diff.
 7. `accept_changes` for each change that is expected, with a short comment; tell the person about every change that is not expected.
 
-Give the same `ticket` to the snapshots and to the diff: the labels (`before`, `after`, `latest`) then stay inside that ticket, so another piece of work with the same labels never mixes in. Without a `ticket`, `TARGET@before` is the newest `before` of any ticket. Give the `ticket` when you take the snapshots, else their labels do not resolve with it. `list_diffs` and `list_snapshots` take a `ticket` to find the work again; `describe_diff` sets the ticket or the note of a saved diff.
+Give the same `ticket` to the snapshots and to the diff: the labels (`before`, `after`, `latest`) then stay inside that ticket, so another piece of work with the same labels never mixes in. Without a `ticket`, `TARGET@before` is the newest `before` of any ticket. Give the `ticket` when you take the snapshots, else their labels do not resolve with it. `list_diffs` takes a `ticket` and `list_snapshots` a `target`, a `label` and a `ticket` to find the work again, and `list_snapshots` gives the newest snapshot first with its ticket and source; `describe_diff` sets the ticket or the note of a saved diff.
 
 To compare a snapshot with the device now, without a second snapshot step: `compare` with `live: true`, or `compare_targets` with `live: true` for many targets at the same time.
 

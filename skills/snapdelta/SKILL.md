@@ -25,6 +25,7 @@ snapdelta takes snapshots of targets (routers, services) through source plugins,
 - `snapdelta inventory` lists the targets with their platform (the source) and their groups; `snapdelta sources` lists the installed sources; `snapdelta doctor` checks the plugins, the settings, the store and the inventory when a command fails for no clear reason.
 - No project yet: follow `docs/getting-started.md`, or show the demo of the README (the example plugin, in the web UI).
 - A snapshot reference is `TARGET/NAME`, `TARGET@latest`, or `TARGET@LABEL` (the newest snapshot with that label, for example `r1@before`). With `--ticket`, the labels look inside the snapshots of that ticket only: give the ticket when you take the snapshots, else their labels do not resolve with it.
+- Find the snapshots of a piece of work with `snapdelta list --label before --ticket CHG-1042` (every target, newest first, each line with its ticket and source); `--target` keeps the targets whose name has that text.
 
 ## Check a change
 

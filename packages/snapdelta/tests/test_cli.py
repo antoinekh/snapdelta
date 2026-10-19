@@ -384,6 +384,29 @@ def test_list_filters_the_outputs_by_ticket_and_by_a_part_of_it(make_adapter, tm
     assert other.output.endswith("outputs:\n")
 
 
+def test_list_finds_the_snapshots_by_label_ticket_and_a_part_of_the_target(make_adapter, tmp_path) -> None:
+    store = FileStore(tmp_path / "store")
+    moment = datetime(2026, 9, 25, 10, 0, tzinfo=UTC)
+    taken = [("R1", "before", "CHG-1"), ("R2", "before", "CHG-1"), ("R2", "after", "CHG-1"), ("R1", "before", "CHG-2")]
+    for hour, (target, label, ticket) in enumerate(taken):
+        adapter = make_adapter(target=target, label=label, ticket=ticket, captured_at=moment.replace(hour=hour))
+        store.save_snapshot(adapter)
+    store.save_snapshot(make_adapter(target="R3", label="before", captured_at=moment.replace(hour=9)))
+    base = ["--store", str(tmp_path / "store")]
+
+    def listed(*options: str) -> list[str]:
+        output = runner.invoke(app, [*base, "list", *options]).output
+        return output.partition("snapshots:\n")[2].partition("outputs:")[0].splitlines()
+
+    assert listed("--label", "before", "--ticket", "chg-1") == [
+        "  R2/20260925T010000Z-before  CHG-1  example",
+        "  R1/20260925T000000Z-before  CHG-1  example",
+    ]
+    assert listed("--label", "before", "--target", "R2") == ["  R2/20260925T010000Z-before  CHG-1  example"]
+    assert listed("--target", "R3") == ["  R3/20260925T090000Z-before  example"]
+    assert len(listed()) == 5 and listed("--ticket", "chg") == []
+
+
 def test_accept_changes_after_a_review(make_adapter, tmp_path, monkeypatch) -> None:
     import getpass
 

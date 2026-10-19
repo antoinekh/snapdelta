@@ -38,7 +38,7 @@ claude mcp add --transport http snapdelta https://snapdelta.example.net/mcp --he
 | Kind | Name | What it does |
 |---|---|---|
 | Resource | `snapdelta://guide` | The words of snapdelta, the steps to check a change, and the rules for an agent |
-| Tool | `list_sources`, `list_targets`, `list_snapshots` | The sources, the targets (with platform and groups), the snapshots of a target (`target`, `ticket`, `limit`) |
+| Tool | `list_sources`, `list_targets`, `list_snapshots` | The sources, the targets (with platform and groups), the snapshots of every target, newest first, with their ticket and source (`target`, `label`, `ticket`, `limit`) |
 | Tool | `take_snapshots` | Fetch targets, groups or every target at the same time, with a label and a `ticket` |
 | Tool | `compare` | Two snapshots, or a snapshot and its target now (`live`), with a profile, a `ticket` and a `note`; the first page of changes |
 | Tool | `compare_targets` | For each target or each host of groups, `TARGET@left` with `TARGET@right` or the target now: the targets that changed, did not change or failed, and the name of each diff; it takes a `ticket` and a `note` too |

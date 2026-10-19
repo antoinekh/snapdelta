@@ -139,6 +139,20 @@ def test_an_agent_takes_snapshots_with_a_ticket_and_lists_them_by_ticket(store) 
     assert [item["label"] for item in listed.structured_content["result"]] == ["live"]
 
 
+def test_an_agent_finds_the_snapshots_across_targets_by_label_and_ticket(ticketed) -> None:
+    async def steps(client: Client) -> tuple[Any, Any, Any]:
+        everything = await client.call_tool("list_snapshots", {})
+        found = await client.call_tool("list_snapshots", {"label": "before", "ticket": "chg-2"})
+        limited = await client.call_tool("list_snapshots", {"limit": 2})
+        return everything, found, limited
+
+    everything, found, limited = call(ticketed, steps)
+    rows = everything.structured_content["result"]
+    assert len(rows) == 6 and (rows[0]["ticket"], rows[0]["source"]) == ("CHG-1", "example")
+    assert [(row["label"], row["ticket"]) for row in found.structured_content["result"]] == [("before", "CHG-2")]
+    assert len(limited.structured_content["result"]) == 2
+
+
 def test_an_agent_sets_the_ticket_and_the_note_and_finds_the_diff(ticketed) -> None:
     async def steps(client: Client) -> Any:
         compared = await client.call_tool(
