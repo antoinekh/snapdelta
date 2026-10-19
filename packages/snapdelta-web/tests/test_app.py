@@ -1,3 +1,4 @@
+import html
 import json
 import re
 import time
@@ -8,7 +9,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from snapdelta.output import compare
-from snapdelta.store import FileStore, SnapshotQuery
+from snapdelta.store import FileStore, SnapshotEntry, SnapshotQuery
 from snapdelta.testing import sample, sample_run
 from snapdelta_example import ExampleSource
 from snapdelta_web import views
@@ -228,7 +229,7 @@ def test_the_snapshots_page_lists_every_snapshot_newest_first(client, two_target
         "Ticket",
         "Source",
     ]
-    assert '<datalist id="targets"><option value="R1"><option value="R2"></datalist>' in page
+    assert "checked" not in page.split("<thead>")[0]
 
 
 def test_the_snapshots_page_filters_by_target_label_and_ticket(client, two_targets) -> None:
@@ -237,7 +238,59 @@ def test_the_snapshots_page_filters_by_target_label_and_ticket(client, two_targe
     assert 'name="label" value="before"' in both and 'name="ticket" value="chg-1"' in both
     only_r1 = client.get("/snapshots", params={"target": "R1", "ticket": "CHG-1"}).text
     assert len(listed_references(only_r1)) == 2 and "R2/" not in only_r1
-    assert 'name="target" value="R1"' in only_r1
+    assert 'name="target" value="R1" checked' in only_r1
+
+
+def test_the_snapshots_page_filters_on_several_targets(big_client) -> None:
+    page = big_client.get("/snapshots", params={"target": ["DEV001", "DEV002"]}).text
+    assert {reference.split("/")[0] for reference in listed_references(page)} == {"DEV001", "DEV002"}
+    assert re.findall(r'name="target" value="([^"]+)" checked', page) == ["DEV001", "DEV002"]
+    links = [html.unescape(link) for link in re.findall(r'<a class="button quiet" href="([^"]+)"', page)]
+    assert links == ["/snapshots?target=DEV001&target=DEV002&page=2"]
+
+
+def test_a_repeated_or_blank_target_is_one_chip(big_client) -> None:
+    page = big_client.get("/snapshots", params={"target": ["DEV001", "", "DEV001"]}).text
+    assert re.findall(r'name="target" value="([^"]+)" checked', page) == ["DEV001"]
+    assert {reference.split("/")[0] for reference in listed_references(page)} == {"DEV001"}
+
+
+def test_a_target_name_is_escaped_in_its_chip_and_encoded_in_the_links(store, make_app, monkeypatch) -> None:
+    from snapdelta_web import app as app_module
+
+    monkeypatch.setattr(app_module, "PAGE_SIZE", 1)
+    entries = [
+        SnapshotEntry(name, f"{name}/20260925T100000Z", datetime(2026, 9, 25, tzinfo=UTC), None, None, "example")
+        for name in ("A&B", "<c>")
+    ]
+    monkeypatch.setattr(store, "snapshot_entries", lambda query: entries)
+    client = TestClient(make_app(store), base_url="http://127.0.0.1")
+    page = client.get("/snapshots", params={"target": ["A&B", "<c>"]}).text
+    assert re.findall(r'name="target" value="([^"]+)" checked', page) == ["A&amp;B", "&lt;c&gt;"]
+    assert "<c>" not in page
+    [link] = re.findall(r'<a class="button quiet" href="([^"]+)"', page)
+    assert html.unescape(link) == "/snapshots?target=A%26B&target=%3Cc%3E&page=2"
+    monkeypatch.setattr(store, "snapshot_entries", lambda query: [])
+    empty = client.get("/snapshots", params={"target": ["A&B", "<c>"], "label": "none"}).text
+    assert "No snapshot for the targets A&amp;B, &lt;c&gt;, the label none." in empty
+
+
+def test_the_snapshots_picker_lists_the_targets_of_the_store_without_the_chosen_ones(two_targets, make_app) -> None:
+    client = TestClient(make_app(two_targets), base_url="http://127.0.0.1")
+    matches = client.get("/targets/matches", params={"q": "r", "target": ["R1"]}).text
+    assert 'name="target" value="R2"' in matches and 'value="R1"' not in matches
+    assert 'name="target" value="Z' not in client.get("/targets/matches", params={"q": "R1"}).text
+    assert "No match" in client.get("/targets/matches", params={"q": "zzz"}).text
+    assert "Use" not in client.get("/targets/matches", params={"q": "zzz"}).text
+
+
+def test_the_snapshots_and_take_pages_share_the_picker(client, two_targets) -> None:
+    snapshots = client.get("/snapshots").text
+    take = client.get("/take").text
+    for page in (snapshots, take):
+        assert "data-target-picker" in page and "data-picked-targets" in page and "data-target-search" in page
+    assert 'hx-get="/targets/matches"' in snapshots and 'hx-get="/take/targets"' in take
+    assert 'hx-trigger="input changed delay:200ms, focus once, refresh"' in snapshots
 
 
 def test_the_snapshots_pager_keeps_the_filters(two_targets, monkeypatch, make_app) -> None:

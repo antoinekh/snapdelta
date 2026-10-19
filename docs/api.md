@@ -97,7 +97,7 @@ allowed_hosts = ["10.0.0.5", "snapdelta.lab"]   # required on the network; "*" a
 | `GET /api/v1/plugins` | Every plugin of every extension point, the built-ins and the broken ones included, with the problems that `snapdelta doctor` finds |
 | `GET /api/v1/sources` | The installed sources, and whether each fetches its data |
 | `GET /api/v1/targets?q=R` | The targets that have snapshots |
-| `GET /api/v1/snapshots?target=R1&label=before&ticket=CHG-1042&limit=50` | The snapshots of every target, newest first, each with its `ticket` and `source`; `target` (the whole name), `label` and `ticket` (any case) are optional filters; `limit` is 1 to 500, 50 by default |
+| `GET /api/v1/snapshots?target=R1&target=R2&label=before&ticket=CHG-1042&limit=50` | The snapshots of every target, newest first, each with its `ticket` and `source`; `target` (a whole name, repeated for several targets), `label` and `ticket` (any case) are optional filters; `limit` is 1 to 500, 50 by default |
 | `GET /api/v1/snapshots/{target}/{name}` | One snapshot: metadata and data |
 | `POST /api/v1/snapshots` | Fetch targets and save a snapshot of each: `source`, `targets`, `groups`, `all_targets`, `label`, `ticket` |
 | `POST /api/v1/diffs` | Compare: `left`, then `right` or `live`, with `models`, `profile`, `ticket`, `note`, `save`; `?include_output=true` returns the whole output |

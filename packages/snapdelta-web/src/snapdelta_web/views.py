@@ -7,7 +7,7 @@ import functools
 import itertools
 import json
 import re
-from collections.abc import Collection
+from collections.abc import Collection, Iterable
 from dataclasses import dataclass, field, replace
 from datetime import UTC, datetime
 from enum import StrEnum
@@ -556,9 +556,10 @@ def attachment(filename: str) -> dict[str, str]:
     return {"Content-Disposition": f"attachment; filename=\"{fallback}\"; filename*=UTF-8''{quote(filename, safe='')}"}
 
 
-def snapshot_query(target: str, label: str, ticket: str) -> SnapshotQuery:
+def snapshot_query(targets: Iterable[str], label: str, ticket: str) -> SnapshotQuery:
     """The filters of the Snapshots page; a field left empty does not filter."""
-    return SnapshotQuery(targets=(target.strip(),), label=label.strip(), ticket=normalize_ticket(ticket))
+    names = tuple(name.strip() for name in targets)
+    return SnapshotQuery(targets=names, label=label.strip(), ticket=normalize_ticket(ticket))
 
 
 def snapshot_filters(query: SnapshotQuery) -> str:
@@ -738,10 +739,13 @@ def _timeline_step(store: Store, left: str, right: str, rules: Profile | None, p
 
 
 def target_matches(
-    store: Store, query: str, limit: int = 20, members: Collection[str] | None = None
+    store: Store, query: str, limit: int = 20, members: Collection[str] | None = None, chosen: Collection[str] = ()
 ) -> tuple[list[str], int]:
-    """The first matching targets, and how many more match; `members` keeps the hosts of one inventory group."""
-    names = [name for name in store.targets(query) if members is None or name in members]
+    """The first matching targets, and how many more match; `members` keeps the hosts of one inventory group.
+
+    `chosen` leaves out the targets that a picker already shows.
+    """
+    names = [name for name in store.targets(query) if (members is None or name in members) and name not in chosen]
     return names[:limit], max(len(names) - limit, 0)
 
 

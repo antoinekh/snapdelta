@@ -102,6 +102,10 @@
 {% endif %}
 {%- endmacro %}
 
+{% macro target_pick(name, checked=False, hint="") -%}
+<label class="target-pick mono"><input type="checkbox" name="target" value="{{ name }}"{% if checked %} checked{% endif %}> {% if hint %}<span class="hint">{{ hint }}</span> {% endif %}{{ name }}</label>
+{%- endmacro %}
+
 {% macro search(base, q, placeholder, ticket="") -%}
 <form class="search-form" method="get" action="{{ base }}" role="search">
   {% if ticket %}<input type="hidden" name="ticket" value="{{ ticket }}">{% endif %}

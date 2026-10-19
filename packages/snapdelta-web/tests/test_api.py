@@ -209,6 +209,15 @@ def test_the_snapshots_are_found_across_targets_by_label_and_ticket(api, tickete
     assert api.get("/api/v1/snapshots", params={"limit": 501}).status_code == 422
 
 
+def test_the_snapshots_filter_on_several_targets(api, two_targets) -> None:
+    both = api.get("/api/v1/snapshots", params={"target": ["R1", "R2"]}).json()
+    assert both == api.get("/api/v1/snapshots").json() and {item["target"] for item in both} == {"R1", "R2"}
+    only_r2 = api.get("/api/v1/snapshots", params={"target": ["R2", "R9", "R2"]}).json()
+    assert [item["target"] for item in only_r2] == ["R2"]
+    chg_2 = api.get("/api/v1/snapshots", params={"target": ["R1", "R2"], "ticket": "chg-2"}).json()
+    assert [(item["target"], item["ticket"]) for item in chg_2] == [("R1", "CHG-2")]
+
+
 def test_an_empty_filter_of_the_snapshots_does_not_filter(api, ticketed) -> None:
     listed = api.get("/api/v1/snapshots", params={"target": "", "label": "", "ticket": ""}).json()
     assert listed == api.get("/api/v1/snapshots").json() and len(listed) == 6

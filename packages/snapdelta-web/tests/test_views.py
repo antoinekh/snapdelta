@@ -262,3 +262,10 @@ def test_diffs_group_by_day(store, names) -> None:
     ]
     groups = views.output_groups(rows)
     assert [(group.day, len(group.rows)) for group in groups] == [("25 Sep 2026", 3), ("24 Sep 2026", 1)]
+
+
+def test_the_snapshots_filters_keep_each_target_encoded() -> None:
+    query = views.snapshot_query([" A&B ", "", "<c>", "A&B"], " before ", " chg-1 ")
+    assert query == SnapshotQuery(targets=("A&B", "<c>"), label="before", ticket="chg-1")
+    assert views.snapshot_filters(query) == "target=A%26B&target=%3Cc%3E&label=before&ticket=chg-1"
+    assert views.snapshot_filters(views.snapshot_query([], "", "")) == ""

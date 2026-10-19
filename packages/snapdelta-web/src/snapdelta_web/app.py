@@ -455,16 +455,16 @@ def create_app(state: AppState) -> FastAPI:
     @app.get("/snapshots", response_class=HTMLResponse)
     def snapshots(
         request: Request,
-        target: str = "",
+        target: Annotated[list[str] | None, Query()] = None,
         label: str = "",
         ticket: str = "",
         page: int = 1,
         deleted: int | None = None,
     ) -> HTMLResponse:
-        query = views.snapshot_query(target, label, ticket)
+        query = views.snapshot_query(target or [], label, ticket)
         rows, pager = views.snapshot_list(state.store, query, page, PAGE_SIZE)
         context = {"tab": "snapshots", "rows": rows, "pager": pager, "query": query, "deleted": deleted}
-        context |= {"filters": views.snapshot_filters(query), "targets": state.store.targets()}
+        context |= {"filters": views.snapshot_filters(query)}
         return render(request, "snapshots.html", context)
 
     @app.get("/snapshots/{target}", response_class=HTMLResponse)
@@ -592,6 +592,14 @@ def create_app(state: AppState) -> FastAPI:
         check_side(side)
         matches, more = views.target_matches(state.store, q, MATCH_LIMIT, group_members(group))
         return render(request, "_target_options.html", {"side": side, "targets": matches, "more": more})
+
+    @app.get("/targets/matches", response_class=HTMLResponse)
+    def store_target_matches(
+        request: Request, q: str = "", target: Annotated[list[str] | None, Query()] = None
+    ) -> HTMLResponse:
+        """The targets of the store that a picker offers, without the ones it already holds."""
+        matches, more = views.target_matches(state.store, q, MATCH_LIMIT, chosen=set(target or []))
+        return render(request, "_target_matches.html", {"targets": matches, "more": more})
 
     @app.get("/targets/{target}/snapshots", response_class=HTMLResponse)
     def target_snapshots(request: Request, target: str, side: str, offset: int = 0) -> HTMLResponse:
@@ -751,7 +759,7 @@ def create_app(state: AppState) -> FastAPI:
         typed = wanted if wanted and not matches and wanted not in known and wanted not in selected else None
         more = max(len(matches) - MATCH_LIMIT, 0)
         context = {"targets": matches[:MATCH_LIMIT], "more": more, "typed": typed}
-        return render(request, "_take_targets.html", context)
+        return render(request, "_target_matches.html", context)
 
     @app.post("/take", response_model=None)
     def take(

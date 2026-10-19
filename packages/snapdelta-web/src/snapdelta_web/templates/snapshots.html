@@ -1,18 +1,20 @@
 {% extends "base.html" %}
-{% from "_macros.html" import pager as pages %}
+{% from "_macros.html" import pager as pages, target_pick %}
 {% block title %}Snapshots · snapdelta{% endblock %}
 {% block content %}
 <div class="title-row">
   <h1>Snapshots</h1>
-  <form class="filters" method="get" action="/snapshots" role="search"
-        hx-get="/snapshots" hx-trigger="input delay:250ms, search" hx-target="#results" hx-select="#results" hx-push-url="true">
-    <label class="inline-field">Target<input name="target" value="{{ query.targets[0] if query.targets else '' }}" list="targets" autocomplete="off"></label>
-    <label class="inline-field">Label<input name="label" value="{{ query.label or '' }}" autocomplete="off"></label>
-    <label class="inline-field">Ticket<input name="ticket" value="{{ query.ticket or '' }}" maxlength="80" autocomplete="off"></label>
-    <datalist id="targets">{% for name in targets %}<option value="{{ name }}">{% endfor %}</datalist>
-  </form>
   <a class="button primary" href="/take">Take snapshot</a>
 </div>
+<form class="filters" method="get" action="/snapshots" role="search" data-target-picker hx-params="not q" hx-disinherit="*"
+      hx-get="/snapshots" hx-trigger="input[target.name!='q'] delay:250ms, search[target.name!='q']" hx-target="#results" hx-select="#results" hx-push-url="true">
+  <label class="inline-field">Target<input type="search" name="q" id="snapshot-target-search" data-target-search autocomplete="off"
+         hx-get="/targets/matches" hx-include="#snapshot-targets" hx-trigger="input changed delay:200ms, focus once, refresh" hx-target="#snapshot-matches" hx-sync="this:replace"></label>
+  <label class="inline-field">Label<input name="label" value="{{ query.label or '' }}" autocomplete="off"></label>
+  <label class="inline-field">Ticket<input name="ticket" value="{{ query.ticket or '' }}" maxlength="80" autocomplete="off"></label>
+  <div id="snapshot-matches" class="picks"></div>
+  <div id="snapshot-targets" class="picks selected" data-picked-targets>{% for name in query.targets %}{{ target_pick(name, checked=True) }}{% endfor %}</div>
+</form>
 <div id="results">
 {% if deleted %}<p class="notice">Deleted {{ deleted }}.</p>{% endif %}
 {% if rows %}
@@ -33,7 +35,7 @@
 {{ pages(pager, "/snapshots", "", filters) }}
 {% elif filters %}
 {% set given = [] %}
-{% if query.targets %}{% set _ = given.append("the target " ~ query.targets[0]) %}{% endif %}
+{% if query.targets %}{% set _ = given.append(("the target " if query.targets | length == 1 else "the targets ") ~ query.targets | join(", ")) %}{% endif %}
 {% if query.label %}{% set _ = given.append("the label " ~ query.label) %}{% endif %}
 {% if query.ticket %}{% set _ = given.append("the ticket " ~ query.ticket) %}{% endif %}
 <p class="empty">No snapshot for {{ given | join(", ") }}.</p>

@@ -351,7 +351,10 @@ form:not(:has(tbody .pick input:checked)) .bulk { display: none; }
 .section-links { display: flex; flex-wrap: wrap; gap: 6px 16px; margin: 0 0 16px; font-size: 14px; }
 .period, .filters { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; }
 .period .inline-field, .filters .inline-field { margin: 0; }
-.filters input { width: 160px; }
+.filters { margin: -8px 0 24px; }
+.filters input:not([type="checkbox"]) { width: 160px; }
+.filters .picks { width: 100%; }
+.filters .picks.selected::before { content: none; }
 
 /* MCP server page: the tools of the server, each with a form that calls it. */
 .mcp-section { margin-top: 28px; }
@@ -492,7 +495,7 @@ table.list.model-list td { vertical-align: top; }
   .grid { grid-template-columns: minmax(90px, 130px) 1fr 1fr; margin-left: 0; }
   .search-form, .search-form input, .legend-tools, .legend-tools .search { width: 100%; }
   .filters, .filters .inline-field { width: 100%; }
-  .filters input { flex: 1; width: auto; }
+  .filters input:not([type="checkbox"]) { flex: 1; width: auto; }
   .legend-tools { margin-left: 0; }
   table.list { display: block; overflow-x: auto; }
 }

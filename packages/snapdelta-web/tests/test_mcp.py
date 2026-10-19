@@ -81,7 +81,7 @@ def test_an_error_comes_back_as_a_tool_error(store) -> None:
 def test_a_page_out_of_range_comes_back_as_a_tool_error(store) -> None:
     async def steps(client: Client) -> tuple[Any, Any, Any]:
         offset = await client.call_tool("read_diff", {"name": "20260925T110000Z-R1-vs-R1", "offset": -5})
-        limit = await client.call_tool("list_snapshots", {"target": "R1", "limit": 0})
+        limit = await client.call_tool("list_snapshots", {"targets": ["R1"], "limit": 0})
         above_max = await client.call_tool("list_runs", {"limit": 501})
         return offset, limit, above_max
 
@@ -133,7 +133,7 @@ def test_an_agent_takes_snapshots_with_a_ticket_and_lists_them_by_ticket(store) 
     async def steps(client: Client) -> Any:
         body = {"targets": ["R1"], "label": "live", "source": "example-live", "ticket": "CHG-7"}
         await client.call_tool("take_snapshots", body)
-        return await client.call_tool("list_snapshots", {"target": "R1", "ticket": "chg-7"})
+        return await client.call_tool("list_snapshots", {"targets": ["R1"], "ticket": "chg-7"})
 
     listed = call(store, steps)
     assert [item["label"] for item in listed.structured_content["result"]] == ["live"]
@@ -151,6 +151,17 @@ def test_an_agent_finds_the_snapshots_across_targets_by_label_and_ticket(tickete
     assert len(rows) == 6 and (rows[0]["ticket"], rows[0]["source"]) == ("CHG-1", "example")
     assert [(row["label"], row["ticket"]) for row in found.structured_content["result"]] == [("before", "CHG-2")]
     assert len(limited.structured_content["result"]) == 2
+
+
+def test_an_agent_lists_the_snapshots_of_several_targets(two_targets) -> None:
+    async def steps(client: Client) -> tuple[Any, Any]:
+        both = await client.call_tool("list_snapshots", {"targets": ["R1", "R2"]})
+        one = await client.call_tool("list_snapshots", {"targets": ["R2", "R9"]})
+        return both, one
+
+    both, one = call(two_targets, steps)
+    assert {row["target"] for row in both.structured_content["result"]} == {"R1", "R2"}
+    assert [row["target"] for row in one.structured_content["result"]] == ["R2"]
 
 
 def test_an_agent_sets_the_ticket_and_the_note_and_finds_the_diff(ticketed) -> None:

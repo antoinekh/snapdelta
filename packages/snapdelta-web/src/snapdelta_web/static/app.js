@@ -345,16 +345,19 @@
     if (event.target.matches("[data-only-changed]")) document.body.classList.toggle("only-changed", event.target.checked);
   });
 
+  // A target picker keeps the ticked targets in its chips, apart from the matches that its search lists.
   document.addEventListener("change", function (event) {
     var box = event.target;
-    var selected = document.querySelector("[data-take-selected]");
-    if (box.id === "take-source" && selected) selected.replaceChildren();
+    var picker = box.closest("[data-target-picker]");
+    if (!picker) return;
+    var selected = picker.querySelector("[data-picked-targets]");
+    if (box.matches("[data-clears-targets]")) selected.replaceChildren();
     if (!box.matches(".target-pick input[type=checkbox]")) return;
     if (box.checked && !selected.contains(box)) selected.appendChild(box.closest(".target-pick"));
     else if (!box.checked && selected.contains(box)) {
       box.closest(".target-pick").remove();
       // The server leaves selected targets out of the list, so it must send the list again.
-      var search = document.getElementById("take-search");
+      var search = picker.querySelector("[data-target-search]");
       if (search) htmx.trigger(search, "refresh");
     }
   });
