@@ -33,15 +33,21 @@ def database() -> Iterator[str]:
     yield from _new_database()
 
 
+def _server_version() -> int:
+    with psycopg.connect(SERVER) as connection:
+        return connection.info.server_version
+
+
 @pytest.fixture
 def linguistic_database() -> Iterator[str]:
     """A new database whose collation sorts by language, not by code point."""
+    # The version is checked first: the locale_provider option is a syntax error before PostgreSQL 15.
+    if _server_version() < 150000:
+        pytest.skip("the server is older than PostgreSQL 15 and has no locale_provider option")
     try:
         yield from _new_database("template template0 locale_provider icu icu_locale 'en-US'")
     except psycopg.errors.FeatureNotSupported:
         pytest.skip("the server is built without ICU")
-    except psycopg.errors.SyntaxError:
-        pytest.skip("the server is older than PostgreSQL 15 and has no locale_provider option")
 
 
 @needs_server
