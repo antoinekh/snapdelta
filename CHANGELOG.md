@@ -34,6 +34,10 @@
 - The grouping of the diff list by the start of the text before `: `; filter by ticket instead.
 - The **Before → after** button of **New diff**, which only knew the labels `before` and `after`; pick the two snapshots in the lists.
 
+### Fixed
+
+- The PostgreSQL collation test is skipped, not failed, on a server built without ICU or older than PostgreSQL 15.
+
 ## v0.2.0
 
 ### Added
