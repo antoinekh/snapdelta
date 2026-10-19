@@ -60,7 +60,14 @@ def form_groups(
     """
     raw = read_settings_file(settings.file)
     groups = [
-        _group(section, section, getattr(settings, section), raw.get(section, {}), settings, plugin_choices or {})
+        _group(
+            section,
+            section.capitalize(),
+            getattr(settings, section),
+            raw.get(section, {}),
+            settings,
+            plugin_choices or {},
+        )
         for section in CORE_SECTIONS
     ]
     kinds = plugin_tables()

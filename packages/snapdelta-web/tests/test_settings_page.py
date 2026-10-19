@@ -1,3 +1,4 @@
+import re
 import stat
 from pathlib import Path
 
@@ -189,6 +190,21 @@ def test_only_the_settings_tab_shows_the_origin_of_a_value(client, settings_file
     assert 'class="tag origin-file"' in client.get("/admin/settings").text
 
 
+def test_the_group_titles_start_with_a_capital_letter_in_the_legends_and_the_section_links(client) -> None:
+    page = client.get("/admin/settings").text
+    for title in ("Store", "Snapshot", "Web", "Inventory", "Store backend sqlite"):
+        assert f"<legend>{title}</legend>" in page and f'">{title}</a>' in page
+    assert "<legend>store</legend>" not in page and ">snapshot</a>" not in page
+
+
+def test_a_profile_keeps_its_name_as_the_title_with_its_delete_button_right_after(client, settings_file) -> None:
+    settings_file.write_text(settings_file.read_text() + "\n[profiles.quiet]\nskip_only_left = true\n")
+    client.post("/admin/profiles", data=form(), follow_redirects=False)
+    page = client.get("/admin/profiles").text
+    group = page.split('<fieldset class="settings-group" id="profile-quiet">')[1].split("</fieldset>")[0]
+    assert re.match(r'\s*<legend>quiet</legend>\s*<button [^>]*form="delete-profile-quiet"', group)
+
+
 def test_each_profile_has_a_delete_button_in_its_own_form(client, settings_file) -> None:
     settings_file.write_text(settings_file.read_text() + "\n[profiles.quiet]\nskip_only_left = true\n")
     client.post("/admin/profiles", data=form(), follow_redirects=False)
@@ -370,7 +386,7 @@ def test_a_saved_access_setting_waits_for_the_next_start(settings_file) -> None:
 
 def test_a_field_with_known_values_is_a_menu(client, settings_file) -> None:
     page = client.get("/admin/settings").text
-    assert '<a href="#group-snapshot">snapshot</a>' in page and 'id="group-snapshot"' in page
+    assert '<a href="#group-snapshot">Snapshot</a>' in page and 'id="group-snapshot"' in page
     log_level = '<option value="">info (default)</option><option>debug</option><option>info</option>'
     assert f'<select id="f-snapshot.log_level" name="snapshot.log_level">{log_level}' in page
     assert '<option value="">threads (default)</option><option>processes</option><option>threads</option>' in page
