@@ -246,6 +246,15 @@ def test_save_removes_a_key_back_at_its_default(tmp_path) -> None:
     assert "port" not in path.read_text()
 
 
+def test_save_keeps_a_new_profile_with_all_its_values_at_the_default(tmp_path) -> None:
+    path = write(tmp_path / "snapdelta.toml", "[web]\nport = 9000\n")
+    save_settings(path, {"profiles.night": {}})
+    assert "[profiles.night]" in path.read_text() and "port = 9000" in path.read_text()
+    assert load_settings(path).profiles.keys() == {"night"}
+    save_settings(path, {}, removed=["profiles.night"])
+    assert "night" not in path.read_text()
+
+
 def test_save_writes_source_tables_and_secrets(tmp_path) -> None:
     path = tmp_path / "new" / "snapdelta.toml"
     secret = Secret(backend="env", reference="DEMO_PASSWORD")

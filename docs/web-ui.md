@@ -71,7 +71,7 @@ The log holds the messages that the source plugins write with the standard `logg
 |---|---|
 | Store | The backend, the counts (snapshots, outputs, runs) and the size of the store; pruning with a preview |
 | Settings | The settings file, with the origin of each value; links to its sections, and a menu for a field with known values (`log_level`, and the installed runners, auth backends and inventory formats) |
-| Profiles | One group per profile, with help on each field and a **Delete** button that removes the profile at once, after a confirmation |
+| Profiles | A **Name** field and a **Create** button that adds an empty profile at once; then one group per profile, with help on each field and a **Delete** button that removes the profile at once, after a confirmation |
 | Inventory | The groups, and each host with its platform, source and data |
 | Models | The models of the installed sources: identifiers, attributes, fields not compared, children |
 | Plugins | Every plugin of each extension point: its package, its version, and the problems that `snapdelta doctor` finds |

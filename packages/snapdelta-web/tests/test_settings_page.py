@@ -152,14 +152,14 @@ def test_a_store_that_cannot_open_keeps_the_running_state(client, settings_file,
     assert client.get("/diffs").status_code == 200
 
 
-def test_profiles_are_shown_edited_and_added(client, settings_file) -> None:
+def test_profiles_are_shown_and_edited(client, settings_file) -> None:
     settings_file.write_text(
         settings_file.read_text() + '\n# my profiles\n[profiles.quiet]\nignore = ["*.description"]\n'
         "\n[profiles.old]\nskip_only_left = true\n"
     )
     client.post("/admin/profiles", data=form(), follow_redirects=False)
     page = client.get("/admin/profiles").text
-    assert "<legend>quiet</legend>" in page and "<legend>old</legend>" in page and "New profile" in page
+    assert "<legend>quiet</legend>" in page and "<legend>old</legend>" in page
     assert "Profile" not in client.get("/admin/settings").text.split('action="/admin/settings"')[1]
     assert (
         '<textarea id="f-profiles.quiet.ignore" name="profiles.quiet.ignore"' in page
@@ -170,15 +170,14 @@ def test_profiles_are_shown_edited_and_added(client, settings_file) -> None:
             "profiles.quiet.ignore": "*.description\ninterface.mtu",
             "profiles.quiet.tolerance": "bgp_peer.prefixes_received = 5%\ninterface.speed_mbps = 100",
             "profiles.old.skip_only_left": "true",
-            "new_profile": "migration",
-            "profiles.+.pairs": "ge-0/0/6 = 1/1/1",
+            "profiles.old.pairs": "ge-0/0/6 = 1/1/1",
         }
     )
     assert client.post("/admin/profiles", data=edited, follow_redirects=False).status_code == 303
     saved = load_settings(settings_file)
     assert saved.profiles["quiet"].ignore == ["*.description", "interface.mtu"]
     assert saved.profiles["quiet"].tolerance == {"bgp_peer.prefixes_received": "5%", "interface.speed_mbps": 100}
-    assert saved.profiles["migration"].pairs == {"ge-0/0/6": "1/1/1"}
+    assert saved.profiles["old"].pairs == {"ge-0/0/6": "1/1/1"}
     assert saved.profiles["old"].skip_only_left is True
     assert "# my profiles" in settings_file.read_text()
 
@@ -254,11 +253,70 @@ def test_a_bad_profile_value_comes_back_on_its_field(client, settings_file) -> N
     assert 'class="setting-row has-error"' in page.text and "give a number, or a percent" in page.text
     broken = client.post("/admin/profiles", data=form(**{"profiles.quiet.pairs": "no separator"}))
     assert "write one KEY = VALUE per line" in broken.text
-    named = client.post("/admin/profiles", data=form(**{"new_profile": "a.b", "profiles.+.ignore": "x.y"}))
-    assert named.status_code == 400 and "letters, digits, _ and - only" in named.text
 
 
-def test_the_profile_fields_explain_themselves(client) -> None:
+def test_a_profile_is_created_from_its_name_and_stays_empty(client, settings_file) -> None:
+    response = client.post("/admin/profiles/new", data={"name": "night"}, follow_redirects=False)
+    assert response.status_code == 303 and response.headers["location"] == "/admin/profiles#profile-night"
+    text = settings_file.read_text()
+    assert "[profiles.night]" in text and "# kept" in text and "jobs = 10" in text
+    assert load_settings(settings_file).profiles.keys() == {"night"}
+    page = client.get("/admin/profiles").text
+    assert "<legend>night</legend>" in page and 'id="profile-night"' in page
+
+
+def test_a_created_profile_survives_a_save_of_the_page(client, settings_file) -> None:
+    client.post("/admin/profiles/new", data={"name": "night"})
+    client.post("/admin/profiles", data=form(**{"profiles.night.skip_only_left": "true"}))
+    assert load_settings(settings_file).profiles["night"].skip_only_left is True
+    client.post("/admin/profiles", data=form(**{"profiles.night.skip_only_left": ""}))
+    assert "[profiles.night]" in settings_file.read_text()
+
+
+def test_the_profiles_page_has_a_name_and_a_create_button_and_no_new_profile_group(client) -> None:
+    page = client.get("/admin/profiles").text
+    assert 'action="/admin/profiles/new"' in page and "Create</button>" in page
+    assert "New profile" not in page and "profiles.+" not in page
+    new_form = page.split('action="/admin/profiles/new"')[1].split("</form>")[0]
+    assert 'name="name"' in new_form and 'action="/admin/profiles"' not in new_form
+
+
+@pytest.mark.parametrize(
+    ("name", "message"),
+    [("bad name", "letters, digits, _ and - only"), ("a.b", "letters, digits, _ and - only"), ("", "letters, digits")],
+)
+def test_a_bad_profile_name_comes_back_on_its_field(client, settings_file, name, message) -> None:
+    before = settings_file.read_text()
+    page = client.post("/admin/profiles/new", data={"name": name})
+    assert page.status_code == 400 and settings_file.read_text() == before
+    row = page.text.split('class="setting-row has-error"')[1].split("</div>\n")[0]
+    assert message in row and f'value="{name}"' in row
+    assert load_settings(settings_file).profiles == {}
+
+
+def test_an_existing_profile_name_comes_back_on_its_field(client, settings_file) -> None:
+    settings_file.write_text(settings_file.read_text() + "\n[profiles.quiet]\nskip_only_left = true\n")
+    client.post("/admin/profiles", data=form(), follow_redirects=False)
+    before = settings_file.read_text()
+    page = client.post("/admin/profiles/new", data={"name": " quiet "})
+    assert page.status_code == 400 and settings_file.read_text() == before
+    assert "a profile &#39;quiet&#39; exists already" in page.text and 'value="quiet"' in page.text
+
+
+def test_a_failed_create_says_why_and_keeps_the_name(client, settings_file) -> None:
+    before = settings_file.read_text()
+    settings_file.parent.chmod(0o500)
+    try:
+        page = client.post("/admin/profiles/new", data={"name": "night"})
+    finally:
+        settings_file.parent.chmod(0o700)
+    assert page.status_code == 400 and "Not saved" in page.text and "Permission denied" in page.text
+    assert settings_file.read_text() == before and 'value="night"' in page.text
+
+
+def test_the_profile_fields_explain_themselves(client, settings_file) -> None:
+    settings_file.write_text(settings_file.read_text() + "\n[profiles.quiet]\nskip_only_left = true\n")
+    client.post("/admin/profiles", data=form(), follow_redirects=False)
     page = client.get("/admin/profiles").text
     assert 'class="hint"' in page and "N% is a percent of the left value" in page
     assert 'placeholder="interface.mtu = 10%' in page

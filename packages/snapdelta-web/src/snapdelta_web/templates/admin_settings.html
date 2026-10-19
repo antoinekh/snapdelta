@@ -13,23 +13,24 @@
   An empty field takes its default.{% if section == "profiles" %} The names of the models and attributes are in <a href="/admin/models">Models</a>.{% endif %}
 </p>
 {% if section == "settings" %}<nav class="section-links" aria-label="Sections">{% for group in groups %}<a href="#group-{{ group.table | replace('.', '-') }}">{{ group.title }}</a>{% endfor %}</nav>{% endif %}
+{% if section == "profiles" %}
+<form method="post" action="/admin/profiles/new" class="settings-group new-profile" autocomplete="off">
+  <div class="setting-row {{ 'has-error' if 'name' in errors }}">
+    <label for="f-new-profile" class="setting-name">Name</label>
+    <div class="setting-input">
+      <input id="f-new-profile" name="name" value="{{ posted.name if posted else '' }}" placeholder="change-window" required>
+      {% if 'name' in errors %}<p class="field-error">{{ errors['name'] }}</p>{% endif %}
+    </div>
+    <button type="submit" class="button primary">Create</button>
+  </div>
+</form>
+{% endif %}
 <form method="post" action="/admin/{{ section }}" class="settings-form" autocomplete="off" data-track-changes>
   {% for group in groups %}
-  {% set new_profile = group.table == "profiles.+" %}
-  {% set profile_name = group.table.removeprefix("profiles.") if section == "profiles" and not new_profile else none %}
-  <fieldset class="settings-group" id="{% if group.table.startswith('profiles.') %}{{ 'new-profile' if new_profile else 'profile-' ~ group.table.removeprefix('profiles.') }}{% else %}group-{{ group.table | replace('.', '-') }}{% endif %}">
+  {% set profile_name = group.table.removeprefix("profiles.") if section == "profiles" else none %}
+  <fieldset class="settings-group" id="{% if profile_name %}profile-{{ profile_name }}{% else %}group-{{ group.table | replace('.', '-') }}{% endif %}">
     <legend>{{ group.title }}</legend>
     {% if profile_name %}<button type="submit" form="delete-profile-{{ profile_name }}" class="button danger quiet delete-profile">Delete</button>{% endif %}
-    {% if new_profile %}
-    <div class="setting-row {{ 'has-error' if 'new_profile' in errors }}">
-      <label for="f-new-profile" class="setting-name mono">name</label>
-      <div class="setting-input">
-        <input id="f-new-profile" name="new_profile" value="{{ posted.new_profile if posted else '' }}" placeholder="change-window" autocomplete="off">
-        {% if 'new_profile' in errors %}<p class="field-error">{{ errors['new_profile'] }}</p>{% endif %}
-      </div>
-      <span></span>
-    </div>
-    {% endif %}
     {% for field in group.fields %}
     {% set value = posted[field.key] if posted is not none and field.key in posted else field.value %}
     <div class="setting-row {{ 'has-error' if field.key in errors }}">
@@ -61,7 +62,7 @@
         {% if field.note %}<span class="small warn-text">In use: {{ field.in_use }}, from {{ field.note }}, which wins over this file.</span>{% endif %}
         {% if field.key in errors %}<p class="field-error">{{ errors[field.key] }}</p>{% endif %}
       </div>
-      {% if new_profile %}<span></span>{% else %}<span class="tag origin-{{ field.origin }}">{{ field.origin }}</span>{% endif %}
+      <span class="tag origin-{{ field.origin }}">{{ field.origin }}</span>
     </div>
     {% endfor %}
   </fieldset>
@@ -73,7 +74,7 @@
     <button type="submit" class="button primary" aria-keyshortcuts="Control+S Meta+S">Save {{ section }}</button>
   </div>
 </form>
-{% for group in groups if section == "profiles" and group.table != "profiles.+" %}
+{% for group in groups if section == "profiles" %}
 {% set profile_name = group.table.removeprefix("profiles.") %}
 <form id="delete-profile-{{ profile_name }}" method="post" action="/admin/profiles/{{ profile_name }}/delete" data-confirm="Delete the profile {{ profile_name }}?"></form>
 {% endfor %}

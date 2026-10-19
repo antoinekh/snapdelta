@@ -10,9 +10,7 @@ from pydantic import BaseModel
 
 from snapdelta.settings import (
     CORE_SECTIONS,
-    PROFILE_NAME_RE,
     Origin,
-    Profile,
     Secret,
     Settings,
     SettingsError,
@@ -25,9 +23,6 @@ from snapdelta.source import Source
 from snapdelta.store import SQLITE_PREFIX, default_store_location
 
 Kind = Literal["text", "number", "bool", "secret", "list", "table", "choice"]
-# The group of the form that adds a profile; its name comes from the field NEW_PROFILE_NAME.
-NEW_PROFILE = "profiles.+"
-NEW_PROFILE_NAME = "new_profile"
 
 
 @dataclass(frozen=True)
@@ -79,14 +74,12 @@ def form_groups(
 
 
 def profile_groups(settings: Settings) -> list[FormGroup]:
-    """One group per profile, then the group that adds a profile."""
+    """One group per profile."""
     written = read_settings_file(settings.file).get("profiles", {})
-    groups = [
+    return [
         _group(f"profiles.{name}", name, profile, written.get(name, {}), settings)
         for name, profile in sorted(settings.profiles.items())
     ]
-    groups.append(_group(NEW_PROFILE, "New profile", Profile(), {}, settings))
-    return groups
 
 
 def parse_form(form: Mapping[str, str], groups: list[FormGroup]) -> dict[str, dict[str, Any]]:
@@ -110,29 +103,17 @@ def parse_form(form: Mapping[str, str], groups: list[FormGroup]) -> dict[str, di
                     errors[item.key] = error
             else:
                 table[item.name] = form.get(item.key, "").strip() or None
-        if group.table == NEW_PROFILE:
-            name = form.get(NEW_PROFILE_NAME, "").strip()
-            if not name:
-                continue
-            if not PROFILE_NAME_RE.match(name):
-                errors[NEW_PROFILE_NAME] = f"{name!r}: a profile name holds letters, digits, _ and - only"
-            elif any(group.table == f"profiles.{name}" for group in groups):
-                errors[NEW_PROFILE_NAME] = f"a profile {name!r} exists already"
-            parsed[f"profiles.{name}"] = table
-        else:
-            parsed[group.table] = table
+        parsed[group.table] = table
     if errors:
         raise SettingsError("\n".join(f"{key}: {message}" for key, message in errors.items()), errors)
     return parsed
 
 
-def errors_by_field(errors: Mapping[str, str], groups: list[FormGroup], new_name: str) -> dict[str, str]:
+def errors_by_field(errors: Mapping[str, str], groups: list[FormGroup]) -> dict[str, str]:
     """The errors under the key of their form field: `profiles.x.tolerance.interface.mtu` is the field `tolerance`."""
     keys = sorted((item.key for group in groups for item in group.fields), key=len, reverse=True)
     found: dict[str, str] = {}
     for key, message in errors.items():
-        if new_name and key.startswith(f"profiles.{new_name}."):
-            key = NEW_PROFILE + key.removeprefix(f"profiles.{new_name}")
         field_key = next((candidate for candidate in keys if key == candidate or key.startswith(f"{candidate}.")), key)
         found.setdefault(field_key, message)
     return found

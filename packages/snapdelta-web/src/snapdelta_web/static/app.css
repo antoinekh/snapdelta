@@ -440,6 +440,9 @@ table.list.model-list td { vertical-align: top; }
 .setting-input > input[type="checkbox"] { margin-top: 11px; }
 .setting-input > textarea { width: 100%; max-width: 520px; padding: 8px 12px; border-radius: var(--radius-small); border: 1px solid var(--line-strong); background: var(--surface); color: var(--ink); font-size: 14px; resize: vertical; }
 .setting-input > textarea:focus { outline: none; border-color: var(--cobalt); box-shadow: 0 0 0 3px var(--cobalt-soft); }
+.new-profile { max-width: 980px; margin-bottom: 20px; box-sizing: border-box; }
+.new-profile .setting-row { padding: 4px 0; }
+.new-profile .button { margin-top: 2px; }
 .delete-profile { display: block; margin: 8px 0 0 auto; }
 .secret-inputs { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
 .has-error input { border-color: var(--left); }

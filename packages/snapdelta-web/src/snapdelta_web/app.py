@@ -56,7 +56,7 @@ from .auth import (
 from .jobs import TakeJobs
 from .mcp_server import GUIDE as MCP_GUIDE
 from .mcp_server import create_mcp
-from .settings_form import NEW_PROFILE_NAME, FormGroup, errors_by_field, form_groups, parse_form, profile_groups
+from .settings_form import FormGroup, errors_by_field, form_groups, parse_form, profile_groups
 from .state import AppState
 
 HERE = Path(__file__).parent
@@ -64,6 +64,8 @@ HERE = Path(__file__).parent
 BY_PLATFORM = ""
 # The Admin tabs that edit the settings file.
 SETTINGS, PROFILES = "settings", "profiles"
+# The field of the form that creates a profile, in the errors and the posted values of the page.
+NEW_PROFILE_FIELD = "name"
 # A filter of Activity reads this many of the newest runs, since a store lists its runs without a filter of its own.
 ACTIVITY_WINDOW = 1000
 
@@ -858,10 +860,29 @@ def create_app(state: AppState) -> FastAPI:
         if name not in state.settings.profiles:
             raise NotFoundError(f"no profile {name!r}")
         path = state.settings.file or user_settings_path()
-        failure = write_and_reload(path, lambda: save_settings(path, {}, source_classes(), [f"profiles.{name}"]))
+        failure = write_and_reload(path, lambda: save_settings(path, {}, removed=[f"profiles.{name}"]))
         if failure:
             return render(request, "admin_settings.html", settings_context(PROFILES, failure=failure), 400)
         return RedirectResponse(f"/admin/{PROFILES}?{urlencode({'deleted': name})}", status_code=303)
+
+    @app.post("/admin/profiles/new", response_model=None)
+    def create_profile(request: Request, name: Annotated[str, Form()] = "") -> HTMLResponse | RedirectResponse:
+        name = name.strip()
+        path = state.settings.file or user_settings_path()
+        posted = {NEW_PROFILE_FIELD: name}
+        errors: dict[str, str] = {}
+        failure = None
+        if name in state.settings.profiles:
+            errors[NEW_PROFILE_FIELD] = f"a profile {name!r} exists already"
+        else:
+            try:
+                failure = write_and_reload(path, lambda: save_settings(path, {f"profiles.{name}": {}}))
+            except SettingsError as error:
+                errors[NEW_PROFILE_FIELD] = "\n".join(error.errors.values())
+        if errors or failure:
+            context = settings_context(PROFILES, errors=errors, failure=failure, posted=posted)
+            return render(request, "admin_settings.html", context, 400)
+        return RedirectResponse(f"/admin/{PROFILES}#profile-{name}", status_code=303)
 
     def section_groups(section: str) -> list[FormGroup]:
         if section == PROFILES:
@@ -906,7 +927,7 @@ def create_app(state: AppState) -> FastAPI:
             parsed = parse_form(posted, groups)
             failure = write_and_reload(path, lambda: save_settings(path, parsed, installed))
         except SettingsError as error:
-            errors = errors_by_field(error.errors, groups, posted.get(NEW_PROFILE_NAME, "").strip())
+            errors = errors_by_field(error.errors, groups)
             context = settings_context(section, errors=errors, posted=posted)
             return render(request, "admin_settings.html", context, 400)
         if failure:
