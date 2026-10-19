@@ -295,7 +295,9 @@ class Store(ABC):
         wanted = reference.removesuffix(".json").removeprefix("snapshots/")
         if self._valid_reference(wanted) and self._has_snapshot(wanted):
             return wanted
-        matches = [entry.reference for entry in self.snapshot_entries() if entry.reference.partition("/")[2] == wanted]
+        # A name has no slash, so listing the store for a reference with one can only read documents for nothing.
+        entries = [] if "/" in wanted else self.snapshot_entries()
+        matches = [entry.reference for entry in entries if entry.reference.partition("/")[2] == wanted]
         return _one(matches, reference, "snapshot", self.location)
 
     def delete_snapshot(self, reference: str) -> None:

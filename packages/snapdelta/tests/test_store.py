@@ -15,7 +15,7 @@ from snapdelta.store import (
     open_store,
     open_store_from,
 )
-from snapdelta.testing import StoreContract
+from snapdelta.testing import StoreContract, sample
 
 
 class TestFileStore(StoreContract):
@@ -32,6 +32,18 @@ class TestSqliteStore(StoreContract):
 
 def at(hour: int) -> datetime:
     return datetime(2026, 9, 25, hour, 0, tzinfo=UTC)
+
+
+def test_a_reference_with_a_slash_that_is_not_found_lists_no_snapshot(monkeypatch, tmp_path) -> None:
+    store = FileStore(tmp_path / "store")
+    store.save_snapshot(sample())
+
+    def listing(query: SnapshotQuery = SnapshotQuery()) -> list:
+        raise AssertionError("the list was read")
+
+    monkeypatch.setattr(store, "snapshot_entries", listing)
+    with pytest.raises(NotFoundError, match="no snapshot matches 'R1/20200101T000000Z' in "):
+        store.resolve_snapshot("R1/20200101T000000Z")
 
 
 def test_open_store_chooses_the_backend(monkeypatch, tmp_path) -> None:
