@@ -15,6 +15,7 @@
 - The text format shows the line `ticket: X` and the note; the Markdown format has the heading `# TICKET · LEFT vs RIGHT`.
 - A ticket over 80 characters (after its white space around and inside is cleaned) or a note over 2000 characters is refused with a message before any target is fetched or any snapshot is saved; the API and MCP refuse it as an invalid argument.
 - A prune by age (`snapdelta prune --older-than`, the age in **Admin**) also deletes the runs of Activity older than the age, when it prunes every target; `PrunePlan` has `runs`.
+- A **Discard** button next to **Save** in the Profiles and Settings forms restores the saved values.
 
 ### Changed
 
@@ -39,9 +40,9 @@
 
 ### Fixed
 
-- The Profiles and Settings forms show "Unsaved changes" and ask before the page is left only while their values differ from the saved ones; checking then unchecking a box, or typing then deleting a text, no longer counts as a change. A **Discard** button next to **Save** restores the saved values.
+- The Profiles and Settings forms show "Unsaved changes" and ask before the page is left only while their values differ from the saved ones; checking then unchecking a box, or typing then deleting a text, no longer counts as a change.
 - The PostgreSQL collation test is skipped, not failed, on a server built without ICU or older than PostgreSQL 15.
-- Deleting a profile, or removing a table in the settings file, keeps the comments above the other tables; the comment above the next table used to be lost and the comment above the removed table stayed.
+- Deleting a profile keeps the comments above the other tables; the comment above the next table used to be lost.
 
 ## v0.2.0
 
