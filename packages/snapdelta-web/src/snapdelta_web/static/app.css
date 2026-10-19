@@ -426,7 +426,7 @@ table.list.model-list td { vertical-align: top; }
 
 /* Settings */
 .settings-form { display: flex; flex-direction: column; gap: 20px; max-width: 980px; }
-.settings-group { scroll-margin-top: 84px; margin: 0; padding: 8px 24px 12px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); }
+.settings-group { position: relative; scroll-margin-top: 84px; margin: 0; padding: 8px 24px 12px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); }
 .settings-group legend { padding: 0 8px; font-weight: 650; font-size: 17px; }
 .setting-row { display: grid; grid-template-columns: 200px minmax(0, 1fr) auto; gap: 8px 16px; align-items: start; padding: 12px 0; border-top: 1px solid var(--line); }
 .setting-row:first-of-type { border-top: 0; }
@@ -443,7 +443,10 @@ table.list.model-list td { vertical-align: top; }
 .new-profile { max-width: 980px; margin-bottom: 20px; box-sizing: border-box; }
 .new-profile .setting-row { padding: 4px 0; }
 .new-profile .button { margin-top: 2px; }
-.delete-profile { display: block; margin: 8px 0 0 auto; }
+/* Centred on the border line like the legend (half its 25px height above the padding box), so the first row is not pushed down; the fill starts at the line to hide it without leaving a box above the border. */
+.settings-group .delete-profile { --delete-fill: var(--surface); position: absolute; top: -12px; right: 16px; transform: translateY(-50%); height: 32px; }
+.settings-group .delete-profile:hover { --delete-fill: var(--sunken); }
+.settings-group .delete-profile, .settings-group .delete-profile:hover { background: linear-gradient(transparent 14px, var(--delete-fill) 14px) border-box; }
 .secret-inputs { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
 .has-error input { border-color: var(--left); }
 .field-error { margin: 0; color: var(--left-text); font-size: 13px; }
