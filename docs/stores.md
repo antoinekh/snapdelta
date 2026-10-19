@@ -84,7 +84,7 @@ create table outputs (name text primary key, created_at text not null, left_targ
                       right_target text not null, ticket text, ticket_key text, body text not null);
 ```
 
-- `body` is the same JSON document as the file of a file store; `ticket` repeats the ticket, and `ticket_key` the same text in lower case (`str.casefold()`), so that a search and an exact filter find it with an index.
+- `body` is the same JSON document as the file of a file store; `ticket` repeats the ticket, and `ticket_key` the same text case-folded (`str.casefold()`), so that a search and an exact filter find it with an index.
 - Indexes on the target, on the creation time and on `ticket_key` keep the lists and the ticket filters fast with many rows. The PostgreSQL store has the same columns and indexes.
 - Each call opens its own connection, and a busy timeout makes a parallel writer wait instead of failing.
 - You can query the file with any SQLite tool, for example `sqlite3 /data/snapdelta.db "select reference from snapshots where target = 'R1'"`.
