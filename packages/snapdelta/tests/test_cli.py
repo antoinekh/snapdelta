@@ -1,3 +1,5 @@
+from datetime import UTC, datetime
+
 import pytest
 from typer.testing import CliRunner
 
@@ -39,7 +41,7 @@ def test_identical_snapshots_exit_code_0_and_no_save(make_adapter, location) -> 
     args = ["--store", location, "diff", "20260925T100000Z-a", "20260925T100000Z-b", "--no-save", "--format", "json"]
     result = runner.invoke(app, args)
     assert result.exit_code == 0, result.output
-    assert '"schema": 2' in result.output
+    assert '"schema": 3' in result.output
     assert store.output_entries() == []
 
 
@@ -103,8 +105,6 @@ def test_prune_refuses_a_bad_number(location, make_adapter) -> None:
 
 
 def test_info_delete_and_prune(make_adapter, location) -> None:
-    from datetime import UTC, datetime
-
     store = open_location(location)
     for hour in (8, 9, 10):
         store.save_snapshot(make_adapter(captured_at=datetime(2026, 9, 25, hour, 0, tzinfo=UTC)))
@@ -312,38 +312,58 @@ def test_a_broken_settings_file_stops_only_the_commands_that_need_it(tmp_path) -
     assert listed.exit_code == 2 and "web.port" in listed.output
 
 
-def test_diff_with_a_title_and_describe_it_later(make_adapter, tmp_path) -> None:
+def test_snapshot_saves_the_ticket(tmp_path) -> None:
     store = FileStore(tmp_path / "store")
-    store.save_snapshot(make_adapter(label="before", description="old"))
-    store.save_snapshot(make_adapter(label="after", description="new"))
-    base = ["--store", str(tmp_path / "store")]
-    args = ["diff", "R1/20260925T100000Z-before", "R1/20260925T100000Z-after", "--title", "Change 42"]
-    result = runner.invoke(app, [*base, *args, "--description", "New uplink description"])
-    assert "\ntitle: Change 42\nNew uplink description\n" in result.output
-    name = store.output_entries()[0].name
-    described = runner.invoke(app, [*base, "describe", name, "--title", "Change 43"])
-    assert described.exit_code == 0 and described.output == f"{name}: Change 43\n"
-    kept = store.load_output(name)
-    assert (kept.title, kept.description) == ("Change 43", "New uplink description")
-    markdown = runner.invoke(app, [*base, "output", name, "--format", "markdown"])
-    assert markdown.output.startswith("# Change 43\n\nNew uplink description\n")
+    args = ["--store", str(tmp_path / "store"), "snapshot", "--source", "example-live", "--target", "R1"]
+    result = runner.invoke(app, [*args, "--label", "before", "--ticket", "  CHG-1 "])
+    assert result.exit_code == 0, result.output
+    assert store.load_snapshot(store.resolve_snapshot("R1@latest")).ticket == "CHG-1"
 
 
-def test_diff_with_a_change_and_find_it_later(make_adapter, tmp_path) -> None:
+def test_diff_resolves_its_labels_in_its_ticket(make_adapter, tmp_path) -> None:
     store = FileStore(tmp_path / "store")
-    store.save_snapshot(make_adapter(label="before", description="old"))
-    store.save_snapshot(make_adapter(label="after", description="new"))
+    older = datetime(2026, 9, 25, 9, 0, tzinfo=UTC)
+    store.save_snapshot(make_adapter(label="before", description="old", ticket="CHG-1", captured_at=older))
+    store.save_snapshot(make_adapter(label="before", description="other", ticket="CHG-2"))
+    store.save_snapshot(make_adapter(label="after", description="new", ticket="CHG-1"))
+    base = ["--store", str(tmp_path / "store"), "diff", "R1@before", "R1@after", "--format", "json"]
+    result = runner.invoke(app, [*base, "--ticket", "chg-1", "--note", "first\nsecond"])
+    assert result.exit_code == 1, result.output
+    saved = store.load_output(store.output_entries()[0].name)
+    assert (saved.ticket, saved.note) == ("chg-1", "first\nsecond")
+    assert '"old"' in result.output
+
+
+def test_describe_sets_the_ticket_and_the_note_and_keeps_what_is_not_given(make_adapter, tmp_path) -> None:
+    store = FileStore(tmp_path / "store")
+    store.save_snapshot(make_adapter(label="before", description="old", ticket="CHG-7"))
+    store.save_snapshot(make_adapter(label="after", description="new", ticket="CHG-7"))
     base = ["--store", str(tmp_path / "store")]
-    result = runner.invoke(app, [*base, "diff", "R1@before", "R1@after", "--change", "CHG-7", "--title", "r1"])
-    assert "\nchange: CHG-7\ntitle: r1\n" in result.output
+    runner.invoke(app, [*base, "diff", "R1@before", "R1@after", "--ticket", "CHG-7", "--note", "uplink"])
     name = store.output_entries()[0].name
-    described = runner.invoke(app, [*base, "describe", name, "--title", "r1 uplink"])
-    assert described.exit_code == 0 and described.output == f"{name}: CHG-7 · r1 uplink\n"
-    assert store.load_output(name).change == "CHG-7"
-    listed = runner.invoke(app, [*base, "list", "--target", "chg-7"])
-    assert listed.output.endswith(f"outputs:\n  {name}\n")
-    removed = runner.invoke(app, [*base, "describe", name, "--change", ""])
-    assert removed.output == f"{name}: r1 uplink\n" and store.load_output(name).change is None
+    noted = runner.invoke(app, [*base, "describe", name, "--note", "r1 uplink"])
+    assert noted.exit_code == 0 and noted.output == f"{name}: CHG-7\n"
+    assert (store.load_output(name).ticket, store.load_output(name).note) == ("CHG-7", "r1 uplink")
+    cleared = runner.invoke(app, [*base, "describe", name, "--note", ""])
+    assert cleared.output == f"{name}: CHG-7\n"
+    assert (store.load_output(name).ticket, store.load_output(name).note) == ("CHG-7", None)
+    removed = runner.invoke(app, [*base, "describe", name, "--ticket", ""])
+    assert removed.output == f"{name}: no ticket\n" and store.load_output(name).ticket is None
+
+
+def test_list_filters_the_outputs_by_ticket_and_by_a_part_of_it(make_adapter, tmp_path) -> None:
+    store = FileStore(tmp_path / "store")
+    store.save_snapshot(make_adapter(label="before", description="old", ticket="CHG-7"))
+    store.save_snapshot(make_adapter(label="after", description="new", ticket="CHG-7"))
+    base = ["--store", str(tmp_path / "store")]
+    runner.invoke(app, [*base, "diff", "R1@before", "R1@after", "--ticket", "CHG-7"])
+    name = store.output_entries()[0].name
+    exact = runner.invoke(app, [*base, "list", "--ticket", "chg-7"])
+    assert exact.output.endswith(f"outputs:\n  {name}\n")
+    part = runner.invoke(app, [*base, "list", "--target", "hg-7"])
+    assert part.output.endswith(f"outputs:\n  {name}\n")
+    other = runner.invoke(app, [*base, "list", "--ticket", "hg-7"])
+    assert other.output.endswith("outputs:\n")
 
 
 def test_accept_changes_after_a_review(make_adapter, tmp_path, monkeypatch) -> None:

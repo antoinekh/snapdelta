@@ -43,6 +43,7 @@ Files = Annotated[
 ]
 SourceName = Annotated[str, typer.Option(help="Source, see `snapdelta sources`.")]
 Label = Annotated[str | None, typer.Option(help="Label of the snapshot, for example before-swap.")]
+Ticket = Annotated[str | None, typer.Option(help="The ticket, issue or any reference of the work.")]
 Json = Annotated[bool, typer.Option("--json", help="Print JSON instead of text.")]
 # The options of the three commands snapdelta, snapdelta-web and snapdelta-mcp.
 StoreOption = Annotated[
@@ -302,6 +303,7 @@ def snapshot_command(
         int | None, typer.Option(min=1, help="Targets fetched at the same time; default from the settings.")
     ] = None,
     label: Label = None,
+    ticket: Ticket = None,
     captured_at: Annotated[str | None, typer.Option(help="Capture time, ISO 8601 (UTC without an offset).")] = None,
 ) -> None:
     """Load the files of one target, or fetch from one or more targets, and save a snapshot of each."""
@@ -315,13 +317,23 @@ def snapshot_command(
         names = target_names(cls, targets or [], all_targets, settings, groups or [])
         if len(names) > 1:
             raise SnapdeltaError("one target at most with input files: the files belong to one target")
-        loaded = _load(settings, cls.source, files or [], names[0] if names else None, label, when)
+        loaded = _load(settings, cls.source, files or [], names[0] if names else None, label, when, ticket)
         _print_saved(runtime.store.save_snapshot(loaded), loaded.loaded, loaded.warnings)
         return
     if not (targets or groups or all_targets):
         raise SnapdeltaError("the source fetches its data from a target: give --target, --group or --all-targets")
     taken, failures = snapshot_targets(
-        runtime.store, settings, source, targets or [], groups or [], all_targets, label, "cli", jobs, when
+        runtime.store,
+        settings,
+        source,
+        targets or [],
+        groups or [],
+        all_targets,
+        label,
+        "cli",
+        jobs,
+        when,
+        ticket=ticket,
     )
     for item in taken.values():
         _print_saved(item.reference, item.loaded, item.warnings)
@@ -343,8 +355,9 @@ def _print_saved(reference: str, loaded: list[str], warnings: list[str]) -> None
 def list_files(
     ctx: typer.Context,
     target: Annotated[
-        str | None, typer.Option(help="Only the targets, and the outputs whose target or change has this.")
+        str | None, typer.Option(help="Only the targets, and the outputs whose target or ticket has this.")
     ] = None,
+    ticket: Annotated[str | None, typer.Option(help="Only the outputs of this ticket.")] = None,
 ) -> None:
     """List the snapshots and the outputs of the store."""
     store = ctx.obj.store
@@ -353,7 +366,7 @@ def list_files(
         for entry in store.snapshot_entries(name):
             typer.echo(f"  {entry.reference}")
     typer.echo("outputs:")
-    for output in store.output_entries(target or ""):
+    for output in store.output_entries(target or "", ticket):
         typer.echo(f"  {output.name}")
 
 
@@ -401,11 +414,13 @@ def diff(
     no_save: Annotated[
         bool, typer.Option("--no-save", help="Do not save the output, nor the snapshot of --live.")
     ] = False,
-    change: Annotated[
-        str | None, typer.Option(help="The change that the diff belongs to: a ticket, an issue, any reference.")
+    ticket: Annotated[
+        str | None,
+        typer.Option(help="The ticket of the diff; with labels, only the snapshots of this ticket."),
     ] = None,
-    title: Annotated[str | None, typer.Option(help="A short title of the diff, shown in the lists.")] = None,
-    description: Annotated[str | None, typer.Option(help="What the diff is about: the change, the ticket.")] = None,
+    note: Annotated[
+        str | None, typer.Option(help="A note about the diff; its first line is shown in the lists.")
+    ] = None,
     expect: Annotated[
         Path | None,
         typer.Option(
@@ -431,9 +446,8 @@ def diff(
     common = {
         "models": models,
         "profile": profile,
-        "change": change,
-        "title": title,
-        "description": description,
+        "ticket": ticket,
+        "note": note,
         "expected": expected,
         "origin": "cli",
     }
@@ -559,21 +573,14 @@ def info(ctx: typer.Context) -> None:
 def describe_output(
     ctx: typer.Context,
     output: Annotated[str, typer.Argument(help="Output name.")],
-    change: Annotated[str | None, typer.Option(help="The new change; an empty text removes it.")] = None,
-    title: Annotated[str | None, typer.Option(help="The new title; an empty text removes it.")] = None,
-    description: Annotated[str | None, typer.Option(help="The new description; an empty text removes it.")] = None,
+    ticket: Annotated[str | None, typer.Option(help="The new ticket; an empty text removes it.")] = None,
+    note: Annotated[str | None, typer.Option(help="The new note; an empty text removes it.")] = None,
 ) -> None:
-    """Give a saved diff a change, a title and a description, or change them."""
+    """Give a saved diff a ticket and a note, or change them."""
     store = ctx.obj.store
     name = store.resolve_output(output)
-    current = store.load_output(name)
-    changed = store.describe_output(
-        name,
-        current.title if title is None else title,
-        current.description if description is None else description,
-        current.change if change is None else change,
-    )
-    typer.echo(f"{name}: {' · '.join(filter(None, (changed.change, changed.title))) or 'no title'}")
+    changed = store.describe_output(name, ticket=ticket, note=note)
+    typer.echo(f"{name}: {changed.ticket or 'no ticket'}")
 
 
 @app.command("accept")
@@ -672,13 +679,14 @@ def _load(
     target: str | None,
     label: str | None,
     captured_at: datetime | None,
+    ticket: str | None,
 ) -> Source:
     cls = require_source(source)
     if cls.fetches and not target:
         raise SnapdeltaError(f"source {source!r} fetches its data from a target: give --target")
     if not cls.fetches and not files:
         raise SnapdeltaError(f"source {source!r} reads input files: give the input files")
-    return load_source(cls, files, target, label, captured_at, settings.source(cls))
+    return load_source(cls, files, target, label, captured_at, settings.source(cls), ticket=ticket)
 
 
 def _parse_time(text: str | None) -> datetime | None:
