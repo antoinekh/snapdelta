@@ -574,6 +574,36 @@ def test_export_a_diff_in_each_format(client, names) -> None:
     assert client.get("/diffs/nope/export/csv").status_code == 404
 
 
+def test_the_snapshot_page_has_an_export_menu(client, names) -> None:
+    page = client.get(f"/snapshots/{names.before}").text
+    assert f'<a href="/snapshots/{names.before}/export/json" download>json</a>' in page
+    assert f'data-copy-api="/api/v1/snapshots/{names.before}" data-token=""' in page
+
+
+def test_export_a_snapshot_as_json(client, store, names) -> None:
+    export = client.get(f"/snapshots/{names.before}/export/json")
+    assert export.headers["content-type"].startswith("application/json")
+    assert export.headers["content-disposition"] == 'attachment; filename="R1-20260925T100000Z-before.json"'
+    assert export.text == store.read_snapshot(names.before).model_dump_json(by_alias=True, indent=2)
+    assert client.get("/snapshots/R1/nope/export/json").status_code == 404
+
+
+def test_export_a_snapshot_in_an_unknown_format_is_refused(client, names) -> None:
+    assert client.get(f"/snapshots/{names.before}/export/csv").status_code == 404
+
+
+def test_the_snapshot_page_shows_its_ticket_as_a_chip(client, store, save_r2) -> None:
+    save_r2("x", "<b> #2", datetime(2026, 9, 26, tzinfo=UTC))
+    reference = store.snapshot_entries(SnapshotQuery(target="R2"))[0].reference
+    page = client.get(f"/snapshots/{reference}").text
+    assert '<a class="ticket-chip" href="/snapshots?ticket=%3Cb%3E%20%232">&lt;b&gt; #2</a>' in page
+    assert "<b> #2" not in page
+
+
+def test_a_snapshot_without_ticket_has_no_chip(client, names) -> None:
+    assert "ticket-chip" not in client.get(f"/snapshots/{names.before}").text
+
+
 def test_compare_a_snapshot_with_its_target_now(client, store) -> None:
     taken = client.post("/take", data={"source": "example-live", "target": ["R2"]}, follow_redirects=False)
     finished_job(client, taken)

@@ -508,6 +508,13 @@ def create_app(state: AppState) -> FastAPI:
         context["profiles"] = profile_choices()
         return render(request, "snapshot.html", context)
 
+    @app.get("/snapshots/{target}/{name}/export/json")
+    def export_snapshot(target: str, name: str) -> Response:
+        reference = state.store.resolve_snapshot(f"{target}/{name}")
+        headers = {"Content-Disposition": f'attachment; filename="{reference.replace("/", "-")}.json"'}
+        body = state.store.read_snapshot(reference).model_dump_json(by_alias=True, indent=2)
+        return Response(body, media_type="application/json", headers=headers)
+
     def group_members(group: str) -> list[str] | None:
         inventory = state.settings.hosts()
         return inventory.members(group) if group and inventory else None
