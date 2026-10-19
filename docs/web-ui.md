@@ -47,7 +47,7 @@ The metadata of the load (time, models, inputs, warnings), then one table per mo
 
 ## A new diff
 
-![The new diff form, One target: a target and a snapshot for Before and After, the models, then ticket, note and profile](images/screenshots/new-diff.png)
+![The new diff form, One target: a target and a snapshot for Before and After, the models, then ticket and note](images/screenshots/new-diff.png)
 
 A switch at the top gives **One target** (the default) or **Many targets**.
 
