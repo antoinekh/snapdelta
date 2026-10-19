@@ -209,6 +209,11 @@ def test_the_snapshots_are_found_across_targets_by_label_and_ticket(api, tickete
     assert api.get("/api/v1/snapshots", params={"limit": 501}).status_code == 422
 
 
+def test_an_empty_filter_of_the_snapshots_does_not_filter(api, ticketed) -> None:
+    listed = api.get("/api/v1/snapshots", params={"target": "", "label": "", "ticket": ""}).json()
+    assert listed == api.get("/api/v1/snapshots").json() and len(listed) == 6
+
+
 def test_a_pipeline_describes_a_diff_and_finds_it_by_ticket(api, ticketed) -> None:
     body = {"left": "R1@before", "right": "R1@after", "ticket": "CHG-1", "note": "r1"}
     made = api.post("/api/v1/diffs", json=body).json()

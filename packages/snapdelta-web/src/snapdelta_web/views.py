@@ -552,7 +552,7 @@ def _output_row(store: Store, name: str) -> OutputRow:
 
 def snapshot_query(target: str, label: str, ticket: str) -> SnapshotQuery:
     """The filters of the Snapshots page; a field left empty does not filter."""
-    return SnapshotQuery(target.strip() or None, label.strip() or None, normalize_ticket(ticket))
+    return SnapshotQuery(target.strip(), label.strip(), normalize_ticket(ticket))
 
 
 def snapshot_filters(query: SnapshotQuery) -> str:

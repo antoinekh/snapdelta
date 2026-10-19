@@ -133,6 +133,13 @@ class SnapshotQuery:
     label: str | None = None
     ticket: str | None = None
 
+    def __post_init__(self) -> None:
+        # A field left empty in a form or a request means no filter, whichever door the query comes through.
+        for name in ("target", "label", "ticket"):
+            value = getattr(self, name)
+            if value is not None and not value.strip():
+                object.__setattr__(self, name, None)
+
     @property
     def safe_label(self) -> str | None:
         """The label as a reference writes it, so that `before swap` and `before_swap` find the same snapshots."""

@@ -202,6 +202,11 @@ class StoreContract:
             assert [entry.reference for entry in store.snapshot_entries(SnapshotQuery(label=label))] == [saved]
         assert store.snapshot_entries(SnapshotQuery(label="before")) == []
 
+    def test_a_blank_filter_does_not_filter(self, store: Store) -> None:
+        store.save_snapshot(sample(label="before", ticket="CHG-1"))
+        store.save_snapshot(sample(target="R2", captured_at=FIRST + timedelta(hours=1)))
+        assert len(store.snapshot_entries(SnapshotQuery(target="", label=" ", ticket="  "))) == 2
+
     def test_the_snapshots_of_a_ticket_across_targets_carry_their_ticket_and_source(self, store: Store) -> None:
         store.save_snapshot(sample(ticket="CHG-2"))
         older = store.save_snapshot(sample(target="R2", ticket="CHG-1"))
