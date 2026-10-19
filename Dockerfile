@@ -14,7 +14,7 @@ RUN pip install --no-cache-dir /dist/*.whl && rm -rf /dist \
     && useradd --uid 10001 --create-home --home-dir /home/snapdelta snapdelta \
     && mkdir -p /data && chown snapdelta /data
 COPY docker/snapdelta.toml /etc/snapdelta/snapdelta.toml
-# The settings file is /etc/snapdelta/snapdelta.toml, and the default store /data/snapdelta.
+# The settings file is /etc/snapdelta/snapdelta.toml, and the default store /data/snapdelta/snapdelta.db.
 ENV XDG_CONFIG_HOME=/etc XDG_DATA_HOME=/data PYTHONUNBUFFERED=1
 USER snapdelta
 WORKDIR /data

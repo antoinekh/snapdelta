@@ -22,7 +22,7 @@ from snapdelta.settings import (
     read_settings_file,
 )
 from snapdelta.source import Source
-from snapdelta.store import default_store_path
+from snapdelta.store import SQLITE_PREFIX, default_store_location
 
 Kind = Literal["text", "number", "bool", "secret", "list", "table", "choice"]
 # The group of the form that adds a profile; its name comes from the field NEW_PROFILE_NAME.
@@ -213,8 +213,8 @@ def _choices(key: str, annotation: Any, value: Any, plugin_choices: Mapping[str,
 def _default_text(key: str, default: Any) -> str:
     # The model gives no store location: the default path depends on XDG_DATA_HOME when snapdelta runs.
     if key == "store.location":
-        path = default_store_path()
-        return f"~/{path.relative_to(Path.home())}" if path.is_relative_to(Path.home()) else str(path)
+        location, home = default_store_location(), f"{SQLITE_PREFIX}{Path.home()}/"
+        return f"{SQLITE_PREFIX}~/{location.removeprefix(home)}" if location.startswith(home) else location
     return format_setting(default)
 
 

@@ -548,9 +548,9 @@ def _apply_store(settings: Settings, option: str | None) -> None:
     if option:
         location = _local_address(option, _expand_user)
         settings.origins["store.location"], settings.notes["store.location"] = Origin.OPTION, "--store"
-    from .store import default_store_path
+    from .store import default_store_location
 
-    settings.store = settings.store.model_copy(update={"location": location or str(default_store_path())})
+    settings.store = settings.store.model_copy(update={"location": location or default_store_location()})
 
 
 def _local_address(location: str, change: Callable[[str], str | Path]) -> str:

@@ -37,7 +37,7 @@ You need Python 3.13 or later and [uv](https://github.com/astral-sh/uv). In a cl
 
 ```bash
 uv sync
-uv run snapdelta-web --store /tmp/snapdelta-demo
+uv run snapdelta-web --store sqlite:///tmp/snapdelta-demo.db
 ```
 
 Open the link that it prints, then:
@@ -84,8 +84,8 @@ flowchart LR
 The web UI and the CLI use the same store. The demo above, in the CLI:
 
 ```bash
-uv run snapdelta --store /tmp/snapdelta-demo snapshot --source example-live --all-targets --label demo
-uv run snapdelta --store /tmp/snapdelta-demo diff R1@demo R2@demo
+uv run snapdelta --store sqlite:///tmp/snapdelta-demo.db snapshot --source example-live --all-targets --label demo
+uv run snapdelta --store sqlite:///tmp/snapdelta-demo.db diff R1@demo R2@demo
 ```
 
 To check a change on many targets, give the same ticket to the snapshots and to the diff:

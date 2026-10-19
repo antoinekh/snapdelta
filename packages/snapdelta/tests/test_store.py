@@ -4,8 +4,9 @@ import pytest
 
 from snapdelta.errors import NotFoundError, SnapdeltaError
 from snapdelta.output import compare
+from snapdelta.settings import Settings
 from snapdelta.snapshot import save_snapshot
-from snapdelta.store import FileStore, SqliteStore, default_store_path, open_store
+from snapdelta.store import FileStore, SqliteStore, default_store_location, open_store, open_store_from
 from snapdelta.testing import StoreContract
 
 
@@ -30,7 +31,16 @@ def test_open_store_chooses_the_backend(monkeypatch, tmp_path) -> None:
     assert isinstance(open_store(f"sqlite://{tmp_path}/a.db"), SqliteStore)
     assert isinstance(open_store(str(tmp_path / "b.db")), FileStore)
     monkeypatch.setenv("XDG_DATA_HOME", str(tmp_path))
-    assert default_store_path() == tmp_path / "snapdelta"
+    assert default_store_location() == f"sqlite://{tmp_path}/snapdelta/snapdelta.db"
+
+
+def test_no_location_opens_the_sqlite_store_of_the_data_directory(monkeypatch, tmp_path) -> None:
+    monkeypatch.setenv("XDG_DATA_HOME", str(tmp_path))
+    monkeypatch.delenv("SNAPDELTA_STORE", raising=False)
+    store = open_store_from(Settings())
+    assert isinstance(store, SqliteStore)
+    assert store.info().backend == "sqlite"
+    assert (tmp_path / "snapdelta" / "snapdelta.db").is_file()
 
 
 def test_prune_refuses_a_negative_keep(store, make_adapter) -> None:

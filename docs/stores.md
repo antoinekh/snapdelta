@@ -4,21 +4,24 @@ snapdelta saves every snapshot, every diff output and every run in a store. Two 
 
 | Backend | Location | Choose it when |
 |---|---|---|
-| File store (`FileStore`) | a directory: one JSON file per snapshot and per output | you want to read the files, back them up with any tool, or keep them in git (private repositories only) |
-| SQLite store (`SqliteStore`) | one SQLite file | you have many targets and snapshots, or several processes of one machine write at the same time |
+| SQLite store (`SqliteStore`), the default | one SQLite file | most cases: many targets and snapshots, or several processes of one machine write at the same time |
 | PostgreSQL store (`snapdelta-postgres`) | a PostgreSQL database | several servers share the store, or the database is where your team keeps its data and its backups |
+| File store (`FileStore`) | a directory: one JSON file per snapshot and per output | you want to read the files, back them up with any tool, or keep them in git (private repositories only) |
+
+> [!NOTE]
+> The file store is possible, but slow for a large number of snapshots and diffs: it has no index, so a search or a filter reads each document. Use SQLite (the default) or PostgreSQL for those.
 
 ## Choose the store
 
 The CLI and the web UI take the same option:
 
 ```bash
-snapdelta --store /data/snapdelta ...                    # file store in this directory
 snapdelta --store sqlite:///data/snapdelta.db ...        # SQLite store in this file
+snapdelta --store /data/snapdelta ...                    # file store in this directory
 snapdelta-web --store sqlite:///data/snapdelta.db
 ```
 
-Without `--store`, snapdelta uses the environment variable `SNAPDELTA_STORE`, else `[store] location` of the [settings file](settings.md), else the directory `~/.local/share/snapdelta` (file store). Set the variable once to use the same store everywhere:
+Without `--store`, snapdelta uses the environment variable `SNAPDELTA_STORE`, else `[store] location` of the [settings file](settings.md), else the SQLite file `~/.local/share/snapdelta/snapdelta.db` (`$XDG_DATA_HOME/snapdelta/snapdelta.db` when `XDG_DATA_HOME` is set). Set the variable once to use the same store everywhere:
 
 ```bash
 export SNAPDELTA_STORE=sqlite:///data/snapdelta.db
@@ -71,9 +74,6 @@ The ticket is not in a name. Unsafe characters in a target or a label become `_`
 - Each file is written to a temporary file first, then renamed, so an interrupted write never leaves a broken file.
 - The files are readable JSON. A snapshot holds `schema`, `target`, `source`, `label`, `ticket`, `captured_at`, `created_at`, `versions`, `inputs` (names and SHA-256 of the input files), `loaded` (the models), `warnings`, and `data` (the diffsync data of the load). An output holds `schema`, `created_at`, `versions`, `ticket`, `note`, `left` and `right` (target, source, label, capture time, snapshot reference), `compared`, `skipped`, `summary` and `diff` (diffsync `Diff.summary()` and `Diff.dict()`).
 - Long lists read only the directory and file names: the list of targets and of the snapshots of a target never opens a file.
-
-> [!NOTE]
-> The file store has no index. A search or a filter by ticket reads each document, which is slow on a large store; use the SQLite or the PostgreSQL store for a large store.
 
 ## SQLite store layout
 

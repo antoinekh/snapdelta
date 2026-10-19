@@ -60,9 +60,9 @@ DEFAULT_SCHEME = "file"
 BUSY_TIMEOUT_S = 30.0
 
 
-def default_store_path() -> Path:
+def default_store_location() -> str:
     base = os.environ.get("XDG_DATA_HOME") or str(Path.home() / ".local" / "share")
-    return Path(base) / "snapdelta"
+    return f"{SQLITE_PREFIX}{base}/snapdelta/snapdelta.db"
 
 
 def open_store(location: str, settings: Settings | None = None) -> Store:
@@ -83,7 +83,7 @@ def split_location(location: str) -> tuple[str, str]:
 
 
 def open_store_from(settings: Settings) -> Store:
-    return open_store(settings.store.location or str(default_store_path()), settings)
+    return open_store(settings.store.location or default_store_location(), settings)
 
 
 def age_cutoff(days: int) -> datetime:
@@ -448,7 +448,7 @@ def _inspect_store(name: str, cls: type[Store]) -> list[Problem]:
 
 
 def _stores_in_use(settings: Settings) -> dict[str, list[str]]:
-    return {split_location(settings.store.location or str(default_store_path()))[0]: ["the store"]}
+    return {split_location(settings.store.location or default_store_location())[0]: ["the store"]}
 
 
 STORES: ExtensionPoint[type[Store]] = ExtensionPoint(

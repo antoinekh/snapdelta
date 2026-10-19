@@ -217,7 +217,8 @@ def test_the_store_location_shows_the_real_default(client, settings_file, monkey
     settings_file.write_text("[snapshot]\njobs = 10\n")
     client.post("/admin/settings", data=form(**{"store.location": ""}), follow_redirects=False)
     monkeypatch.setenv("XDG_DATA_HOME", str(Path.home() / "data"))
-    assert 'name="store.location" value="" placeholder="~/data/snapdelta"' in client.get("/admin/settings").text
+    page = client.get("/admin/settings").text
+    assert 'name="store.location" value="" placeholder="sqlite://~/data/snapdelta/snapdelta.db"' in page
 
 
 def test_the_save_bar_tracks_the_changes_on_both_tabs(client) -> None:

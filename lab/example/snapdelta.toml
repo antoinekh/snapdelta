@@ -3,10 +3,10 @@
 # A commented key shows its default. Paths are relative to this file.
 
 [store]
-# Where the snapshots and the diffs go. A directory gives the file store (one JSON file each).
-location = ".store"
-# The SQLite store instead (one file); see docs/stores.md:
-# location = "sqlite://.store/snapdelta.db"
+# Where the snapshots and the diffs go. A SQLite file is the default store; see docs/stores.md.
+location = "sqlite://.store/snapdelta.db"
+# The file store instead (a directory, one JSON file each, slow with many snapshots):
+# location = ".store"
 # Without Docker: use this store instead, with `outputs` below, so the two kinds of snapshots never mix:
 # location = ".store-saved"
 

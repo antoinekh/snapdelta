@@ -63,7 +63,7 @@ All the commands of this guide run in `lab/example`, so snapdelta reads the sett
 
 | Key | Value in the lab | Effect |
 |---|---|---|
-| `store.location` | `.store` | the snapshots and diffs go to `lab/example/.store`, one JSON file each (file store); the path is relative to the file |
+| `store.location` | `sqlite://.store/snapdelta.db` | the snapshots and diffs go to the SQLite file `lab/example/.store/snapdelta.db`; the path is relative to the file |
 | `stores.sqlite.busy_timeout_s` | default, 30 | SQLite only: how long a writer waits for the lock |
 | `snapshot.jobs` | `3` | `--all-targets` fetches the three routers at the same time |
 | `web.*` | defaults | port 8765 |
@@ -79,13 +79,13 @@ Check the values in use and where each one comes from:
 uv run snapdelta settings
 ```
 
-**Use the SQLite store instead.** Change `store.location` to `sqlite://.store/snapdelta.db` (the commented line), in the file or in the web UI (Admin, then Settings, field `location`, then **Save settings**). snapdelta creates the database on first use; `uv run snapdelta info` then says `backend: sqlite`. To copy the snapshots that you already took into the new store, see "Move a store to the other backend" in [docs/stores.md](../../docs/stores.md).
+**Use the file store instead.** Change `store.location` to `.store` (the commented line), in the file or in the web UI (Admin, then Settings, field `location`, then **Save settings**). The snapshots and diffs are then one JSON file each, which is slow for a large number of them; `uv run snapdelta info` says `backend: file`. To copy the snapshots that you already took into the new store, see "Move a store to another backend" in [docs/stores.md](../../docs/stores.md).
 
 **Use another store for one command.** `SNAPDELTA_STORE` and `--store` win over the file: `uv run snapdelta --store /tmp/lab-store list`, or `SNAPDELTA_STORE=/tmp/lab-store scripts/lab.sh scenario`.
 
 **Run without Docker.** The lab ships the outputs of the three routers in `tests/outputs`, one directory per source, then one per router. To use them instead of the live lab, edit three lines of `snapdelta.toml`:
 
-- in `[store]`, replace `location = ".store"` with the commented line `location = ".store-saved"`, so these snapshots never mix with the snapshots of the live lab;
+- in `[store]`, replace `location = "sqlite://.store/snapdelta.db"` with the commented line `location = ".store-saved"`, so these snapshots never mix with the snapshots of the live lab;
 - in `[sources.frr]` and in `[sources.srlinux]`, uncomment `outputs = "tests/outputs"`.
 
 Then every command of this guide works without Docker; `uv run snapdelta settings` shows `sources.frr.outputs` with the origin `file`. Put the lines back to use the live lab again.
@@ -118,11 +118,11 @@ In the web UI, Take snapshot offers the source "By platform (inventory)" and the
 scripts/lab.sh scenario
 ```
 
-The script deploys the lab from scratch, takes the `before` snapshots, applies the change, takes the `after` snapshots and prints the diff of each router. The snapshots and diffs go to the store of the settings file (`lab/example/.store`); set `SNAPDELTA_STORE` to use another store, for example `SNAPDELTA_STORE=sqlite:///tmp/lab.db scripts/lab.sh scenario`. `scripts/lab.sh --help` lists every command.
+The script deploys the lab from scratch, takes the `before` snapshots, applies the change, takes the `after` snapshots and prints the diff of each router. The snapshots and diffs go to the store of the settings file (`lab/example/.store/snapdelta.db`); set `SNAPDELTA_STORE` to use another store, for example `SNAPDELTA_STORE=sqlite:///tmp/lab.db scripts/lab.sh scenario`. `scripts/lab.sh --help` lists every command.
 
 ## Step by step in the CLI
 
-All the commands run in `lab/example`, so snapdelta reads the settings file of the lab (see [Configure the store and the settings](#configure-the-store-and-the-settings)): the store is `lab/example/.store`, with no `--store` option.
+All the commands run in `lab/example`, so snapdelta reads the settings file of the lab (see [Configure the store and the settings](#configure-the-store-and-the-settings)): the store is `lab/example/.store/snapdelta.db`, with no `--store` option.
 
 1. Deploy the lab and wait for BGP:
 

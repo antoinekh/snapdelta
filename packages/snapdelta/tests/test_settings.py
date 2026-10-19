@@ -16,7 +16,7 @@ from snapdelta.settings import (
     user_settings_path,
 )
 from snapdelta.source import Source
-from snapdelta.store import default_store_path
+from snapdelta.store import default_store_location
 
 
 class DemoSettings(SourceSettings):
@@ -49,12 +49,14 @@ def write(path: Path, text: str, mode: int = 0o600) -> Path:
     return path
 
 
-def test_no_file_gives_the_defaults() -> None:
+def test_no_file_gives_the_defaults(monkeypatch, tmp_path) -> None:
+    monkeypatch.setenv("XDG_DATA_HOME", str(tmp_path))
     settings = load_settings(installed=INSTALLED)
     assert settings.file is None
     assert settings.snapshot.jobs == 4
     assert settings.web.port == 8765
-    assert settings.store.location == str(default_store_path())
+    assert settings.store.location == f"sqlite://{tmp_path}/snapdelta/snapdelta.db"
+    assert settings.store.location == default_store_location()
     assert settings.origins["web.port"] == Origin.DEFAULT
 
 
