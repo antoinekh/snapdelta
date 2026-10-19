@@ -103,11 +103,28 @@ def test_lists_are_paged_and_filtered(big_store) -> None:
     assert (len(entries), pager.has_next) == (50, True)
     entries, pager = views.snapshot_list(big_store, SnapshotQuery(), page=37, size=50)
     assert (len(entries), pager.has_next) == (3, False)
-    entries, pager = views.snapshot_list(big_store, SnapshotQuery(target="DEV000"), page=1, size=50)
+    entries, pager = views.snapshot_list(big_store, SnapshotQuery(targets=("DEV000",)), page=1, size=50)
     assert (len(entries), pager.has_next, entries[0].captured_at.minute) == (50, True, 59)
     snapshots, unreadable, pager = views.target_snapshot_rows(big_store, "DEV000", page=2, size=50)
     assert (len(snapshots), unreadable, pager.has_next) == (10, [], False)
     assert snapshots[0].target == "DEV000"
+
+
+def test_a_snapshot_page_has_a_next_page_only_when_a_row_follows(big_store) -> None:
+    query = SnapshotQuery(targets=("DEV000",))
+    for size, has_next in ((59, True), (60, False), (61, False)):
+        entries, pager = views.snapshot_list(big_store, query, page=1, size=size)
+        assert (len(entries), pager.has_next) == (min(size, 60), has_next)
+    entries, pager = views.snapshot_list(big_store, query, page=7, size=10)
+    assert (entries, pager.has_next) == ([], False)
+
+
+def test_a_snapshot_page_reads_one_page_from_the_store(big_store, monkeypatch) -> None:
+    asked: list[SnapshotQuery] = []
+    original = big_store.snapshot_entries
+    monkeypatch.setattr(big_store, "snapshot_entries", lambda query: asked.append(query) or original(query))
+    views.snapshot_list(big_store, SnapshotQuery(), page=3, size=50)
+    assert [(query.limit, query.offset) for query in asked] == [(51, 100)]
 
 
 def test_target_matches_are_limited(big_store) -> None:

@@ -141,13 +141,13 @@ class StoreContract:
         assert store.targets() == ["EDGE1", "R1", "R2"]
         assert store.targets("r") == ["R1", "R2"]
         assert store.targets("GE1") == ["EDGE1"]
-        entries = store.snapshot_entries(SnapshotQuery(target="R1"))
+        entries = store.snapshot_entries(SnapshotQuery(targets=("R1",)))
         assert [(entry.reference, entry.label) for entry in entries] == [
             ("R1/20260101T100000Z", None),
             ("R1/20260101T090000Z-before", "before"),
         ]
         assert entries[1].captured_at == FIRST - timedelta(hours=1)
-        assert store.snapshot_entries(SnapshotQuery(target="R9")) == []
+        assert store.snapshot_entries(SnapshotQuery(targets=("R9",))) == []
 
     def test_an_output_reads_back_and_lists_newest_first(self, store: Store) -> None:
         names = [store.save_output(compare(sample(), sample(target=right))) for right in ("R2", "EDGE1")]
@@ -184,7 +184,8 @@ class StoreContract:
             sample(label="after", ticket="Évolution / lot 2", captured_at=FIRST + timedelta(hours=1))
         )
         assert [
-            entry.reference for entry in store.snapshot_entries(SnapshotQuery(target="R1", ticket="ÉVOLUTION / LOT 2"))
+            entry.reference
+            for entry in store.snapshot_entries(SnapshotQuery(targets=("R1",), ticket="ÉVOLUTION / LOT 2"))
         ] == [marked]
 
     def test_the_snapshots_of_every_target_newest_first(self, store: Store) -> None:
@@ -205,7 +206,32 @@ class StoreContract:
     def test_a_blank_filter_does_not_filter(self, store: Store) -> None:
         store.save_snapshot(sample(label="before", ticket="CHG-1"))
         store.save_snapshot(sample(target="R2", captured_at=FIRST + timedelta(hours=1)))
-        assert len(store.snapshot_entries(SnapshotQuery(target="", label=" ", ticket="  "))) == 2
+        assert len(store.snapshot_entries(SnapshotQuery(targets=("", " "), label=" ", ticket="  "))) == 2
+
+    def test_the_snapshots_of_several_targets(self, store: Store) -> None:
+        for hour, target in enumerate(("R1", "R2", "R3")):
+            store.save_snapshot(sample(target=target, captured_at=FIRST + timedelta(hours=hour)))
+        references = [entry.reference for entry in store.snapshot_entries(SnapshotQuery(targets=("R3", "R1")))]
+        assert references == ["R3/20260101T120000Z", "R1/20260101T100000Z"]
+        assert store.snapshot_entries(SnapshotQuery(targets=("R9", "R7"))) == []
+
+    def test_a_page_of_the_snapshots(self, store: Store) -> None:
+        for hour in range(4):
+            store.save_snapshot(sample(captured_at=FIRST + timedelta(hours=hour)))
+        newest_first = [entry.reference for entry in store.snapshot_entries()]
+        page = store.snapshot_entries(SnapshotQuery(limit=2, offset=1))
+        assert [entry.reference for entry in page] == newest_first[1:3]
+        assert [entry.reference for entry in store.snapshot_entries(SnapshotQuery(offset=3))] == newest_first[3:]
+        assert store.snapshot_entries(SnapshotQuery(limit=0)) == []
+        assert store.snapshot_entries(SnapshotQuery(limit=2, offset=4)) == []
+        assert store.snapshot_entries(SnapshotQuery(offset=40)) == []
+
+    def test_a_page_applies_after_the_filters(self, store: Store) -> None:
+        for hour in (0, 2, 4):
+            store.save_snapshot(sample(ticket="CHG-1", captured_at=FIRST + timedelta(hours=hour)))
+            store.save_snapshot(sample(ticket="CHG-2", captured_at=FIRST + timedelta(hours=hour + 1)))
+        page = store.snapshot_entries(SnapshotQuery(ticket="chg-1", limit=2, offset=1))
+        assert [entry.reference for entry in page] == ["R1/20260101T120000Z", "R1/20260101T100000Z"]
 
     def test_the_snapshots_of_a_ticket_across_targets_carry_their_ticket_and_source(self, store: Store) -> None:
         store.save_snapshot(sample(ticket="CHG-2"))
@@ -214,16 +240,16 @@ class StoreContract:
         entries = store.snapshot_entries(SnapshotQuery(ticket="chg-1"))
         assert [entry.reference for entry in entries] == [newer, older]
         assert {(entry.ticket, entry.source) for entry in entries} == {("CHG-1", SampleSource.source)}
-        assert [entry.reference for entry in store.snapshot_entries(SnapshotQuery(target="R2", ticket="CHG-1"))] == [
-            older
-        ]
+        assert [
+            entry.reference for entry in store.snapshot_entries(SnapshotQuery(targets=("R2",), ticket="CHG-1"))
+        ] == [older]
 
     def test_the_target_the_label_and_the_ticket_apply_together(self, store: Store) -> None:
         store.save_snapshot(sample(label="before", ticket="CHG-1"))
         wanted = store.save_snapshot(sample(label="before", ticket="CHG-1", captured_at=FIRST + timedelta(hours=1)))
         store.save_snapshot(sample(label="before", ticket="CHG-2", captured_at=FIRST + timedelta(hours=2)))
         store.save_snapshot(sample(target="R2", label="before", ticket="CHG-1", captured_at=FIRST + timedelta(hours=3)))
-        query = SnapshotQuery(target="R1", label="before", ticket="CHG-1")
+        query = SnapshotQuery(targets=("R1",), label="before", ticket="CHG-1")
         assert store.snapshot_entries(query)[0].reference == wanted
         assert len(store.snapshot_entries(query)) == 2
 
@@ -290,7 +316,7 @@ class StoreContract:
         plan = store.prune_plan(keep=1, older_than=FIRST, outputs=True)
         assert plan.snapshots == ["R1/20260101T090000Z", "R1/20260101T080000Z"] and plan.outputs == []
         store.apply(plan)
-        assert [entry.reference for entry in store.snapshot_entries(SnapshotQuery(target="R1"))] == [
+        assert [entry.reference for entry in store.snapshot_entries(SnapshotQuery(targets=("R1",)))] == [
             "R1/20260101T110000Z",
             "R1/20260101T100000Z",
         ]

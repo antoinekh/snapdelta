@@ -558,20 +558,23 @@ def attachment(filename: str) -> dict[str, str]:
 
 def snapshot_query(target: str, label: str, ticket: str) -> SnapshotQuery:
     """The filters of the Snapshots page; a field left empty does not filter."""
-    return SnapshotQuery(target.strip(), label.strip(), normalize_ticket(ticket))
+    return SnapshotQuery(targets=(target.strip(),), label=label.strip(), ticket=normalize_ticket(ticket))
 
 
 def snapshot_filters(query: SnapshotQuery) -> str:
     """The filters as a URL query string, for the links that keep them."""
-    pairs = [("target", query.target), ("label", query.label), ("ticket", query.ticket)]
+    pairs = [("target", name) for name in query.targets] + [("label", query.label), ("ticket", query.ticket)]
     return urlencode([(name, value) for name, value in pairs if value])
 
 
 def snapshot_list(
     store: Store, query: SnapshotQuery, page: int = 1, size: int = 50
 ) -> tuple[list[SnapshotEntry], Pager]:
-    """One page of the snapshots of every target that match `query`, newest first."""
-    return page_of(store.snapshot_entries(query), page, size)
+    """One page of the snapshots that match `query`, newest first; the store cuts the page, not this list."""
+    number = max(page, 1)
+    # One row more than the page tells that a next page exists.
+    entries = store.snapshot_entries(replace(query, limit=size + 1, offset=(number - 1) * size))
+    return entries[:size], Pager(number, number > 1, len(entries) > size)
 
 
 PERIOD_FORMAT = "%Y-%m-%dT%H:%M"
@@ -631,7 +634,7 @@ def _period_end(text: str) -> datetime | None:
 def target_snapshot_rows(
     store: Store, target: str, page: int = 1, size: int = 50, period: Period = ALL_TIME
 ) -> tuple[list[SnapshotRow], list[str], Pager]:
-    entries, pager = page_of(period.select(store.snapshot_entries(SnapshotQuery(target=target))), page, size)
+    entries, pager = page_of(period.select(store.snapshot_entries(SnapshotQuery(targets=(target,)))), page, size)
     rows: list[SnapshotRow] = []
     unreadable: list[str] = []
     for entry in entries:
@@ -713,7 +716,7 @@ def timeline(
     size: int = TIMELINE_SIZE,
     period: Period = ALL_TIME,
 ) -> Timeline:
-    entries = period.select(store.snapshot_entries(SnapshotQuery(target=target)))
+    entries = period.select(store.snapshot_entries(SnapshotQuery(targets=(target,))))
     shown = list(reversed(entries[:size]))
     points = [TimelinePoint(entry.reference, entry.captured_at, entry.label) for entry in shown]
     steps = [

@@ -73,11 +73,11 @@ class {{Class}}Store(Store):
         wanted = [
             row
             for row in rows
-            if query.target in (None, row.target)
+            if (not query.targets or row.target in query.targets)
             and query.safe_label in (None, row.label)
             and key in (None, ticket_key(row.ticket))
         ]
-        return sorted(wanted, key=lambda row: (row.captured_at, row.reference), reverse=True)
+        return query.page(sorted(wanted, key=lambda row: (row.captured_at, row.reference), reverse=True))
 
     def output_entries(self, query: OutputQuery = OutputQuery()) -> list[OutputEntry]:
         wanted = ticket_key(query.search) or ""

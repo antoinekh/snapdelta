@@ -162,7 +162,7 @@ def create_mcp(state: AppState) -> MCPServer:
         items = []
         for name in sorted(names):
             host = inventory.host(name) if inventory else None
-            count = len(state.store.snapshot_entries(SnapshotQuery(target=name)))
+            count = len(state.store.snapshot_entries(SnapshotQuery(targets=(name,))))
             platform, groups = (host.platform, list(host.groups)) if host else (None, [])
             items.append(TargetItem(name=name, snapshots=count, platform=platform, groups=groups))
         return items
@@ -175,8 +175,8 @@ def create_mcp(state: AppState) -> MCPServer:
         limit: Annotated[int, Field(ge=1, le=MAX_LIMIT, description="How many snapshots, newest first.")] = 20,
     ) -> list[SnapshotInfo]:
         """The snapshots of every target, newest first, with their ticket and source; the filters narrow them."""
-        entries = state.store.snapshot_entries(SnapshotQuery(target=target, label=label, ticket=ticket))
-        return [SnapshotInfo.of(entry) for entry in entries[:limit]]
+        query = SnapshotQuery(targets=(target,) if target else (), label=label, ticket=ticket, limit=limit)
+        return [SnapshotInfo.of(entry) for entry in state.store.snapshot_entries(query)]
 
     @tool(FETCHES)
     def take_snapshots(

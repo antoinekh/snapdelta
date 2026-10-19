@@ -127,23 +127,37 @@ class SnapshotEntry:
 
 @dataclass(frozen=True)
 class SnapshotQuery:
-    """The snapshots to list; every field given applies, and none given means every snapshot of every target."""
+    """The snapshots to list; every field given applies, and none given means every snapshot of every target.
 
-    target: str | None = None
+    `limit` and `offset` cut a page out of the list that the other fields select and order.
+    """
+
+    targets: tuple[str, ...] = ()
     label: str | None = None
     ticket: str | None = None
+    limit: int | None = None
+    offset: int = 0
 
     def __post_init__(self) -> None:
         # A field left empty in a form or a request means no filter, whichever door the query comes through.
-        for name in ("target", "label", "ticket"):
+        wanted = dict.fromkeys(name for name in self.targets if name.strip())
+        object.__setattr__(self, "targets", tuple(wanted))
+        for name in ("label", "ticket"):
             value = getattr(self, name)
             if value is not None and not value.strip():
                 object.__setattr__(self, name, None)
+        if self.offset < 0 or (self.limit is not None and self.limit < 0):
+            raise SnapdeltaError("the limit and the offset of a snapshot list cannot be negative")
 
     @property
     def safe_label(self) -> str | None:
         """The label as a reference writes it, so that `before swap` and `before_swap` find the same snapshots."""
         return None if self.label is None else _safe(self.label)
+
+    def page[T](self, entries: list[T]) -> list[T]:
+        """The window of an ordered list that this query asks for, for a store that cannot cut it in its backend."""
+        end = None if self.limit is None else self.offset + self.limit
+        return entries[self.offset : end]
 
 
 @dataclass(frozen=True)
@@ -203,10 +217,14 @@ def snapshot_row(reference: str, snapshot: SnapshotFile) -> SnapshotEntry:
     return entry
 
 
-def snapshot_conditions(query: SnapshotQuery) -> list[tuple[str, str]]:
-    """The column and the value of each filter of the query, for a store that answers with SQL."""
-    wanted = [("target", query.target), ("label", query.safe_label), ("ticket_key", ticket_key(query.ticket))]
-    return [(column, value) for column, value in wanted if value is not None]
+def snapshot_conditions(query: SnapshotQuery) -> list[tuple[str, tuple[str, ...]]]:
+    """The column and the values it may hold for each filter of the query, for a store that answers with SQL."""
+    wanted = [
+        ("target", query.targets),
+        ("label", () if query.safe_label is None else (query.safe_label,)),
+        ("ticket_key", () if (key := ticket_key(query.ticket)) is None else (key,)),
+    ]
+    return [(column, values) for column, values in wanted if values]
 
 
 def output_entry(name: str) -> OutputEntry | None:
@@ -278,12 +296,12 @@ class Store(ABC):
             # TARGET@latest is the newest snapshot of the target; TARGET@LABEL the newest with that label.
             ticket = normalize_ticket(ticket)
             label = None if tag == LATEST else tag
-            entries = self.snapshot_entries(SnapshotQuery(target=target, label=label, ticket=ticket))
+            entries = self.snapshot_entries(SnapshotQuery(targets=(target,), label=label, ticket=ticket))
             if not entries:
                 which = "snapshot" if tag == LATEST else f"snapshot labelled {tag!r}"
                 scope = f" in ticket {ticket!r}" if ticket else ""
                 # Snapshots taken without the ticket never resolve with it, so say where they are.
-                outside = bool(ticket) and bool(self.snapshot_entries(SnapshotQuery(target=target, label=label)))
+                outside = bool(ticket) and bool(self.snapshot_entries(SnapshotQuery(targets=(target,), label=label)))
                 hint = (
                     f"; {target}@{tag} exists outside this ticket: compare without the ticket, then give the diff "
                     "the ticket"
@@ -405,7 +423,7 @@ class Store(ABC):
             raise SnapdeltaError("pruning outputs needs an age")
         plan = PrunePlan()
         for name in [target] if target else self.targets():
-            for index, entry in enumerate(self.snapshot_entries(SnapshotQuery(target=name))):
+            for index, entry in enumerate(self.snapshot_entries(SnapshotQuery(targets=(name,)))):
                 kept_by_rank = keep is not None and index < keep
                 kept_by_age = older_than is not None and entry.captured_at >= older_than
                 if not kept_by_rank and not kept_by_age:
@@ -555,14 +573,12 @@ class FileStore(Store):
         key = ticket_key(query.ticket)
         entries = [self._with_document(named) for named in self._named_entries(query)]
         wanted = [entry for entry in entries if key is None or ticket_key(entry.ticket) == key]
-        return sorted(wanted, key=lambda entry: (entry.captured_at, entry.reference), reverse=True)
+        return query.page(sorted(wanted, key=lambda entry: (entry.captured_at, entry.reference), reverse=True))
 
     def _named_entries(self, query: SnapshotQuery) -> list[SnapshotEntry]:
-        """The snapshots of the target and the label of the query, known from their names alone."""
-        if query.target is not None and not _valid_part(query.target):
-            return []
+        """The snapshots of the targets and the label of the query, known from their names alone."""
         entries = []
-        for target in [query.target] if query.target is not None else self.targets():
+        for target in [name for name in query.targets if _valid_part(name)] if query.targets else self.targets():
             directory = self.snapshots_dir / target
             for path in directory.glob("*.json") if directory.is_dir() else []:
                 entry = snapshot_entry(f"{target}/{path.stem}")
@@ -758,11 +774,15 @@ class SqliteStore(Store):
 
     def snapshot_entries(self, query: SnapshotQuery = SnapshotQuery()) -> list[SnapshotEntry]:
         conditions = snapshot_conditions(query)
-        where = f" where {' and '.join(f'{column} = ?' for column, _ in conditions)}" if conditions else ""
+        filters = [f"{column} in ({', '.join('?' * len(values))})" for column, values in conditions]
+        where = f" where {' and '.join(filters)}" if filters else ""
+        # SQLite has no offset without a limit, and a negative limit means none.
+        window = [-1 if query.limit is None else query.limit, query.offset]
         with self._connect() as db:
             rows = db.execute(
-                f"select reference, ticket, source from snapshots{where} order by captured_at desc, reference desc",
-                [value for _, value in conditions],
+                f"select reference, ticket, source from snapshots{where} "
+                "order by captured_at desc, reference desc limit ? offset ?",
+                [value for _, values in conditions for value in values] + window,
             ).fetchall()
         return [entry for reference, ticket, source in rows if (entry := snapshot_entry(reference, ticket, source))]
 

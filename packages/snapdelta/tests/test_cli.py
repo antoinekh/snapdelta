@@ -102,7 +102,7 @@ def test_prune_refuses_a_bad_number(location, make_adapter) -> None:
     too_big = runner.invoke(app, ["--store", location, "prune", "--older-than=1000000000000", "--dry-run"])
     assert too_big.exit_code == 2, too_big.output
     assert "too big" in too_big.output
-    assert len(store.snapshot_entries(SnapshotQuery(target="R1"))) == 1
+    assert len(store.snapshot_entries(SnapshotQuery(targets=("R1",)))) == 1
 
 
 def test_info_delete_and_prune(make_adapter, location) -> None:
@@ -115,13 +115,15 @@ def test_info_delete_and_prune(make_adapter, location) -> None:
     preview = runner.invoke(app, ["--store", location, "prune", "--keep", "1", "--dry-run"])
     assert preview.exit_code == 0, preview.output
     assert "would delete 2 snapshots, 0 outputs and 0 runs" in preview.output
-    assert len(store.snapshot_entries(SnapshotQuery(target="R1"))) == 3
+    assert len(store.snapshot_entries(SnapshotQuery(targets=("R1",)))) == 3
     pruned = runner.invoke(app, ["--store", location, "prune", "--keep", "2"])
     assert "deleted 1 snapshots, 0 outputs and 0 runs" in pruned.output
     deleted = runner.invoke(app, ["--store", location, "delete", "snapshot", "R1@latest"])
     assert deleted.exit_code == 0, deleted.output
     assert "deleted R1/20260925T100000Z" in deleted.output
-    assert [entry.reference for entry in store.snapshot_entries(SnapshotQuery(target="R1"))] == ["R1/20260925T090000Z"]
+    assert [entry.reference for entry in store.snapshot_entries(SnapshotQuery(targets=("R1",)))] == [
+        "R1/20260925T090000Z"
+    ]
     missing = runner.invoke(app, ["--store", location, "delete", "output", "nope"])
     assert missing.exit_code == 2
     no_rule = runner.invoke(app, ["--store", location, "prune"])
@@ -197,7 +199,7 @@ def test_diff_of_selected_models(make_adapter, location) -> None:
     store = open_location(location)
     store.save_snapshot(make_adapter(label="before", description="old"))
     store.save_snapshot(make_adapter(label="after", description="new"))
-    names = [entry.reference for entry in store.snapshot_entries(SnapshotQuery(target="R1"))]
+    names = [entry.reference for entry in store.snapshot_entries(SnapshotQuery(targets=("R1",)))]
     only_vlan = runner.invoke(app, ["--store", location, "diff", names[1], names[0], "--model", "vlan"])
     assert only_vlan.exit_code == 0, only_vlan.output
     assert "not selected: interface" in only_vlan.output
@@ -280,12 +282,12 @@ def test_diff_live_fetches_the_target_of_the_left_snapshot(tmp_path) -> None:
     result = runner.invoke(app, ["--store", location, "diff", "R1@latest", "--live"])
     assert result.exit_code == 0, result.output
     store = FileStore(tmp_path / "store")
-    live = store.snapshot_entries(SnapshotQuery(target="R1"))[0]
+    live = store.snapshot_entries(SnapshotQuery(targets=("R1",)))[0]
     assert live.label == "live" and f"saved {live.reference}" in result.output
     output = store.load_output(store.output_entries()[0].name)
     assert output.right.snapshot == live.reference
     quick = runner.invoke(app, ["--store", location, "diff", "R1@latest", "--live", "--no-save"])
-    assert quick.exit_code == 0 and len(store.snapshot_entries(SnapshotQuery(target="R1"))) == 2
+    assert quick.exit_code == 0 and len(store.snapshot_entries(SnapshotQuery(targets=("R1",)))) == 2
 
 
 def test_diff_live_needs_a_source_that_fetches(make_adapter, tmp_path) -> None:

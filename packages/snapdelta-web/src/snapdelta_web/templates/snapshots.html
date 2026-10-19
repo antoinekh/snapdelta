@@ -6,7 +6,7 @@
   <h1>Snapshots</h1>
   <form class="filters" method="get" action="/snapshots" role="search"
         hx-get="/snapshots" hx-trigger="input delay:250ms, search" hx-target="#results" hx-select="#results" hx-push-url="true">
-    <label class="inline-field">Target<input name="target" value="{{ query.target or '' }}" list="targets" autocomplete="off"></label>
+    <label class="inline-field">Target<input name="target" value="{{ query.targets[0] if query.targets else '' }}" list="targets" autocomplete="off"></label>
     <label class="inline-field">Label<input name="label" value="{{ query.label or '' }}" autocomplete="off"></label>
     <label class="inline-field">Ticket<input name="ticket" value="{{ query.ticket or '' }}" maxlength="80" autocomplete="off"></label>
     <datalist id="targets">{% for name in targets %}<option value="{{ name }}">{% endfor %}</datalist>
@@ -33,7 +33,7 @@
 {{ pages(pager, "/snapshots", "", filters) }}
 {% elif filters %}
 {% set given = [] %}
-{% if query.target %}{% set _ = given.append("the target " ~ query.target) %}{% endif %}
+{% if query.targets %}{% set _ = given.append("the target " ~ query.targets[0]) %}{% endif %}
 {% if query.label %}{% set _ = given.append("the label " ~ query.label) %}{% endif %}
 {% if query.ticket %}{% set _ = given.append("the ticket " ~ query.ticket) %}{% endif %}
 <p class="empty">No snapshot for {{ given | join(", ") }}.</p>

@@ -34,6 +34,16 @@ def at(hour: int) -> datetime:
     return datetime(2026, 9, 25, hour, 0, tzinfo=UTC)
 
 
+@pytest.mark.parametrize("window", [{"limit": -1}, {"offset": -1}])
+def test_a_negative_page_window_is_refused(window) -> None:
+    with pytest.raises(SnapdeltaError, match="cannot be negative"):
+        SnapshotQuery(**window)
+
+
+def test_the_blank_and_repeated_targets_of_a_query_are_dropped() -> None:
+    assert SnapshotQuery(targets=("R2", " ", "R1", "R2", "")).targets == ("R2", "R1")
+
+
 def test_a_reference_with_a_slash_that_is_not_found_lists_no_snapshot(monkeypatch, tmp_path) -> None:
     store = FileStore(tmp_path / "store")
     store.save_snapshot(sample())
@@ -68,7 +78,7 @@ def test_prune_refuses_a_negative_keep(store, make_adapter) -> None:
     with pytest.raises(SnapdeltaError, match="cannot be negative"):
         store.prune_plan(keep=-1)
     assert len(store.prune_plan(keep=0).snapshots) == 1
-    assert len(store.snapshot_entries(SnapshotQuery(target="R1"))) == 1
+    assert len(store.snapshot_entries(SnapshotQuery(targets=("R1",)))) == 1
 
 
 def test_prune_outputs_and_rules(store, make_adapter) -> None:
@@ -93,7 +103,9 @@ def test_file_store_reads_the_current_layout_and_paths(make_adapter, tmp_path) -
     with pytest.raises(NotFoundError):
         store.resolve_snapshot(str(outside))
     (tmp_path / "snapshots" / "R1" / "notes.json").write_text("{}")
-    assert [entry.reference for entry in store.snapshot_entries(SnapshotQuery(target="R1"))] == ["R1/20260925T100000Z"]
+    assert [entry.reference for entry in store.snapshot_entries(SnapshotQuery(targets=("R1",)))] == [
+        "R1/20260925T100000Z"
+    ]
 
 
 def test_the_file_store_lists_a_snapshot_without_validating_its_data(make_adapter, tmp_path) -> None:
@@ -104,7 +116,7 @@ def test_the_file_store_lists_a_snapshot_without_validating_its_data(make_adapte
     path.parent.mkdir(parents=True)
     save_snapshot(make_adapter(ticket="chg  1"), path)
     path.write_text(json.dumps(json.loads(path.read_text()) | {"data": "not the models"}))
-    [entry] = store.snapshot_entries(SnapshotQuery(target="R1", ticket="CHG 1"))
+    [entry] = store.snapshot_entries(SnapshotQuery(targets=("R1",), ticket="CHG 1"))
     assert (entry.ticket, entry.source) == ("chg 1", "example")
     with pytest.raises(SnapdeltaError):
         store.read_snapshot(entry.reference)

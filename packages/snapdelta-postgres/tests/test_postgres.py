@@ -56,7 +56,7 @@ def test_the_order_is_by_code_point_whatever_the_collation_of_the_database(lingu
             store.save_snapshot(sample(target=target))
         assert store.targets() == ["Beta", "Zed", "alpha"]
         lower, upper = (store.save_snapshot(sample(label=label)) for label in ("a", "B"))
-        assert [entry.reference for entry in store.snapshot_entries(SnapshotQuery(target="R1"))] == [lower, upper]
+        assert [entry.reference for entry in store.snapshot_entries(SnapshotQuery(targets=("R1",)))] == [lower, upper]
     finally:
         store.close()
 

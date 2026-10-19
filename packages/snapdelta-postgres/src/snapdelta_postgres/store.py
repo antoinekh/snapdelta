@@ -157,14 +157,16 @@ class PostgresStore(Store):
 
     def snapshot_entries(self, query: SnapshotQuery = SnapshotQuery()) -> list[SnapshotEntry]:
         conditions = snapshot_conditions(query)
-        filters = [sql.SQL("{} = %s").format(sql.Identifier(column)) for column, _ in conditions]
+        filters = [sql.SQL("{} = any(%s)").format(sql.Identifier(column)) for column, _ in conditions]
         where = sql.SQL(" where {}").format(sql.SQL(" and ").join(filters)) if filters else sql.SQL("")
         statement = sql.SQL(
             "select reference, ticket, source from snapdelta_snapshots{} "
-            'order by captured_at desc, reference collate "C" desc'
+            'order by captured_at desc, reference collate "C" desc limit %s offset %s'
         ).format(where)
+        # PostgreSQL reads a limit of NULL as no limit.
+        values = [list(wanted) for _, wanted in conditions] + [query.limit, query.offset]
         with self._connect() as db:
-            rows = db.execute(statement, [value for _, value in conditions]).fetchall()
+            rows = db.execute(statement, values).fetchall()
         return [entry for reference, ticket, source in rows if (entry := snapshot_entry(reference, ticket, source))]
 
     def output_entries(self, query: OutputQuery = OutputQuery()) -> list[OutputEntry]:

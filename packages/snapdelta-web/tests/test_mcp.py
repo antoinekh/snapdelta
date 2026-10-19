@@ -212,13 +212,13 @@ def test_a_ticket_or_a_note_that_is_too_long_is_refused_before_any_work(store) -
 
     before = (
         len(store.output_entries()),
-        [len(store.snapshot_entries(SnapshotQuery(target=target))) for target in store.targets()],
+        [len(store.snapshot_entries(SnapshotQuery(targets=(target,)))) for target in store.targets()],
     )
     results = call(store, steps)
     assert all(result.is_error and "String should have at most" in result.content[0].text for result in results)
     assert before == (
         len(store.output_entries()),
-        [len(store.snapshot_entries(SnapshotQuery(target=t))) for t in store.targets()],
+        [len(store.snapshot_entries(SnapshotQuery(targets=(t,)))) for t in store.targets()],
     )
 
 

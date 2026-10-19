@@ -359,8 +359,8 @@ def create_api(state: AppState, row_cache: LruCache[Any, Any]) -> FastAPI:
         limit: Annotated[int, Query(ge=1, le=MAX_LIMIT)] = 50,
     ) -> list[SnapshotInfo]:
         """The snapshots of every target, newest first; target, label and ticket (any case) narrow them."""
-        entries = state.store.snapshot_entries(SnapshotQuery(target=target, label=label, ticket=ticket))
-        return [SnapshotInfo.of(entry) for entry in entries[:limit]]
+        query = SnapshotQuery(targets=(target,) if target else (), label=label, ticket=ticket, limit=limit)
+        return [SnapshotInfo.of(entry) for entry in state.store.snapshot_entries(query)]
 
     @api.get("/snapshots/{target}/{name}")
     def snapshot(target: str, name: str) -> SnapshotFile:

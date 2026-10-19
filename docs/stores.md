@@ -120,7 +120,7 @@ left = store.load_snapshot(store.resolve_snapshot("R1@latest"))
 right = store.load_snapshot("R1/20261012T130856Z-before")
 name = store.save_output(compare(left, right))
 for target in store.targets():
-    print(target, [entry.reference for entry in store.snapshot_entries(SnapshotQuery(target=target))])
+    print(target, [entry.reference for entry in store.snapshot_entries(SnapshotQuery(targets=(target,)))])
 for entry in store.snapshot_entries(SnapshotQuery(ticket="CHG-1042", label="before")):  # every target, newest first
     print(entry.reference, entry.ticket, entry.source)
 for entry in store.output_entries(OutputQuery(ticket="CHG-1042")):  # the diffs of one ticket
@@ -148,7 +148,7 @@ A plugin package can add a backend, for example an object store or a database se
 
 - `open(address, settings)`, a class method: the store at `address`, the part of the location after `SCHEME://`; `settings` is its `[stores.SCHEME]` table, typed by `settings_class`;
 - `location`: the location that opens the store again, with its scheme;
-- `targets()`, `snapshot_entries(query)`, `output_entries(query)`, `info()`: `snapshot_entries` takes a `SnapshotQuery(target, label, ticket)` and returns the snapshots that match every field given, of every target when `target` is None, newest first (capture time, then reference, both descending); each `SnapshotEntry` carries its `ticket` and its `source`, so that a SQL backend keeps both in columns and a list reads no body. The `label` is compared in the form of the reference (`before swap` and `before_swap` are the same), the `ticket` in any case (see `snapdelta.ticket.ticket_key()`). `output_entries` takes an `OutputQuery(search, ticket)`: `search` matches a target or a part of the ticket, `ticket` only the outputs of that ticket;
+- `targets()`, `snapshot_entries(query)`, `output_entries(query)`, `info()`: `snapshot_entries` takes a `SnapshotQuery(targets, label, ticket, limit, offset)` and returns the snapshots that match every field given, of every target when `targets` is empty, newest first (capture time, then reference, both descending); `targets` are exact names, and `limit` and `offset` cut one page out of that list, so that an offset past the end gives `[]` (`SnapshotQuery.page(entries)` does it for a backend that has no query language); each `SnapshotEntry` carries its `ticket` and its `source`, so that a SQL backend keeps both in columns and a list reads no body. The `label` is compared in the form of the reference (`before swap` and `before_swap` are the same), the `ticket` in any case (see `snapdelta.ticket.ticket_key()`). `output_entries` takes an `OutputQuery(search, ticket)`: `search` matches a target or a part of the ticket, `ticket` only the outputs of that ticket;
 - `resolve_snapshot(reference, ticket)` is in the base class, and `describe_output(name, *, ticket, note)` sets the ticket and the note of a saved output through `_replace_output`, which must keep the ticket column;
 - the private primitives of the snapshots, `_has_snapshot`, `_write_snapshot`, `_read_snapshot`, `_delete_snapshot`; of the outputs, `_has_output`, `_write_output`, `_read_output`, `_replace_output`, `_delete_output`; and of Activity, `_write_run`, `_read_run`, `_run_ids` (newest first), `_delete_run`.
 

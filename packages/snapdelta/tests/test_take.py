@@ -194,6 +194,6 @@ def test_a_ticket_or_a_note_that_is_too_long_stops_before_any_snapshot_is_taken(
         diff_targets(store, settings, "before", live=True, targets=["R1"], ticket=long_ticket)
     assert (
         store.targets() == ["R1"]
-        and len(store.snapshot_entries(SnapshotQuery(target="R1"))) == 1
+        and len(store.snapshot_entries(SnapshotQuery(targets=("R1",)))) == 1
         and store.output_entries() == []
     )

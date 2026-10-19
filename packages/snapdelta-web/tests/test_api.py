@@ -62,10 +62,10 @@ def test_a_pipeline_takes_before_and_after_then_compares(api) -> None:
 
 def test_a_live_diff_without_saving_returns_the_whole_output(api, store) -> None:
     api.post("/api/v1/snapshots", json={"source": "example-live", "targets": ["R2"]})
-    outputs, snapshots = len(store.output_entries()), len(store.snapshot_entries(SnapshotQuery(target="R2")))
+    outputs, snapshots = len(store.output_entries()), len(store.snapshot_entries(SnapshotQuery(targets=("R2",))))
     diff = api.post("/api/v1/diffs?include_output=true", json={"left": "R2@latest", "live": True, "save": False})
     assert diff.status_code == 200 and diff.json()["name"] is None and diff.json()["output"]["schema"] == 3
-    assert (len(store.output_entries()), len(store.snapshot_entries(SnapshotQuery(target="R2")))) == (
+    assert (len(store.output_entries()), len(store.snapshot_entries(SnapshotQuery(targets=("R2",))))) == (
         outputs,
         snapshots,
     )
@@ -204,7 +204,7 @@ def test_the_snapshots_are_found_across_targets_by_label_and_ticket(api, tickete
     found = api.get("/api/v1/snapshots", params={"label": "before", "ticket": "chg-2"}).json()
     assert [(item["label"], item["ticket"]) for item in found] == [("before", "CHG-2")]
     assert [item["label"] for item in api.get("/api/v1/snapshots", params={"label": "before"}).json()] == ["before"] * 3
-    assert len(api.get("/api/v1/snapshots", params={"limit": 2}).json()) == 2
+    assert api.get("/api/v1/snapshots", params={"limit": 2}).json() == everything[:2]
     assert api.get("/api/v1/snapshots", params={"limit": 0}).status_code == 422
     assert api.get("/api/v1/snapshots", params={"limit": 501}).status_code == 422
 
@@ -247,13 +247,13 @@ def test_a_pipeline_describes_a_diff_and_finds_it_by_ticket(api, ticketed) -> No
 def test_a_ticket_or_a_note_that_is_too_long_is_refused_before_any_work(api, store, method, path, body) -> None:
     before = (
         len(store.output_entries()),
-        [len(store.snapshot_entries(SnapshotQuery(target=target))) for target in store.targets()],
+        [len(store.snapshot_entries(SnapshotQuery(targets=(target,)))) for target in store.targets()],
     )
     response = getattr(api, method)(path, json=body)
     assert response.status_code == 422
     assert before == (
         len(store.output_entries()),
-        [len(store.snapshot_entries(SnapshotQuery(target=t))) for t in store.targets()],
+        [len(store.snapshot_entries(SnapshotQuery(targets=(t,)))) for t in store.targets()],
     )
 
 
