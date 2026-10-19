@@ -105,6 +105,8 @@ def take_snapshots(
     settings: Settings | None = None,
     origin: str = "python",
     progress: OnProgress | None = None,
+    *,
+    ticket: str | None = None,
 ) -> tuple[dict[str, Taken], dict[str, str]]:
     """The saved snapshots and the error messages, by target; a failed target does not stop the others.
 
@@ -120,7 +122,8 @@ def take_snapshots(
     runner = require(RUNNERS, name)
     options = chosen.plugin("runners", name, runner.settings_class)
     tasks = [
-        LoadTask(source=cls.source, target=target, label=label, captured_at=captured_at) for target, cls in plan.items()
+        LoadTask(source=cls.source, target=target, label=label, ticket=ticket, captured_at=captured_at)
+        for target, cls in plan.items()
     ]
     with recorded(store, "snapshot", origin, list(plan), chosen) as run:
         outcomes = runner.run(tasks, chosen, store, jobs, options, progress)
@@ -150,6 +153,8 @@ def snapshot_targets(
     origin: str = "python",
     jobs: int | None = None,
     captured_at: datetime | None = None,
+    *,
+    ticket: str | None = None,
 ) -> tuple[dict[str, Taken], dict[str, str]]:
     """Fetch the named targets, the hosts of `groups`, or every target, with `source` or the source of each platform.
 
@@ -161,7 +166,7 @@ def snapshot_targets(
         raise SnapdeltaError("give targets, groups or all_targets")
     plan = plan_sources(names, settings, cls)
     chosen = jobs or settings.snapshot.jobs
-    return take_snapshots(store, plan, label, captured_at, chosen, settings, origin=origin)
+    return take_snapshots(store, plan, label, captured_at, chosen, settings, origin=origin, ticket=ticket)
 
 
 def load_source(
@@ -172,9 +177,12 @@ def load_source(
     captured_at: datetime | None = None,
     settings: SourceSettings | None = None,
     host: Host | None = None,
+    ticket: str | None = None,
 ) -> Source:
     """A loaded source; any error of the plugin becomes a LoadError, which the CLI and the web show as a message."""
-    adapter = cls(files=files, target=target, label=label, captured_at=captured_at, settings=settings, host=host)
+    adapter = cls(
+        files=files, target=target, label=label, ticket=ticket, captured_at=captured_at, settings=settings, host=host
+    )
     with collecting(target) as lines:
         try:
             adapter.load()
@@ -194,8 +202,12 @@ def take_live(
     target: str | None = None,
     label: str | None = "live",
     save: bool = True,
+    ticket: str | None = None,
 ) -> Source:
-    """A fresh fetch of the target of `left` (or of `target`) with the source of `left`, saved as a snapshot."""
+    """A fresh fetch of the target of `left` (or of `target`) with the source of `left`, saved as a snapshot.
+
+    The snapshot has `ticket`, else the ticket of `left`.
+    """
     cls = require_source(left.source)
     if not cls.fetches:
         raise SnapdeltaError(
@@ -205,7 +217,9 @@ def take_live(
     name = target or left.target
     inventory = settings.hosts()
     host = inventory.host(name) if inventory and name else None
-    loaded = load_source(cls, target=name, label=label, settings=settings.source(cls), host=host)
+    loaded = load_source(
+        cls, target=name, label=label, settings=settings.source(cls), host=host, ticket=ticket or left.ticket
+    )
     if not save:
         return loaded
     # The saved snapshot gives the output a reference, so that its page shows the unchanged values too.

@@ -20,7 +20,7 @@ from .profile import AppliedProfile, flags, paired, refine
 from .settings import Profile
 from .snapshot import StoredSource
 from .source import Source
-from .ticket import TicketText, normalize_ticket
+from .ticket import TicketText, normalize_ticket, ticket_key
 
 SCHEMA = 3
 NOTE_LINE_MAX = 120
@@ -154,6 +154,7 @@ def compare(
 ) -> Output:
     """The diff of two loads; `models` limits it to some models that both loads hold, `profile` sets its rules."""
     left_side, right_side = _side(left), _side(right)
+    ticket = left.ticket if ticket_key(left.ticket) == ticket_key(right.ticket) else None
     common = common_models(left.top_level, right.top_level)
     if not common:
         raise NoCommonModelError(
@@ -182,6 +183,7 @@ def compare(
         summary=summary,
         diff=tree,
         profile=applied,
+        ticket=ticket,
     )
 
 

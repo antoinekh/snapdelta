@@ -55,9 +55,10 @@ def sample(
     label: str | None = None,
     captured_at: datetime = FIRST,
     interfaces: dict[str, int] | None = None,
+    ticket: str | None = None,
 ) -> SampleSource:
     """A loaded sample source, with no input file."""
-    adapter = SampleSource(target=target, label=label, captured_at=captured_at)
+    adapter = SampleSource(target=target, label=label, ticket=ticket, captured_at=captured_at)
     for name, mtu in (interfaces or {"eth0": 1500, "eth1": 9000}).items():
         adapter.add(SampleInterface(name=name, mtu=mtu))
     adapter.finish_load(target, ["interface"])

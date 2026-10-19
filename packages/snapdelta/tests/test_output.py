@@ -4,6 +4,7 @@ import pytest
 
 from snapdelta.errors import NoCommonModelError, SnapdeltaError
 from snapdelta.output import common_models, compare, described, load_output, note_line, save_output, skipped_models
+from snapdelta.testing import sample
 
 
 def test_identical_loads_have_no_difference(make_adapter) -> None:
@@ -123,3 +124,9 @@ def test_note_line_is_the_first_line_cut_at_120() -> None:
     assert note_line("\n first \nsecond") == "first"
     assert note_line("y" * 130) == "y" * 119 + "…"
     assert note_line(None) is None
+
+
+def test_a_diff_gets_the_ticket_that_both_sides_have() -> None:
+    assert compare(sample(ticket="CHG-1"), sample(target="R2", ticket="chg-1")).ticket == "CHG-1"
+    assert compare(sample(ticket="CHG-1"), sample(target="R2", ticket="CHG-2")).ticket is None
+    assert compare(sample(ticket="CHG-1"), sample(target="R2")).ticket is None

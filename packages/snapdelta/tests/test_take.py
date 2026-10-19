@@ -6,7 +6,7 @@ import pytest
 from snapdelta.errors import LoadError, SnapdeltaError
 from snapdelta.settings import Settings, SourceSettings
 from snapdelta.store import FileStore
-from snapdelta.take import load_source, take_snapshots, target_names
+from snapdelta.take import load_source, snapshot_targets, take_live, take_snapshots, target_names
 from snapdelta_example import ExampleLiveSource, ExampleSource
 
 
@@ -80,3 +80,20 @@ def test_a_plugin_bug_becomes_a_load_error_that_names_the_target() -> None:
     with pytest.raises(LoadError, match=r"^R1: KeyError: 'interfaces'$") as caught:
         load_source(BrokenSource, target="R1")
     assert isinstance(caught.value.__cause__, KeyError)
+
+
+def test_a_live_snapshot_takes_the_ticket_given_else_the_ticket_of_its_left_side(tmp_path) -> None:
+    store = FileStore(tmp_path)
+    left = load_source(ExampleLiveSource, target="R1", ticket="CHG-1")
+    assert take_live(store, left, Settings(), label="inherited").ticket == "CHG-1"
+    assert take_live(store, left, Settings(), label="given", ticket="CHG-2").ticket == "CHG-2"
+
+
+def test_snapshot_targets_saves_each_snapshot_with_the_ticket(tmp_path) -> None:
+    from snapdelta.source import register_source
+
+    register_source(ExampleLiveSource)
+    store = FileStore(tmp_path)
+    taken, failures = snapshot_targets(store, Settings(), "example-live", targets=["R1", "R2"], jobs=1, ticket="CHG-1")
+    assert failures == {}
+    assert [store.load_snapshot(item.reference).ticket for item in taken.values()] == ["CHG-1", "CHG-1"]

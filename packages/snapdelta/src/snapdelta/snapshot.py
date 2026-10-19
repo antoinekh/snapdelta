@@ -13,8 +13,9 @@ from .activity import LogLine
 from .errors import SnapdeltaError
 from .jsonfile import read_json, write_json
 from .source import InputRef, Source, require_source
+from .ticket import TicketText
 
-SCHEMA = 2
+SCHEMA = 3
 
 
 class SnapshotFile(BaseModel):
@@ -24,6 +25,7 @@ class SnapshotFile(BaseModel):
     target: str
     source: str
     label: str | None = None
+    ticket: TicketText
     captured_at: datetime
     created_at: datetime
     versions: dict[str, str]
@@ -40,7 +42,9 @@ class StoredSource(Source):
 
     def __init__(self, snapshot: SnapshotFile, reference: str | None = None) -> None:
         # The plugin constructor is skipped on purpose: it may need inputs that a snapshot does not have.
-        Source.__init__(self, target=snapshot.target, label=snapshot.label, captured_at=snapshot.captured_at)
+        Source.__init__(
+            self, target=snapshot.target, label=snapshot.label, ticket=snapshot.ticket, captured_at=snapshot.captured_at
+        )
         self.snapshot = snapshot
         self.reference = reference
         self.source = snapshot.source
@@ -59,6 +63,7 @@ def build_snapshot_file(adapter: Source) -> SnapshotFile:
         target=target,
         source=adapter.source,
         label=adapter.label,
+        ticket=adapter.ticket,
         captured_at=captured_at,
         created_at=datetime.now(UTC),
         versions=adapter.versions(),
