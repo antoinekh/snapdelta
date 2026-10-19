@@ -674,7 +674,7 @@ def save_settings(
     document = tomlkit.parse(path.read_text()) if path.is_file() else tomlkit.document()
     for table in removed:
         document = _remove_table(document, table.split("."))
-    created: list[tuple[Any, str]] = []
+    created: list[tuple[Any, list[str]]] = []
     for table, model in checked.items():
         defaults = type(model)()
         target = _table(document, table.split("."), created)
@@ -688,9 +688,9 @@ def save_settings(
                 target[key] = written
     # Only the tables that this save added go away when empty: a table of the file can hold comments.
     # A new profile stays even when empty: its name is what the user asked for.
-    for container, key in reversed(created):
-        if not container[key] and container is not document.get("profiles"):
-            del container[key]
+    for container, parts in reversed(created):
+        if not container[parts[-1]] and parts[:-1] != ["profiles"]:
+            del container[parts[-1]]
     _write_atomic(path, tomlkit.dumps(document))
 
 
@@ -782,13 +782,13 @@ def _comment_run_above(path: list[tuple[Container, int]]) -> tuple[Container, in
     return container, stop, stop
 
 
-def _table(document: Any, parts: list[str], created: list[tuple[Any, str]]) -> Any:
+def _table(document: Any, parts: list[str], created: list[tuple[Any, list[str]]]) -> Any:
     current = document
     super_tables = (*plugin_tables(), "profiles")
-    for part in parts:
+    for depth, part in enumerate(parts, 1):
         if part not in current:
             current[part] = tomlkit.table(is_super_table=part in super_tables)
-            created.append((current, part))
+            created.append((current, parts[:depth]))
         current = current[part]
     return current
 

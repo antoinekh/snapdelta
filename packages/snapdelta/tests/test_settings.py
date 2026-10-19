@@ -384,6 +384,15 @@ def test_removing_a_profile_of_out_of_order_tables_keeps_the_comment_of_the_next
     assert load_settings(tmp_path / "snapdelta.toml").profiles.keys() == {"b"}
 
 
+def test_saving_a_new_empty_profile_in_a_file_with_out_of_order_tables_keeps_it(tmp_path) -> None:
+    path = write(tmp_path / "snapdelta.toml", OUT_OF_ORDER_PROFILES)
+    save_settings(path, {"profiles.c": {}})
+    text = path.read_text()
+    assert "[profiles.c]" in text
+    assert all(line in text for line in OUT_OF_ORDER_PROFILES.splitlines() if line)
+    assert load_settings(path).profiles.keys() == {"a", "b", "c"}
+
+
 def test_removing_the_second_part_of_out_of_order_tables_keeps_the_comments_before_it(tmp_path) -> None:
     text = remove_profiles(tmp_path / "snapdelta.toml", OUT_OF_ORDER_PROFILES, "b")
     assert text == '[profiles.a]\ndescription = "a"\n\n# web\n[web]\nport = 9000\n\n'
