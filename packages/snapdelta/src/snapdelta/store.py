@@ -18,7 +18,7 @@ from pydantic import Field, ValidationError
 
 from .activity import Run, run_started_at
 from .errors import NotFoundError, SnapdeltaError
-from .jsonfile import write_json
+from .jsonfile import read_json, write_json
 from .output import SCHEMA as OUTPUT_SCHEMA
 from .output import Output, Review, described, load_output, reviewed, save_output
 from .plugins import (
@@ -564,10 +564,15 @@ class FileStore(Store):
     def _with_document(self, named: SnapshotEntry) -> SnapshotEntry:
         """The entry with the ticket and the source of its document; a document that does not read has neither."""
         try:
-            snapshot = self._read_snapshot(named.reference)
+            # Parsed as JSON only: validating the models of the data would make every list read a whole snapshot.
+            document = read_json(self._snapshot_path(named.reference), SNAPSHOT_SCHEMA)
         except SnapdeltaError:
             return named
-        return replace(named, ticket=snapshot.ticket, source=snapshot.source)
+        source = document.get("source")
+        if not isinstance(source, str):
+            return named
+        ticket = document.get("ticket")
+        return replace(named, ticket=normalize_ticket(ticket if isinstance(ticket, str) else None), source=source)
 
     def output_entries(self, query: OutputQuery = OutputQuery()) -> list[OutputEntry]:
         wanted = ticket_key(query.search) or ""

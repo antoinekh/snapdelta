@@ -84,6 +84,20 @@ def test_file_store_reads_the_current_layout_and_paths(make_adapter, tmp_path) -
     assert [entry.reference for entry in store.snapshot_entries(SnapshotQuery(target="R1"))] == ["R1/20260925T100000Z"]
 
 
+def test_the_file_store_lists_a_snapshot_without_validating_its_data(make_adapter, tmp_path) -> None:
+    import json
+
+    store = FileStore(tmp_path)
+    path = tmp_path / "snapshots" / "R1" / "20260925T100000Z.json"
+    path.parent.mkdir(parents=True)
+    save_snapshot(make_adapter(ticket="chg  1"), path)
+    path.write_text(json.dumps(json.loads(path.read_text()) | {"data": "not the models"}))
+    [entry] = store.snapshot_entries(SnapshotQuery(target="R1", ticket="CHG 1"))
+    assert (entry.ticket, entry.source) == ("chg 1", "example")
+    with pytest.raises(SnapdeltaError):
+        store.read_snapshot(entry.reference)
+
+
 def test_a_snapshot_saved_with_unmapped_still_reads(make_adapter, tmp_path) -> None:
     import json
 

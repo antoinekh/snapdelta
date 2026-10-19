@@ -9,7 +9,7 @@ snapdelta saves every snapshot, every diff output and every run in a store. Two 
 | File store (`FileStore`) | a directory: one JSON file per snapshot and per output | you want to read the files, back them up with any tool, or keep them in git (private repositories only) |
 
 > [!NOTE]
-> The file store is possible, but slow for a large number of snapshots and diffs: it has no index, so a search or a filter reads each document. Use SQLite (the default) or PostgreSQL for those.
+> The file store is possible, but slow for a large number of snapshots and diffs: it has no index, so every snapshot list reads each document of the snapshots it lists, for its ticket and source, and a search of the diffs reads the diffs. Use SQLite (the default) or PostgreSQL for those.
 
 ## Choose the store
 

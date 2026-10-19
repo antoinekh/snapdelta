@@ -23,7 +23,7 @@
 - A store lists snapshots and outputs with one query object each: `snapshot_entries(SnapshotQuery(target, label, ticket))` and `output_entries(OutputQuery(search, ticket))`, newest first. A `SnapshotQuery` with no target lists the snapshots of every target by capture time, then reference, and its label matches the label as the reference writes it (`before swap` and `before_swap` are the same). A `SnapshotEntry` carries its `ticket` and its `source`. A store backend of a plugin must follow this interface, which `StoreContract` checks.
 - The SQLite and PostgreSQL column `label` of a snapshot holds the label as the reference writes it, with an index; `captured_at` holds the second of the reference.
 - SQLite and PostgreSQL get the columns `ticket` and `ticket_key` (the ticket case-folded with `str.casefold()`) with an index on `ticket_key`. A SQLite or PostgreSQL store of 0.2 must be made again: every command stops with "this store was made by an older snapdelta".
-- The file store has no index: a search or a filter by ticket reads each document, which is slow on a large store; use SQLite or PostgreSQL for a large store.
+- The file store has no index: every snapshot list reads each document of the snapshots it lists (for its ticket and source), and a search of the diffs reads the diffs, which is slow on a large store; use SQLite or PostgreSQL for a large store.
 
 ### Removed
 
