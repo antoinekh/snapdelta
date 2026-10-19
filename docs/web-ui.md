@@ -45,7 +45,7 @@ The page of a target starts with its **timeline**: the 40 newest snapshots as do
 
 ## A snapshot
 
-![A snapshot of r1: metadata and one table per model](images/screenshots/snapshot.png)
+![A snapshot of R1: its ticket, the Export menu, metadata and one table per model](images/screenshots/snapshot.png)
 
 The label and the ticket (a chip that lists the snapshots of that ticket), the metadata of the load (time, models, inputs, warnings), then one table per model. **Export** downloads the snapshot as JSON; **API call** copies the `curl` command that reads it through the API. **Compare** opens a new diff from this snapshot; **Compare with live** fetches the target now and compares, with a profile or none.
 
