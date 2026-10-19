@@ -140,7 +140,7 @@ for entry in source.output_entries():
     target.save_output(source.load_output(entry.name))
 ```
 
-The references and names stay the same, so the outputs still find their snapshots. The plugins of the copied snapshots must be installed, because loading a snapshot needs its models.
+The references and names stay the same, so the outputs still find their snapshots. The plugins of the copied snapshots must be installed, because loading a snapshot needs its models. After the move, delete only `snapshots/`, `outputs/` and `runs/` of the old store, never the whole directory, because the SQLite file is in the same directory.
 
 ## Add a backend
 

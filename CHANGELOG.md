@@ -18,7 +18,7 @@
 
 ### Changed
 
-- SQLite is the default store: without `--store`, `SNAPDELTA_STORE` or `[store] location`, snapdelta uses `~/.local/share/snapdelta/snapdelta.db` (`$XDG_DATA_HOME/snapdelta/snapdelta.db`). The old default directory is not read any more; keep it with `--store ~/.local/share/snapdelta` or `[store] location`; in the container, with `SNAPDELTA_STORE=/data/snapdelta`. The file store stays a backend, documented as slow for a large number of snapshots and diffs.
+- SQLite is the default store: without `--store`, `SNAPDELTA_STORE` or `[store] location`, snapdelta uses `~/.local/share/snapdelta/snapdelta.db` (`$XDG_DATA_HOME/snapdelta/snapdelta.db`). The old default directory is not read any more; keep it with `--store ~/.local/share/snapdelta` or `[store] location`; in the container, with `SNAPDELTA_STORE=/data/snapdelta`. After a move to SQLite, delete only `snapshots/`, `outputs/` and `runs/` of the old store, because the SQLite file is in the same directory. The file store stays a backend, documented as slow for a large number of snapshots and diffs.
 - A diff has a note, free text on many lines (2000 characters at most), in place of its title and its description: `--note` replaces `--title` and `--description`, and so do `note` in the API and MCP and the **Note** field of the web UI. The lists show the first line of the note, cut at 120 characters.
 - The diff list has a **Ticket** column, and its filter finds the diffs by target or by a part of the ticket.
 - Snapshots and outputs are schema 3. `Store.resolve_snapshot(reference, ticket)` takes a ticket, and `describe_output(name, *, ticket, note)` sets the ticket and the note; a store backend of a plugin must do the same, which `StoreContract` checks.
