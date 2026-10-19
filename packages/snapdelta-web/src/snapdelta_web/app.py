@@ -251,15 +251,16 @@ def create_app(state: AppState) -> FastAPI:
             raise NotFoundError(f"no side {side!r}: left or right")
 
     def snapshot_options(target: str, side: str, offset: int, selected: str | None) -> dict[str, Any]:
-        entries = state.store.snapshot_entries(SnapshotQuery(targets=(target,)))
         start = max(offset, 0)
+        # One row more than the page tells that a next page exists.
+        entries = state.store.snapshot_entries(SnapshotQuery(targets=(target,), limit=PAGE_SIZE + 1, offset=start))
         return {
             "target": target,
             "side": side,
             "offset": start,
             "next_offset": start + PAGE_SIZE,
-            "entries": entries[start : start + PAGE_SIZE],
-            "more": len(entries) > start + PAGE_SIZE,
+            "entries": entries[:PAGE_SIZE],
+            "more": len(entries) > PAGE_SIZE,
             "selected": selected or f"{target}@{LATEST}",
         }
 
