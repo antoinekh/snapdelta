@@ -781,6 +781,13 @@ def test_the_diffs_list_filters_by_ticket(client, names, store) -> None:
     assert "No diff of the ticket CHG-5." in client.get("/diffs", params={"ticket": "CHG-5"}).text
 
 
+def test_the_empty_diff_list_names_what_was_searched(client) -> None:
+    searched = client.get("/diffs", params={"q": "zzz"}).text
+    assert 'No diff for a target or ticket that matches "zzz".' in searched
+    both = client.get("/diffs", params={"q": "zzz", "ticket": "CHG-5"}).text
+    assert 'No diff of the ticket CHG-5 for a target or ticket that matches "zzz".' in both
+
+
 def test_the_list_shows_the_first_line_of_a_note_cut_at_120_characters(client, names, store) -> None:
     long_line = "x" * 130
     store.describe_output(names.same, note=f"\n  {long_line}\nsecond\nthird")
