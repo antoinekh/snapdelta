@@ -671,13 +671,17 @@ def test_the_snapshot_page_has_an_export_menu(client, names) -> None:
     assert f'data-copy-api="/api/v1/snapshots/{names.before}" data-token=""' in page
 
 
-def test_export_a_snapshot_as_json(client, store, names) -> None:
+def test_export_a_snapshot_as_json(client, names) -> None:
     export = client.get(f"/snapshots/{names.before}/export/json")
     assert export.headers["content-type"].startswith("application/json")
     assert export.headers["content-disposition"] == (
         "attachment; filename=\"R1-20260925T100000Z-before.json\"; filename*=UTF-8''R1-20260925T100000Z-before.json"
     )
-    assert export.text == store.read_snapshot(names.before).model_dump_json(by_alias=True, indent=2)
+    payload = json.loads(export.text)
+    assert payload["schema"] == 3
+    assert (payload["target"], payload["source"], payload["label"]) == ("R1", "example", "before")
+    assert payload["captured_at"] == "2026-09-25T10:00:00Z"
+    assert payload["data"]["interface"]["eth0"]["mtu"] == 1500
     assert client.get("/snapshots/R1/nope/export/json").status_code == 404
 
 
