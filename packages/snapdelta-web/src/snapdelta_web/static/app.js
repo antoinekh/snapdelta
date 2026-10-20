@@ -362,6 +362,11 @@
     }
   });
 
+  // Enter in a target search would submit its form and add a q that the page does not use.
+  document.addEventListener("keydown", function (event) {
+    if (event.key === "Enter" && event.target.matches("[data-target-search]")) event.preventDefault();
+  });
+
   // Comparing with the values the form loaded with lets a reverted field clear the unsaved state, and the leave-page prompt follows it.
   var dirtyForm = null;
   var loadedValues = new Map();

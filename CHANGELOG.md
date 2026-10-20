@@ -52,6 +52,7 @@
 - A **Prune** error on **Admin > Store** (no rule, or a number that is not whole) shows in the Prune panel with the typed values, in place of the full error page.
 - **Admin > About** shows the store location once, without the backend name before it (`sqlite: sqlite:///...`).
 - Creating a profile with an empty name says **Give a name**, in place of the profile name format message.
+- Enter in the **Target** search of the snapshots page no longer submits the filter form and adds an unused `?q=` to the URL.
 
 ## v0.2.0
 
