@@ -422,6 +422,8 @@
 
   document.querySelectorAll("form[data-track-changes]").forEach(function (form) {
     savedValues.set(form, savedFields(form));
+    // The page of a failed save holds the values that were sent, so the state of the form comes from the file and not from the markup.
+    showChanges(form);
   });
 
   document.addEventListener("input", trackChanges);
