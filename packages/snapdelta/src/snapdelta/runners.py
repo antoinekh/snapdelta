@@ -36,6 +36,7 @@ class LoadTask(BaseModel):
     source: str
     target: str
     label: str | None = None
+    ticket: str | None = None
     captured_at: datetime | None = None
 
 
@@ -106,6 +107,7 @@ def execute(task: LoadTask, settings: Settings, store: Store) -> LoadOutcome:
                 cls,
                 target=task.target,
                 label=task.label,
+                ticket=task.ticket,
                 captured_at=task.captured_at,
                 settings=settings.source(cls),
                 host=inventory.host(task.target) if inventory else None,

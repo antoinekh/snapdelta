@@ -6,8 +6,13 @@
 <div class="title-row">
   <h1>{{ adapter.target }}</h1>
   <span class="tag">{{ adapter.source }}</span>{% if adapter.label %}<span class="tag label">{{ adapter.label }}</span>{% endif %}
+  {% if adapter.ticket %}<a class="ticket-chip" href="/snapshots?ticket={{ adapter.ticket | urlencode }}">{{ adapter.ticket }}</a>{% endif %}
   <a class="button primary push" href="/new?left={{ reference }}">Compare</a>
   {% if live %}<form method="post" action="/diffs/live" class="inline-form"><input type="hidden" name="left" value="{{ reference }}">{% if profiles %}<select name="profile" aria-label="Profile"><option value="">No profile</option>{% for name, text in profiles %}<option value="{{ name }}">{{ text }}</option>{% endfor %}</select>{% endif %}<button type="submit" class="button" data-busy="Fetching…">Compare with live</button></form>{% endif %}
+  <details class="menu">
+    <summary class="button quiet">Export</summary>
+    <div class="menu-items"><a href="/snapshots/{{ reference }}/export/json" download>json</a><button type="button" class="menu-button" data-copy-api="/api/v1/snapshots/{{ reference }}" data-token="{{ 'true' if signed_in }}" title="Copy a curl command that reads this snapshot through the API">API call</button></div>
+  </details>
   <form method="post" action="/snapshots/{{ reference }}/delete" data-confirm="Delete this snapshot?"><button type="submit" class="button danger quiet">Delete</button></form>
 </div>
 <dl class="facts">

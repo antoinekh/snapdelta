@@ -8,7 +8,7 @@ The values below are the defaults.
 
 ```toml
 [store]
-location = "~/.local/share/snapdelta"   # a directory, "sqlite://<path>", or "SCHEME://..." of a plugin backend
+location = "sqlite://~/.local/share/snapdelta/snapdelta.db"   # "sqlite://<path>", a directory, or "SCHEME://..." of a plugin backend
 
 [stores.sqlite]                         # one table per store backend that has settings, typed by its class
 busy_timeout_s = 30                     # how long a writer waits for the lock of the database
@@ -53,7 +53,7 @@ on = ["failure", "differences"]         # the runs to send
 ignore = ["*.description"]
 ```
 
-The default store is `$XDG_DATA_HOME/snapdelta` when `XDG_DATA_HOME` is set, else `~/.local/share/snapdelta`. See [stores.md](stores.md) for the two store backends and [parallel.md](parallel.md) for `jobs`.
+The default store is the SQLite file `$XDG_DATA_HOME/snapdelta/snapdelta.db` when `XDG_DATA_HOME` is set, else `~/.local/share/snapdelta/snapdelta.db`. See [stores.md](stores.md) for the two store backends and [parallel.md](parallel.md) for `jobs`.
 
 A relative path in the file is relative to the directory of the file, and `~` is your home directory. So a project can keep its store next to its settings: `location = ".store"` or `location = "sqlite://data/snapdelta.db"`.
 

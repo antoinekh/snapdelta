@@ -4,6 +4,7 @@
 <div class="title-row"><h1>Admin</h1></div>
 {% include "_admin_nav.html" %}
 {% if saved %}<p class="notice">Saved to <code>{{ saved }}</code>.{% if restart %} The address, the port and the access change at the next start of <code>snapdelta-web</code>.{% endif %}</p>{% endif %}
+{% if deleted %}<p class="notice">Deleted the profile <code>{{ deleted }}</code> from <code>{{ file }}</code>.</p>{% endif %}
 {% if failure %}<p class="notice warn">Not saved: {{ failure }}</p>{% endif %}
 {% if errors %}<p class="notice warn">Not saved: correct the values in red.</p>{% endif %}
 {% for warning in warnings %}<p class="notice warn">{{ warning }}</p>{% endfor %}
@@ -12,22 +13,24 @@
   An empty field takes its default.{% if section == "profiles" %} The names of the models and attributes are in <a href="/admin/models">Models</a>.{% endif %}
 </p>
 {% if section == "settings" %}<nav class="section-links" aria-label="Sections">{% for group in groups %}<a href="#group-{{ group.table | replace('.', '-') }}">{{ group.title }}</a>{% endfor %}</nav>{% endif %}
-<form method="post" action="/admin/{{ section }}" class="settings-form" data-track-changes>
-  {% for group in groups %}
-  {% set new_profile = group.table == "profiles.+" %}
-  <fieldset class="settings-group" id="{% if group.table.startswith('profiles.') %}{{ 'new-profile' if new_profile else 'profile-' ~ group.table.removeprefix('profiles.') }}{% else %}group-{{ group.table | replace('.', '-') }}{% endif %}">
-    <legend>{{ group.title }}</legend>
-    {% if group.removable %}<label class="check remove-group"><input type="checkbox" name="{{ group.table }}.remove" value="true"> Remove profile</label>{% endif %}
-    {% if new_profile %}
-    <div class="setting-row {{ 'has-error' if 'new_profile' in errors }}">
-      <label for="f-new-profile" class="setting-name mono">name</label>
-      <div class="setting-input">
-        <input id="f-new-profile" name="new_profile" value="{{ posted.new_profile if posted else '' }}" placeholder="change-window" autocomplete="off">
-        {% if 'new_profile' in errors %}<p class="field-error">{{ errors['new_profile'] }}</p>{% endif %}
-      </div>
-      <span></span>
+{% if section == "profiles" %}
+<form method="post" action="/admin/profiles/new" class="settings-group new-profile" autocomplete="off">
+  <div class="setting-row {{ 'has-error' if new_profile_field in errors }}">
+    <label for="f-new-profile" class="setting-name">Name</label>
+    <div class="setting-input">
+      <input id="f-new-profile" name="{{ new_profile_field }}" value="{{ posted[new_profile_field] if posted else '' }}" placeholder="change-window" required>
+      {% if new_profile_field in errors %}<p class="field-error">{{ errors[new_profile_field] }}</p>{% endif %}
     </div>
-    {% endif %}
+    <button type="submit" class="button">Create</button>
+  </div>
+</form>
+{% endif %}
+<form method="post" action="/admin/{{ section }}" class="settings-form" autocomplete="off" data-track-changes>
+  {% for group in groups %}
+  {% set profile_name = group.table.removeprefix("profiles.") if section == "profiles" else none %}
+  <fieldset class="settings-group" id="{% if profile_name %}profile-{{ profile_name }}{% else %}group-{{ group.table | replace('.', '-') }}{% endif %}">
+    <legend>{{ group.title }}</legend>
+    {% if profile_name %}<button type="submit" form="delete-profile-{{ profile_name }}" class="button danger quiet delete-profile">Delete</button>{% endif %}
     {% for field in group.fields %}
     {% set value = posted[field.key] if posted is not none and field.key in posted else field.value %}
     <div class="setting-row {{ 'has-error' if field.key in errors }}">
@@ -37,37 +40,41 @@
       </div>
       <div class="setting-input">
         {% if field.kind == "bool" %}
-        <input type="checkbox" id="f-{{ field.key }}" name="{{ field.key }}" value="true" {{ "checked" if value == "true" }}>
+        <input type="checkbox" id="f-{{ field.key }}" name="{{ field.key }}" value="true" data-saved="{{ "true" if field.value == "true" else "" }}" {{ "checked" if value == "true" }}>
         {% elif field.kind == "secret" %}
         <div class="secret-inputs">
-          <select name="{{ field.key }}.backend" aria-label="Secret backend of {{ field.name }}">{% for backend in secret_backends %}<option value="{{ backend }}" {{ "selected" if field.secret and field.secret.backend == backend }}>{{ backend }}</option>{% endfor %}</select>
-          <input id="f-{{ field.key }}" name="{{ field.key }}.reference" placeholder="name or path in the backend" autocomplete="off">
-          <input type="password" name="{{ field.key }}.plain" placeholder="or a new value" autocomplete="new-password">
-          {% if field.secret %}<label class="check"><input type="checkbox" name="{{ field.key }}.clear" value="true"> Remove</label>{% endif %}
+          <select name="{{ field.key }}.backend" aria-label="Secret backend of {{ field.name }}" data-saved="{% if field.secret %}{{ field.secret.backend }}{% elif secret_backends %}{{ secret_backends[0] }}{% endif %}">{% for backend in secret_backends %}<option value="{{ backend }}" {{ "selected" if field.secret and field.secret.backend == backend }}>{{ backend }}</option>{% endfor %}</select>
+          <input id="f-{{ field.key }}" name="{{ field.key }}.reference" placeholder="name or path in the backend" autocomplete="off" data-saved="">
+          <input type="password" name="{{ field.key }}.plain" placeholder="or a new value" autocomplete="new-password" data-saved="">
+          {% if field.secret %}<label class="check"><input type="checkbox" name="{{ field.key }}.clear" value="true" data-saved=""> Remove</label>{% endif %}
         </div>
         <span class="muted small">Now: {{ field.secret.describe() if field.secret else "not set" }}. Both empty keeps it.</span>
         {% elif field.kind == "choice" %}
-        <select id="f-{{ field.key }}" name="{{ field.key }}"><option value="">{{ field.default }} (default)</option>{% for choice in field.choices %}<option{{ " selected" if value == choice }}>{{ choice }}</option>{% endfor %}</select>
+        <select id="f-{{ field.key }}" name="{{ field.key }}" data-saved="{{ field.value }}"><option value="">{{ field.default }} (default)</option>{% for choice in field.choices %}<option{{ " selected" if value == choice }}>{{ choice }}</option>{% endfor %}</select>
         {% elif field.kind == "list" %}
-        <textarea id="f-{{ field.key }}" name="{{ field.key }}" rows="{{ [value.count("\n") + 2, 3] | max }}" placeholder="{{ field.example or 'one per line' }}" class="mono">{{ value }}</textarea>
+        <textarea id="f-{{ field.key }}" name="{{ field.key }}" rows="{{ [value.count("\n") + 2, 3] | max }}" placeholder="{{ field.example or 'one per line' }}" class="mono" data-saved="{{ field.value }}">{{ value }}</textarea>
         {% elif field.kind == "table" %}
-        <textarea id="f-{{ field.key }}" name="{{ field.key }}" rows="{{ [value.count("\n") + 2, 3] | max }}" placeholder="{{ field.example or 'KEY = VALUE, one per line' }}" class="mono">{{ value }}</textarea>
+        <textarea id="f-{{ field.key }}" name="{{ field.key }}" rows="{{ [value.count("\n") + 2, 3] | max }}" placeholder="{{ field.example or 'KEY = VALUE, one per line' }}" class="mono" data-saved="{{ field.value }}">{{ value }}</textarea>
         {% else %}
-        <input id="f-{{ field.key }}" name="{{ field.key }}" value="{{ value }}" placeholder="{{ field.default }}"
+        <input id="f-{{ field.key }}" name="{{ field.key }}" value="{{ value }}" placeholder="{{ field.default }}" data-saved="{{ field.value }}"
                {% if field.kind == "number" %}inputmode="decimal"{% endif %} autocomplete="off">
         {% endif %}
         {% if field.note %}<span class="small warn-text">In use: {{ field.in_use }}, from {{ field.note }}, which wins over this file.</span>{% endif %}
         {% if field.key in errors %}<p class="field-error">{{ errors[field.key] }}</p>{% endif %}
       </div>
-      {% if new_profile %}<span></span>{% else %}<span class="tag origin-{{ field.origin }}">{{ field.origin }}</span>{% endif %}
+      {% if section == "settings" %}<span class="tag origin-{{ field.origin }}">{{ field.origin }}</span>{% endif %}
     </div>
     {% endfor %}
   </fieldset>
   {% endfor %}
   <div class="save-bar">
     <span class="dirty-status" data-dirty-status hidden>Unsaved changes</span>
-    <span class="muted small">Saves to <code>{{ target_file }}</code></span>
+    <button type="reset" class="button" data-discard disabled>Discard</button>
     <button type="submit" class="button primary" aria-keyshortcuts="Control+S Meta+S">Save {{ section }}</button>
   </div>
 </form>
+{% for group in groups if section == "profiles" %}
+{% set profile_name = group.table.removeprefix("profiles.") %}
+<form id="delete-profile-{{ profile_name }}" method="post" action="/admin/profiles/{{ profile_name | urlencode }}/delete" data-confirm="Delete the profile {{ profile_name }}?"></form>
+{% endfor %}
 {% endblock %}

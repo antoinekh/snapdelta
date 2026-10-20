@@ -7,19 +7,21 @@ from typing import Annotated, Any, Literal, Self
 from fastapi import FastAPI, Query, Request
 from fastapi.openapi.docs import get_swagger_ui_html
 from fastapi.responses import HTMLResponse, JSONResponse, PlainTextResponse, Response
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 from snapdelta.about import components, package_version, plugins
 from snapdelta.activity import Run, RunStatus
 from snapdelta.doctor import plugin_reports
 from snapdelta.errors import NotFoundError, SnapdeltaError
 from snapdelta.expected import ExpectationCheck, ExpectedChange
-from snapdelta.output import Output, Review, Side, new_review
+from snapdelta.output import NOTE_MAX, Output, Review, Side, new_review
 from snapdelta.plugins import package_of
 from snapdelta.render import renderer
 from snapdelta.snapshot import SnapshotFile
 from snapdelta.source import SOURCES, source_classes
+from snapdelta.store import OutputQuery, SnapshotEntry, SnapshotQuery
 from snapdelta.take import TargetDiff, diff_snapshots, diff_targets, snapshot_targets
+from snapdelta.ticket import TicketChange, TicketText
 
 from .access import LruCache
 from .state import AppState
@@ -67,14 +69,30 @@ class SnapshotInfo(BaseModel):
     target: str
     label: str | None
     captured_at: datetime
+    ticket: str | None
+    source: str
+
+    @classmethod
+    def of(cls, entry: SnapshotEntry) -> Self:
+        return cls(
+            reference=entry.reference,
+            target=entry.target,
+            label=entry.label,
+            captured_at=entry.captured_at,
+            ticket=entry.ticket,
+            source=entry.source,
+        )
 
 
 class SnapshotRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
     source: str | None = Field(default=None, description="The source; none: the platform of each inventory host.")
     targets: list[str] = Field(default=[], description="Target names.")
     groups: list[str] = Field(default=[], description="Inventory groups: every host of each group.")
     all_targets: bool = Field(default=False, description="Every target of the source, or every inventory host.")
     label: str | None = Field(default=None, description="The label of the snapshots, for example before.")
+    ticket: TicketText = Field(description="The ticket, issue or any reference of the work.")
 
 
 class SnapshotResult(BaseModel):
@@ -84,14 +102,20 @@ class SnapshotResult(BaseModel):
 
 
 class DiffRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
     left: str = Field(description="A snapshot: TARGET/NAME, TARGET@latest or TARGET@LABEL (newest with that label).")
     right: str | None = Field(default=None, description="The right snapshot; none with live.")
     live: bool = Field(default=False, description="Fetch the target of left now as the right side.")
     target: str | None = Field(default=None, description="With live: another target than the one of left.")
     models: list[str] = Field(default=[], description="Only these models; none: every model of both sides.")
     profile: str | None = Field(default=None, description="A compare profile of the settings.")
-    title: str | None = None
-    description: str | None = None
+    ticket: TicketText = Field(
+        description="The ticket of the diff; the labels are looked up in the snapshots of that ticket."
+    )
+    note: str | None = Field(
+        default=None, max_length=NOTE_MAX, description="Free text about the diff, on many lines when needed."
+    )
     expected: list[ExpectedChange] | None = Field(
         default=None, description="The changes that must happen; the result says whether the diff is them and no other."
     )
@@ -99,6 +123,8 @@ class DiffRequest(BaseModel):
 
 
 class TargetsDiffRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
     targets: list[str] = Field(default=[], description="Target names.")
     groups: list[str] = Field(default=[], description="Every host of these inventory groups.")
     all_targets: bool = Field(default=False, description="Every target of the store that has a left snapshot.")
@@ -107,8 +133,12 @@ class TargetsDiffRequest(BaseModel):
     live: bool = Field(default=False, description="Fetch each target now as the right side, at the same time.")
     models: list[str] = Field(default=[], description="Only these models; none: every model of both sides.")
     profile: str | None = Field(default=None, description="A compare profile of the settings.")
-    title: str | None = None
-    description: str | None = None
+    ticket: TicketText = Field(
+        description="The ticket of the diff; the labels are looked up in the snapshots of that ticket."
+    )
+    note: str | None = Field(
+        default=None, max_length=NOTE_MAX, description="Free text about the diff, on many lines when needed."
+    )
     expected: list[ExpectedChange] | None = Field(
         default=None, description="The changes that must happen, on each target or on the one that each names."
     )
@@ -122,8 +152,8 @@ class DiffResult(BaseModel):
     summary: dict[str, int]
     left: Side
     right: Side
-    title: str | None
-    description: str | None
+    ticket: str | None
+    note: str | None
     as_expected: bool | None = Field(
         default=None, description="With expected changes: the diff holds them and no other change."
     )
@@ -156,8 +186,8 @@ def diff_result(output: Output, name: str | None, include_output: bool) -> DiffR
         summary=output.summary,
         left=output.left,
         right=output.right,
-        title=output.title,
-        description=output.description,
+        ticket=output.ticket,
+        note=output.note,
         as_expected=output.expectations.as_expected if output.expectations else None,
         expectations=output.expectations,
         output=output if include_output else None,
@@ -187,7 +217,8 @@ def targets_result(results: Mapping[str, TargetDiff], include_output: bool = Fal
 class DiffItem(BaseModel):
     name: str
     created_at: datetime
-    title: str | None
+    ticket: str | None
+    note: str | None
     left: Side
     right: Side
     has_differences: bool
@@ -201,7 +232,8 @@ class DiffItem(BaseModel):
         return cls(
             name=name,
             created_at=output.created_at,
-            title=output.title,
+            ticket=output.ticket,
+            note=output.note,
             left=output.left,
             right=output.right,
             has_differences=output.has_differences(),
@@ -236,6 +268,8 @@ class RunItem(BaseModel):
 
 
 class ReviewRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
     key: str = Field(description="MODEL:UNIQUE_ID of a changed object, as in the reviews of the output.")
     accepted: bool = Field(default=True, description="False withdraws the acceptance.")
     by: str | None = Field(default=None, description="Who accepts.")
@@ -250,8 +284,12 @@ class ReviewState(BaseModel):
 
 
 class DescribeRequest(BaseModel):
-    title: str | None = Field(default=None, description="The new title; none keeps it, an empty text removes it.")
-    description: str | None = Field(default=None, description="The new description; none keeps it.")
+    model_config = ConfigDict(extra="forbid")
+
+    ticket: TicketChange = Field(description="The new ticket; none keeps it, an empty text removes it.")
+    note: str | None = Field(
+        default=None, max_length=NOTE_MAX, description="The new note; none keeps it, an empty text removes it."
+    )
 
 
 def create_api(state: AppState, row_cache: LruCache[Any, Any]) -> FastAPI:
@@ -324,14 +362,15 @@ def create_api(state: AppState, row_cache: LruCache[Any, Any]) -> FastAPI:
         return state.store.targets(q)
 
     @api.get("/snapshots")
-    def snapshots(target: str) -> list[SnapshotInfo]:
-        """The snapshots of one target, newest first."""
-        return [
-            SnapshotInfo(
-                reference=entry.reference, target=entry.target, label=entry.label, captured_at=entry.captured_at
-            )
-            for entry in state.store.snapshot_entries(target)
-        ]
+    def snapshots(
+        target: Annotated[list[str] | None, Query(description="Only these targets (whole names); repeat it.")] = None,
+        label: str | None = None,
+        ticket: str | None = None,
+        limit: Annotated[int, Query(ge=1, le=MAX_LIMIT)] = 50,
+    ) -> list[SnapshotInfo]:
+        """The snapshots of every target, newest first; target, label and ticket (any case) narrow them."""
+        query = SnapshotQuery(targets=tuple(target or ()), label=label, ticket=ticket, limit=limit)
+        return [SnapshotInfo.of(entry) for entry in state.store.snapshot_entries(query)]
 
     @api.get("/snapshots/{target}/{name}")
     def snapshot(target: str, name: str) -> SnapshotFile:
@@ -350,6 +389,7 @@ def create_api(state: AppState, row_cache: LruCache[Any, Any]) -> FastAPI:
             request.all_targets,
             request.label,
             origin="api",
+            ticket=request.ticket,
         )
         saved = {target: item.reference for target, item in taken.items()}
         return SnapshotResult(ok=not failures, saved=saved, failed=failures)
@@ -366,8 +406,8 @@ def create_api(state: AppState, row_cache: LruCache[Any, Any]) -> FastAPI:
             target=request.target,
             models=request.models,
             profile=request.profile,
-            title=request.title,
-            description=request.description,
+            ticket=request.ticket,
+            note=request.note,
             expected=request.expected,
             save=request.save,
             origin="api",
@@ -388,8 +428,8 @@ def create_api(state: AppState, row_cache: LruCache[Any, Any]) -> FastAPI:
             live=request.live,
             models=request.models,
             profile=request.profile,
-            title=request.title,
-            description=request.description,
+            ticket=request.ticket,
+            note=request.note,
             expected=request.expected,
             save=request.save,
             origin="api",
@@ -397,11 +437,13 @@ def create_api(state: AppState, row_cache: LruCache[Any, Any]) -> FastAPI:
         return targets_result(results, include_output)
 
     @api.get("/diffs")
-    def diffs(q: str = "", limit: Annotated[int, Query(ge=1, le=MAX_LIMIT)] = 50) -> list[DiffItem]:
-        """The newest saved diffs, whose left or right target contains q."""
+    def diffs(
+        q: str = "", ticket: str | None = None, limit: Annotated[int, Query(ge=1, le=MAX_LIMIT)] = 50
+    ) -> list[DiffItem]:
+        """The newest saved diffs, whose left target, right target or ticket contains q; ticket: exactly that one."""
         return [
             DiffItem.of(entry.name, state.store.load_output(entry.name))
-            for entry in state.store.output_entries(q)[:limit]
+            for entry in state.store.output_entries(OutputQuery(search=q, ticket=ticket))[:limit]
         ]
 
     @api.get("/diffs/{name}", response_model=None)
@@ -415,12 +457,9 @@ def create_api(state: AppState, row_cache: LruCache[Any, Any]) -> FastAPI:
 
     @api.patch("/diffs/{name}")
     def describe(name: str, request: DescribeRequest) -> DiffItem:
-        """Change the title or the description of a saved diff."""
+        """Change the ticket or the note of a saved diff."""
         resolved = state.store.resolve_output(name)
-        current = state.store.load_output(resolved)
-        title = current.title if request.title is None else request.title
-        description = current.description if request.description is None else request.description
-        output = state.store.describe_output(resolved, title, description)
+        output = state.store.describe_output(resolved, ticket=request.ticket, note=request.note)
         row_cache.discard((state.store.location, resolved))
         return DiffItem.of(resolved, output)
 

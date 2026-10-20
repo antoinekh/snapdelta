@@ -89,7 +89,7 @@ sequenceDiagram
 
 - The compare uses only the top-level models that both sides loaded; the others are listed as skipped. `--model` narrows it further.
 - In a diff, `-` is the left value and `+` the right value: diffsync takes the right side as its source.
-- A snapshot and an output never change after the save; a list reads names only, never whole documents.
+- A snapshot never changes after the save; a list never loads the models of a snapshot.
 - Loads run in threads: several targets at once (`--jobs`), and several fetches of one target at once with `fetch_parallel()`. See [parallel.md](parallel.md).
 
 ## Where to extend

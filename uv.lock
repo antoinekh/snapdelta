@@ -976,7 +976,7 @@ wheels = [
 
 [[package]]
 name = "snapdelta"
-version = "0.2.0"
+version = "0.3.0"
 source = { editable = "packages/snapdelta" }
 dependencies = [
     { name = "diffsync" },
@@ -1015,7 +1015,7 @@ requires-dist = [{ name = "snapdelta", editable = "packages/snapdelta" }]
 
 [[package]]
 name = "snapdelta-postgres"
-version = "0.2.0"
+version = "0.3.0"
 source = { editable = "packages/snapdelta-postgres" }
 dependencies = [
     { name = "psycopg", extra = ["binary"] },
@@ -1032,7 +1032,7 @@ requires-dist = [
 
 [[package]]
 name = "snapdelta-web"
-version = "0.2.0"
+version = "0.3.0"
 source = { editable = "packages/snapdelta-web" }
 dependencies = [
     { name = "fastapi" },

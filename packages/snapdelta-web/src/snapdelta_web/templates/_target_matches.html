@@ -1,0 +1,5 @@
+{% from "_macros.html" import target_pick %}
+{% for target in targets %}{{ target_pick(target) }}
+{% endfor %}{% if typed %}{{ target_pick(typed, hint="Use") }}
+{% endif %}{% if more %}<p class="muted small">{{ more }} more: type more of the name</p>
+{% endif %}{% if not targets and not typed and not more %}<p class="muted small">No match</p>{% endif %}

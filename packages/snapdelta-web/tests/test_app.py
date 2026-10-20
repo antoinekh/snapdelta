@@ -1,11 +1,16 @@
+import html
 import json
 import re
 import time
 from datetime import UTC, datetime
+from urllib.parse import quote
 
 import pytest
 from fastapi.testclient import TestClient
 
+from snapdelta.output import compare
+from snapdelta.store import FileStore, SnapshotEntry, SnapshotQuery
+from snapdelta.testing import sample, sample_run
 from snapdelta_example import ExampleSource
 from snapdelta_web import views
 
@@ -19,6 +24,14 @@ def test_home_redirects_to_the_diffs(client) -> None:
     response = client.get("/", follow_redirects=False)
     assert response.status_code in (302, 307)
     assert response.headers["location"] == "/diffs"
+
+
+def test_the_theme_toggle_shows_a_sun_and_a_moon(client) -> None:
+    page = client.get("/diffs").text
+    button = page.split("data-theme-toggle")[1].split("</button>")[0]
+    assert 'class="theme-sun"' in button and 'class="theme-moon"' in button
+    assert "◐" not in button
+    assert '[data-theme="dark"] .theme-toggle .theme-moon { display: block; }' in client.get("/static/app.css").text
 
 
 def test_diffs_list(client, names) -> None:
@@ -148,7 +161,7 @@ def test_no_common_model_is_a_400_page(client, store, names, tmp_path) -> None:
 
 
 def test_deleted_snapshot_gives_the_changed_values_only(client, store, names) -> None:
-    for entry in store.snapshot_entries("R1"):
+    for entry in store.snapshot_entries(SnapshotQuery(targets=("R1",))):
         store.delete_snapshot(entry.reference)
     page = client.get(f"/diffs/{names.same}")
     assert page.status_code == 200
@@ -205,10 +218,128 @@ def test_a_missing_side_is_a_400_page(client, names) -> None:
     assert "select a left and a right snapshot" in page.text
 
 
-def test_snapshots_tab_lists_targets_then_their_snapshots(big_client) -> None:
-    listing = big_client.get("/snapshots", params={"q": "dev00"})
-    assert listing.status_code == 200
-    assert 'href="/snapshots/DEV001"' in listing.text and "R1" not in listing.text.split("<main")[1]
+def listed_references(page: str) -> list[str]:
+    return re.findall(r'class="row-link" href="/snapshots/([^"]+)"', page)
+
+
+def test_the_snapshots_page_lists_every_snapshot_newest_first(client, two_targets) -> None:
+    page = client.get("/snapshots").text
+    entries = two_targets.snapshot_entries()
+    assert listed_references(page) == [entry.reference for entry in entries]
+    assert {entry.target for entry in entries} == {"R1", "R2"}
+    assert 'href="/snapshots/R2"' in page and 'href="/snapshots/R1"' in page
+    assert page.count('<a class="ticket-chip" href="/snapshots?ticket=CHG-1">CHG-1</a>') == 3
+    assert page.count('<span class="tag">example</span>') == len(entries)
+    assert re.findall(r"<th[^>]*>([A-Za-z ]+)</th>", page.split("<thead>")[1].split("</thead>")[0]) == [
+        "Captured",
+        "Target",
+        "Label",
+        "Ticket",
+        "Source",
+    ]
+    assert "checked" not in page.split("<thead>")[0]
+
+
+def test_the_snapshots_page_filters_by_target_label_and_ticket(client, two_targets) -> None:
+    both = client.get("/snapshots", params={"label": "before", "ticket": "chg-1"}).text
+    assert [reference.split("/")[0] for reference in listed_references(both)] == ["R2", "R1"]
+    assert 'name="label" value="before"' in both and 'name="ticket" value="chg-1"' in both
+    only_r1 = client.get("/snapshots", params={"target": "R1", "ticket": "CHG-1"}).text
+    assert len(listed_references(only_r1)) == 2 and "R2/" not in only_r1
+    assert 'name="target" value="R1" checked' in only_r1
+
+
+def test_the_snapshots_page_filters_on_several_targets(big_client) -> None:
+    page = big_client.get("/snapshots", params={"target": ["DEV001", "DEV002"]}).text
+    assert {reference.split("/")[0] for reference in listed_references(page)} == {"DEV001", "DEV002"}
+    assert re.findall(r'name="target" value="([^"]+)" checked', page) == ["DEV001", "DEV002"]
+    links = [html.unescape(link) for link in re.findall(r'<a class="button quiet" href="([^"]+)"', page)]
+    assert links == ["/snapshots?target=DEV001&target=DEV002&page=2"]
+
+
+def test_a_repeated_or_blank_target_is_one_chip(big_client) -> None:
+    page = big_client.get("/snapshots", params={"target": ["DEV001", "", "DEV001"]}).text
+    assert re.findall(r'name="target" value="([^"]+)" checked', page) == ["DEV001"]
+    assert {reference.split("/")[0] for reference in listed_references(page)} == {"DEV001"}
+
+
+def test_a_target_name_is_escaped_in_its_chip_and_encoded_in_the_links(store, make_app, monkeypatch) -> None:
+    from snapdelta_web import app as app_module
+
+    monkeypatch.setattr(app_module, "PAGE_SIZE", 1)
+    entries = [
+        SnapshotEntry(name, f"{name}/20260925T100000Z", datetime(2026, 9, 25, tzinfo=UTC), None, None, "example")
+        for name in ("A&B", "<c>")
+    ]
+    monkeypatch.setattr(store, "snapshot_entries", lambda query: entries)
+    client = TestClient(make_app(store), base_url="http://127.0.0.1")
+    page = client.get("/snapshots", params={"target": ["A&B", "<c>"]}).text
+    assert re.findall(r'name="target" value="([^"]+)" checked', page) == ["A&amp;B", "&lt;c&gt;"]
+    assert "<c>" not in page
+    assert 'href="/snapshots/A%26B/20260925T100000Z"' in page and 'href="/snapshots/A%26B"' in page
+    [link] = re.findall(r'<a class="button quiet" href="([^"]+)"', page)
+    assert html.unescape(link) == "/snapshots?target=A%26B&target=%3Cc%3E&page=2"
+    monkeypatch.setattr(store, "snapshot_entries", lambda query: [])
+    empty = client.get("/snapshots", params={"target": ["A&B", "<c>"], "label": "none"}).text
+    assert "No snapshot for the targets A&amp;B, &lt;c&gt;, the label none." in empty
+
+
+def test_the_snapshots_picker_lists_the_targets_of_the_store_without_the_chosen_ones(two_targets, make_app) -> None:
+    client = TestClient(make_app(two_targets), base_url="http://127.0.0.1")
+    matches = client.get("/targets/matches", params={"q": "r", "target": ["R1"]}).text
+    assert 'name="target" value="R2"' in matches and 'value="R1"' not in matches
+    only_r1 = client.get("/targets/matches", params={"q": "R1"}).text
+    assert 'value="R1"' in only_r1 and 'value="R2"' not in only_r1
+    assert "No match" in client.get("/targets/matches", params={"q": "zzz"}).text
+    assert "Use" not in client.get("/targets/matches", params={"q": "zzz"}).text
+
+
+def test_the_snapshots_and_take_pages_share_the_picker(client, two_targets) -> None:
+    snapshots = client.get("/snapshots").text
+    take = client.get("/take").text
+    for page in (snapshots, take):
+        assert "data-target-picker" in page and "data-picked-targets" in page and "data-target-search" in page
+    assert 'hx-get="/targets/matches"' in snapshots and 'hx-get="/take/targets"' in take
+    assert 'hx-trigger="input changed delay:200ms, focus once, refresh"' in snapshots
+
+
+def test_the_snapshots_pager_keeps_the_filters(two_targets, monkeypatch, make_app) -> None:
+    from snapdelta_web import app as app_module
+
+    monkeypatch.setattr(app_module, "PAGE_SIZE", 2)
+    page = TestClient(make_app(two_targets), base_url="http://127.0.0.1").get("/snapshots", params={"ticket": "Chg-1"})
+    assert 'href="/snapshots?ticket=Chg-1&page=2"' in page.text
+
+
+def test_the_snapshots_ticket_link_is_encoded_and_the_text_escaped(client, save_r2) -> None:
+    save_r2("x", "<b> #2", datetime(2026, 9, 26, tzinfo=UTC))
+    page = client.get("/snapshots").text
+    assert '<a class="ticket-chip" href="/snapshots?ticket=%3Cb%3E%20%232">&lt;b&gt; #2</a>' in page
+    assert "<b> #2" not in page
+    filtered = client.get("/snapshots", params={"ticket": "<b> #2"}).text
+    assert 'name="ticket" value="&lt;b&gt; #2"' in filtered
+
+
+def test_a_snapshots_filter_with_no_match_names_the_filters(client, two_targets) -> None:
+    page = client.get("/snapshots", params={"target": "R2", "label": "after", "ticket": "<i>"})
+    assert page.status_code == 200
+    assert "No snapshot for the target R2, the label after, the ticket &lt;i&gt;." in page.text
+    assert '<table class="list' not in page.text and "No snapshot yet" not in page.text
+    assert "No snapshot for the ticket CHG-9." in client.get("/snapshots", params={"ticket": "CHG-9"}).text
+
+
+def test_the_snapshots_page_of_an_empty_store_offers_the_first_snapshot(tmp_path, make_app) -> None:
+    client = TestClient(make_app(FileStore(tmp_path / "empty")), base_url="http://127.0.0.1")
+    assert "No snapshot yet." in client.get("/snapshots").text
+
+
+def test_a_page_number_beyond_the_integer_range_of_sql_is_a_400_page(client) -> None:
+    page = client.get("/snapshots", params={"page": 10**18})
+    assert page.status_code == 400
+    assert "from 0 to 9223372036854775807" in page.text
+
+
+def test_the_target_page_pages_its_snapshots(big_client) -> None:
     target = big_client.get("/snapshots/DEV001", params={"page": 2})
     assert target.status_code == 200
     assert target.text.count('href="/snapshots/DEV001/') == 10
@@ -226,17 +357,31 @@ def test_admin_page_shows_the_store(client) -> None:
     page = client.get("/admin")
     assert page.status_code == 200
     assert "file" in page.text and "Prune" in page.text
+    assert "<dt>Diffs</dt>" in page.text and "> Diffs too</label>" in page.text
+    assert ">Keep newest, per target<input" in page.text
+    assert 'placeholder="per target"' not in page.text
 
 
 def test_prune_previews_then_deletes(client, store) -> None:
     preview = client.post("/admin/prune", data={"keep": "1"})
     assert preview.status_code == 200
     assert "R1/20260925T110000Z-after" in preview.text and "R1/20260925T100000Z-before" in preview.text
-    assert len(store.snapshot_entries("R1")) == 3
+    assert len(store.snapshot_entries(SnapshotQuery(targets=("R1",)))) == 3
     done = client.post("/admin/prune", data={"keep": "1", "confirm": "1"}, follow_redirects=False)
     assert done.status_code == 303
-    assert [entry.reference for entry in store.snapshot_entries("R1")] == ["R1/20260925T113000Z-config"]
+    assert [entry.reference for entry in store.snapshot_entries(SnapshotQuery(targets=("R1",)))] == [
+        "R1/20260925T113000Z-config"
+    ]
     assert client.post("/admin/prune", data={}).status_code == 400
+
+
+def test_prune_by_age_previews_then_deletes_the_old_runs(client, store) -> None:
+    store.save_run(sample_run(0))
+    preview = client.post("/admin/prune", data={"older_than": "30"})
+    assert sample_run(0).id in preview.text and "<b>1</b> runs would be deleted" in preview.text
+    done = client.post("/admin/prune", data={"older_than": "30", "confirm": "1"}, follow_redirects=False)
+    assert done.status_code == 303 and "and%201%20runs" in done.headers["location"]
+    assert store.runs() == []
 
 
 def test_prune_refuses_a_bad_number(client, store) -> None:
@@ -246,7 +391,29 @@ def test_prune_refuses_a_bad_number(client, store) -> None:
     assert keep.status_code == 400 and "cannot be negative" in keep.text
     assert age.status_code == 400 and "cannot be negative" in age.text
     assert too_big.status_code == 400 and "too big" in too_big.text
-    assert len(store.snapshot_entries("R1")) == 3
+    assert len(store.snapshot_entries(SnapshotQuery(targets=("R1",)))) == 3
+
+
+def test_a_prune_error_stays_on_the_store_page_with_the_typed_values(client) -> None:
+    empty = client.post("/admin/prune", data={"target": "R1"})
+    assert empty.status_code == 400
+    assert "give a number of snapshots to keep, an age, or both" in empty.text
+    assert 'class="notice warn"' in empty.text and 'name="target" value="R1"' in empty.text
+    bad = client.post("/admin/prune", data={"target": "R1", "keep": "many", "outputs": "1"})
+    assert bad.status_code == 400
+    assert "keep and age must be whole numbers" in bad.text
+    assert 'name="keep" value="many"' in bad.text and 'name="outputs" value="1" checked' in bad.text
+    assert "would be deleted" not in bad.text
+
+
+def test_the_delete_buttons_follow_one_rule(client, names) -> None:
+    single = 'class="button danger quiet">Delete</button>'
+    bulk = 'class="button danger">Delete</button>'
+    assert single in client.get(f"/snapshots/{names.config}").text
+    assert single in client.get(f"/diffs/{names.same}").text
+    assert bulk in client.get("/diffs").text
+    assert bulk in client.get("/snapshots/R1").text
+    assert bulk in client.post("/admin/prune", data={"keep": "1"}).text
 
 
 def test_delete_buttons(client, store, names) -> None:
@@ -254,7 +421,7 @@ def test_delete_buttons(client, store, names) -> None:
     assert f'action="/snapshots/{names.config}/delete"' in page.text
     response = client.post(f"/snapshots/{names.config}/delete", follow_redirects=False)
     assert (response.status_code, response.headers["location"]) == (303, "/snapshots/R1")
-    assert names.config not in [entry.reference for entry in store.snapshot_entries("R1")]
+    assert names.config not in [entry.reference for entry in store.snapshot_entries(SnapshotQuery(targets=("R1",)))]
     response = client.post(f"/diffs/{names.same}/delete", follow_redirects=False)
     assert (response.status_code, response.headers["location"]) == (303, "/diffs")
     assert names.same not in [entry.name for entry in store.output_entries()]
@@ -296,7 +463,7 @@ def test_take_a_snapshot_of_one_target(client, store) -> None:
         "/take", data={"source": "example-live", "target": "R2", "label": "live"}, follow_redirects=False
     )
     page = finished_job(client, taken)
-    [entry] = store.snapshot_entries("R2")
+    [entry] = store.snapshot_entries(SnapshotQuery(targets=("R2",)))
     assert entry.reference.endswith("-live") and f'href="/snapshots/{entry.reference}"' in page
     assert '<span class="job-status saved">Saved</span>' in page and "Retry" not in page
     unreachable = client.post("/take", data={"source": "example-live", "target": "R9"}, follow_redirects=False)
@@ -345,7 +512,7 @@ def test_delete_selected_snapshots_of_a_target(client, store, names) -> None:
         "/snapshots/R1/delete", data={"references": [names.after], "page": "1"}, follow_redirects=False
     )
     assert (response.status_code, response.headers["location"]) == (303, "/snapshots/R1?page=1&deleted=1")
-    assert [entry.reference for entry in store.snapshot_entries("R1")] == [names.config]
+    assert [entry.reference for entry in store.snapshot_entries(SnapshotQuery(targets=("R1",)))] == [names.config]
     assert "Deleted 1." in client.get(response.headers["location"]).text
     last = client.post("/snapshots/R1/delete", data={"references": [names.config]}, follow_redirects=False)
     assert last.headers["location"] == "/snapshots?deleted=1"
@@ -359,8 +526,24 @@ def test_take_several_targets_at_once(client, store) -> None:
     page = finished_job(client, taken)
     assert "<b>2</b> of <b>2</b> done: 2 saved, 0 failed" in page
     for target in ("R1", "R2"):
-        reference = store.snapshot_entries(target)[0].reference
+        reference = store.snapshot_entries(SnapshotQuery(targets=(target,)))[0].reference
         assert f'href="/snapshots/{reference}"' in page
+
+
+def test_take_with_a_ticket_saves_it_on_each_snapshot(client, store) -> None:
+    form = client.get("/take").text
+    assert form.index('name="label"') < form.index('name="ticket"') and 'name="ticket" maxlength="80"' in form
+    data = {"source": "example-live", "target": ["R1", "R2"], "label": "live", "ticket": "  CHG-5 "}
+    taken = client.post("/take", data=data, follow_redirects=False)
+    page = finished_job(client, taken)
+    assert '<span class="ticket-chip">CHG-5</span>' in page
+    for target in ("R1", "R2"):
+        assert store.snapshot_entries(SnapshotQuery(targets=(target,), ticket="chg-5"))[0].reference.endswith("-live")
+    assert store.snapshot_entries(SnapshotQuery(targets=("R2",), ticket="CHG-6")) == []
+    unreachable = client.post("/take", data=data | {"target": "R9"}, follow_redirects=False)
+    finished_job(client, unreachable)
+    retried = client.post(unreachable.headers["location"] + "/retry", follow_redirects=False)
+    assert '<span class="ticket-chip">CHG-5</span>' in finished_job(client, retried)
 
 
 def test_take_all_targets_reports_the_failures(client, store) -> None:
@@ -462,12 +645,13 @@ def test_the_lists_come_one_page_at_a_time(big_store, monkeypatch, make_app) -> 
     monkeypatch.setattr(app_module, "PAGE_SIZE", 7)
     client = TestClient(make_app(big_store), base_url="http://127.0.0.1")
     page = client.get("/snapshots")
-    assert page.text.count('class="row-link mono" href="/snapshots/DEV') == 7
+    assert page.text.count('class="row-link" href="/snapshots/') == 7
 
 
 def test_admin_has_store_and_settings_sections(client) -> None:
     page = client.get("/admin")
     assert 'href="/admin/settings"' in page.text and '<a aria-current="page" href="/admin">' in page.text
+    assert '<a aria-current="page" href="/admin">' in client.post("/admin/prune", data={"keep": "1"}).text
 
 
 def test_the_target_search_can_be_refreshed_after_an_uncheck(client) -> None:
@@ -480,17 +664,69 @@ def test_export_a_diff_in_each_format(client, names) -> None:
     assert f'href="/diffs/{names.same}/export/markdown"' in page
     markdown = client.get(f"/diffs/{names.same}/export/markdown")
     assert markdown.headers["content-type"].startswith("text/markdown")
-    assert markdown.headers["content-disposition"] == f'attachment; filename="{names.same}.md"'
+    assert markdown.headers["content-disposition"] == (
+        f"attachment; filename=\"{names.same}.md\"; filename*=UTF-8''{names.same}.md"
+    )
     assert "## interface" in markdown.text
     assert client.get(f"/diffs/{names.same}/export/csv").text.startswith("model,object,parents")
     assert client.get(f"/diffs/{names.same}/export/pdf").status_code == 400
     assert client.get("/diffs/nope/export/csv").status_code == 404
 
 
+def test_the_snapshot_page_has_an_export_menu(client, names) -> None:
+    page = client.get(f"/snapshots/{names.before}").text
+    assert f'<a href="/snapshots/{names.before}/export/json" download>json</a>' in page
+    assert f'data-copy-api="/api/v1/snapshots/{names.before}" data-token=""' in page
+
+
+def test_export_a_snapshot_as_json(client, names) -> None:
+    export = client.get(f"/snapshots/{names.before}/export/json")
+    assert export.headers["content-type"].startswith("application/json")
+    assert export.headers["content-disposition"] == (
+        "attachment; filename=\"R1-20260925T100000Z-before.json\"; filename*=UTF-8''R1-20260925T100000Z-before.json"
+    )
+    payload = json.loads(export.text)
+    assert payload["schema"] == 3
+    assert (payload["target"], payload["source"], payload["label"]) == ("R1", "example", "before")
+    assert payload["captured_at"] == "2026-09-25T10:00:00Z"
+    assert payload["data"]["interface"]["eth0"]["mtu"] == 1500
+    assert client.get("/snapshots/R1/nope/export/json").status_code == 404
+
+
+def test_an_export_of_a_target_that_is_not_latin_1_has_an_ascii_and_an_encoded_file_name(client, store) -> None:
+    reference = store.save_snapshot(sample(target="Łódź-R1"))
+    stamp = reference.partition("/")[2]
+    snapshot = client.get(f"/snapshots/{reference}/export/json")
+    assert snapshot.status_code == 200
+    assert snapshot.headers["content-disposition"] == (
+        f"attachment; filename=\"__d_-R1-{stamp}.json\"; filename*=UTF-8''%C5%81%C3%B3d%C5%BA-R1-{stamp}.json"
+    )
+    name = store.save_output(compare(sample(target="Łódź-R1"), sample(target="Łódź-R2")))
+    diff = client.get(f"/diffs/{name}/export/csv")
+    assert diff.status_code == 200
+    assert diff.headers["content-disposition"].endswith(f"filename*=UTF-8''{quote(name)}.csv")
+
+
+def test_export_a_snapshot_in_an_unknown_format_is_refused(client, names) -> None:
+    assert client.get(f"/snapshots/{names.before}/export/csv").status_code == 404
+
+
+def test_the_snapshot_page_shows_its_ticket_as_a_chip(client, store, save_r2) -> None:
+    save_r2("x", "<b> #2", datetime(2026, 9, 26, tzinfo=UTC))
+    reference = store.snapshot_entries(SnapshotQuery(targets=("R2",)))[0].reference
+    page = client.get(f"/snapshots/{reference}").text
+    assert '<a class="ticket-chip" href="/snapshots?ticket=%3Cb%3E%20%232">&lt;b&gt; #2</a>' in page
+    assert "<b> #2" not in page
+
+
+def test_a_snapshot_without_ticket_has_no_chip(client, names) -> None:
+    assert "ticket-chip" not in client.get(f"/snapshots/{names.before}").text
+
+
 def test_compare_a_snapshot_with_its_target_now(client, store) -> None:
     taken = client.post("/take", data={"source": "example-live", "target": ["R2"]}, follow_redirects=False)
     finished_job(client, taken)
-    reference = store.snapshot_entries("R2")[0].reference
+    reference = store.snapshot_entries(SnapshotQuery(targets=("R2",)))[0].reference
     page = client.get(f"/snapshots/{reference}").text
     assert 'action="/diffs/live"' in page and "Compare with live" in page
     response = client.post("/diffs/live", data={"left": reference}, follow_redirects=False)
@@ -583,7 +819,7 @@ def test_take_a_group_by_platform(store, make_app) -> None:
     assert 'value="R1"' in targets and 'value="R2"' in targets
     taken = client.post("/take", data={"source": "", "group": ["core"], "label": "inv"}, follow_redirects=False)
     assert "2 saved, 0 failed" in finished_job(client, taken)
-    assert [entry.label for entry in store.snapshot_entries("R2")] == ["inv"]
+    assert [entry.label for entry in store.snapshot_entries(SnapshotQuery(targets=("R2",)))] == ["inv"]
 
 
 def test_new_diff_filters_the_targets_by_group(store, make_app) -> None:
@@ -600,33 +836,44 @@ def test_new_diff_filters_the_targets_by_group(store, make_app) -> None:
 def test_the_inventory_tab(store, client, make_app) -> None:
     page = inventory_client(store, make_app).get("/admin/inventory").text
     assert "Inventory in use:" in page and '<td class="mono strong">EDGE1</td>' in page
+    assert "<h2>Groups</h2>" in page and "<h2>Hosts</h2>" in page
     assert "192.0.2.10:2222" in page and '<span class="tag">example-live</span>' in page
     assert "No inventory." in client.get("/admin/inventory").text
 
 
-def test_a_diff_gets_a_title_at_the_compare_and_later(client, store, names) -> None:
-    data = {"left": names.before, "right": names.after, "title": "Change 42", "description": "New uplink"}
+def test_a_diff_gets_a_note_at_the_compare_and_later(client, store, names) -> None:
+    data = {"left": names.before, "right": names.after, "note": "New uplink\nSecond line"}
     name = client.post("/diffs", data=data, follow_redirects=False).headers["location"].removeprefix("/diffs/")
     page = client.get(f"/diffs/{name}").text
-    assert '<h1 class="diff-title">Change 42</h1>' in page and "New uplink" in page
-    assert ">Change 42</a>" in client.get("/diffs").text
-    client.post(f"/diffs/{name}/describe", data={"title": "Change 43", "description": ""})
-    assert (store.load_output(name).title, store.load_output(name).description) == ("Change 43", None)
-    assert ">Change 43</a>" in client.get("/diffs").text
+    assert '<p class="diff-note">New uplink\nSecond line</p>' in page
+    assert ">New uplink</a>" in client.get("/diffs").text
+    client.post(f"/diffs/{name}/describe", data={"note": "Done"})
+    assert store.load_output(name).note == "Done"
+    assert ">Done</a>" in client.get("/diffs").text
+    client.post(f"/diffs/{name}/describe", data={"note": ""})
+    assert store.load_output(name).note is None
 
 
-def test_every_page_links_the_project_and_the_about_tab_shows_the_versions(client) -> None:
+def test_every_page_links_the_project_and_the_about_tab_shows_the_versions(client, store) -> None:
     page = client.get("/diffs").text
-    assert 'href="https://github.com/antoinekh/snapdelta"' in page and ">snapdelta 0.2.0</a>" in page
+    assert 'href="https://github.com/antoinekh/snapdelta"' in page and ">snapdelta 0.3.0</a>" in page
     about = client.get("/admin/about").text
     assert "snapdelta-web" in about and "diffsync" in about and "Python" in about
     assert "snapdelta-example" in about and "source example, source example-live" in about
     assert "Apache 2.0" in about
+    assert f'<div class="wide"><dt>Store</dt><dd class="mono">{store.info().location}</dd></div>' in about
 
 
 def test_new_diff_selects_a_snapshot_by_its_label(client, names) -> None:
     page = client.get("/new", params={"left": "R1@before", "right": "R1@latest"}).text
     assert f'value="{names.before}" checked' in page and 'value="R1@latest" checked' in page
+
+
+def test_new_diff_selects_the_snapshot_of_its_ticket(client, ticketed) -> None:
+    page = client.get("/new", params={"left": "R1@before", "right": "R1@after", "ticket": " chg-1 "}).text
+    assert 'value="R1/20260926T100000Z-before" checked' in page
+    assert 'value="R1/20260926T110000Z-before" checked' not in page
+    assert 'value="R1/20260926T120000Z-after" checked' in page
 
 
 def test_pages_load_nothing_from_another_site(client) -> None:
@@ -695,6 +942,13 @@ def test_a_card_has_a_link_and_the_diff_an_api_call(client, names) -> None:
     assert 'id="card-interface:eth0"' in linked and 'id="card-interface:eth3"' not in linked
 
 
+def test_the_palette_finds_a_diff_by_ticket_and_note(client, names, store) -> None:
+    store.describe_output(names.same, ticket="CHG-77", note="Core uplink\nsecond")
+    for query in ("chg-77", "uplink"):
+        found = client.get("/palette", params={"q": query}).text
+        assert f'href="/diffs/{names.same}"' in found and "Core uplink" in found
+
+
 def test_the_palette_finds_targets_diffs_and_pages(client, names) -> None:
     empty = client.get("/palette").text
     assert "Diffs" in empty and 'href="/admin/profiles"' in empty and "Targets" not in empty
@@ -710,21 +964,117 @@ def test_every_page_has_the_shortcuts_window(client) -> None:
     assert "data-shortcuts-open" in page
 
 
-def test_new_diff_keeps_the_title_and_tells_a_missing_label(client, names) -> None:
+def test_new_diff_keeps_the_ticket_and_tells_a_missing_label(client, ticketed) -> None:
     page = client.get(
-        "/new", params={"left": "R1@before", "right": "R1@nope", "title": "Change 7", "profile": "none"}
+        "/new", params={"left": "R1@before", "right": "R1@nope", "ticket": "CHG-1", "note": "Uplink", "profile": "none"}
     ).text
-    assert f'value="{names.before}" checked' in page and 'value="R1@latest" checked' in page
-    assert "No snapshot of R1 is labelled nope: the newest snapshot is selected." in page
-    assert 'value="Change 7"' in page and "data-swap-sides" in page and 'data-preset-labels="before after"' in page
+    assert 'value="R1/20260926T100000Z-before" checked' in page and 'value="R1@latest" checked' in page
+    assert "No snapshot of R1 is labelled nope in the ticket CHG-1: the newest snapshot is selected." in page
+    assert 'value="CHG-1"' in page and ">Uplink</textarea>" in page
+    assert "data-swap-sides" in page and "data-preset-labels" not in page
 
 
-def test_the_diffs_of_one_change_are_grouped(client, names, store) -> None:
-    for name, title in ((names.same, "CHG-9: first"), (names.partial, "CHG-9: second")):
-        store.describe_output(name, title, None)
+def test_the_diffs_list_shows_the_ticket_column(client, names, store) -> None:
+    store.describe_output(names.same, ticket="CHG-9", note="first")
     page = client.get("/diffs").text
-    assert page.count('<tr class="group-day">') == 1 and '<span class="group-name">CHG-9</span>' in page
-    assert '<a class="row-link" href="/diffs/' in page and ">first</a>" in page and ">second</a>" in page
+    assert "<th>Ticket</th>" in page
+    assert page.count('<a class="ticket-chip" href="/diffs?ticket=CHG-9">CHG-9</a>') == 1
+    assert ">first</a>" in page and "change-chip" not in page
+    assert page.count('<td class="ticket-cell"></td>') == len(store.output_entries()) - 1
+    assert 'placeholder="Filter by target or ticket"' in page
+
+
+def test_the_ticket_chip_links_to_the_list_of_its_ticket(client, names, store) -> None:
+    store.describe_output(names.same, ticket="Migration Lyon #2")
+    page = client.get("/diffs").text
+    assert 'href="/diffs?ticket=Migration%20Lyon%20%232"' in page
+
+
+def test_the_diffs_list_filters_by_ticket(client, names, store) -> None:
+    store.describe_output(names.same, ticket="CHG-1")
+    store.describe_output(names.partial, ticket="CHG-10")
+    lower = client.get("/diffs", params={"ticket": "chg-1"}).text
+    assert f"/diffs/{names.same}" in lower and f"/diffs/{names.partial}" not in lower
+    page = client.get("/diffs", params={"ticket": "CHG-1"}).text
+    assert '<a href="/diffs">All diffs</a>' in page and '<span class="ticket-chip">CHG-1</span>' in page
+    assert 'name="ticket" value="CHG-1"' in page
+    searched = client.get("/diffs", params={"q": "chg-1"}).text
+    assert f"/diffs/{names.same}" in searched and f"/diffs/{names.partial}" in searched
+    assert "No diff of the ticket CHG-5." in client.get("/diffs", params={"ticket": "CHG-5"}).text
+
+
+def test_the_empty_diff_list_names_what_was_searched(client) -> None:
+    searched = client.get("/diffs", params={"q": "zzz"}).text
+    assert 'No diff for a target or ticket that matches "zzz".' in searched
+    both = client.get("/diffs", params={"q": "zzz", "ticket": "CHG-5"}).text
+    assert 'No diff of the ticket CHG-5 for a target or ticket that matches "zzz".' in both
+
+
+def test_the_list_shows_the_first_line_of_a_note_cut_at_120_characters(client, names, store) -> None:
+    long_line = "x" * 130
+    store.describe_output(names.same, note=f"\n  {long_line}\nsecond\nthird")
+    page = client.get("/diffs").text
+    assert f">{'x' * 119}…</a><div" in page
+
+
+def test_a_ticket_and_a_note_are_escaped_in_the_list_and_on_the_diff_page(client, names, store) -> None:
+    store.describe_output(names.same, ticket="<b>&", note="<i>")
+    listed = client.get("/diffs").text
+    assert ">&lt;b&gt;&amp;</a>" in listed and ">&lt;i&gt;</a>" in listed
+    page = client.get(f"/diffs/{names.same}").text
+    assert '<a class="ticket-chip" href="/diffs?ticket=%3Cb%3E%26">&lt;b&gt;&amp;</a>' in page
+    assert '<p class="diff-note">&lt;i&gt;</p>' in page
+
+
+def test_a_diff_gets_a_ticket_at_the_compare_and_later(client, store, names) -> None:
+    data = {"left": names.before, "right": names.after, "ticket": "CHG-9"}
+    name = client.post("/diffs", data=data, follow_redirects=False).headers["location"].removeprefix("/diffs/")
+    assert store.load_output(name).ticket == "CHG-9"
+    page = client.get(f"/diffs/{name}").text
+    assert 'class="ticket-chip" href="/diffs?ticket=CHG-9">CHG-9</a>' in page and ">Edit</summary>" in page
+    assert 'name="ticket" value="CHG-9" maxlength="80"' in page and 'name="note" rows="3" maxlength="2000"' in page
+    assert page.index('name="ticket"') < page.index('name="note"')
+    client.post(f"/diffs/{name}/describe", data={"ticket": "", "note": "kept"})
+    assert (store.load_output(name).ticket, store.load_output(name).note) == (None, "kept")
+
+
+def test_describing_with_an_empty_note_keeps_the_ticket(client, store, names) -> None:
+    store.describe_output(names.same, ticket="CHG-9", note="old")
+    client.post(f"/diffs/{names.same}/describe", data={"ticket": "CHG-9", "note": ""})
+    assert (store.load_output(names.same).ticket, store.load_output(names.same).note) == ("CHG-9", None)
+    client.post(f"/diffs/{names.same}/describe", data={"ticket": "CHG-9", "note": "new"})
+    assert (store.load_output(names.same).ticket, store.load_output(names.same).note) == ("CHG-9", "new")
+
+
+def test_a_diff_without_ticket_has_an_edit_button_that_adds_one(client, names) -> None:
+    page = client.get(f"/diffs/{names.same}").text
+    assert ">Edit</summary>" in page and "ticket-chip" not in page and "diff-note" not in page
+
+
+def test_new_diff_compares_the_snapshots_of_its_ticket(client, store, ticketed) -> None:
+    data = {"left": "R1@before", "right": "R1@after", "ticket": "chg-1"}
+    name = client.post("/diffs", data=data, follow_redirects=False).headers["location"].removeprefix("/diffs/")
+    output = store.load_output(name)
+    assert output.ticket == "CHG-1" and output.left.snapshot == "R1/20260926T100000Z-before"
+    other = client.post("/diffs", data={"left": "R1@before", "right": "R1@after", "ticket": "CHG-2"})
+    assert other.status_code == 404
+
+
+def test_many_targets_get_the_ticket_and_the_note(client, store, ticketed) -> None:
+    data = {"left": "before", "right": "after", "live": "false", "ticket": "CHG-1", "note": "VLAN 20"}
+    result = client.post("/diffs/targets", data=data).text
+    assert '<span class="ticket-chip">CHG-1</span>' in result and "<h1>Diffs of many targets</h1>" in result
+    newest = max(store.output_entries(), key=lambda entry: entry.created_at)
+    assert (store.load_output(newest.name).ticket, store.load_output(newest.name).note) == ("CHG-1", "VLAN 20")
+
+
+def test_the_new_diff_forms_have_a_ticket_and_a_note_field(client) -> None:
+    for params in ({"ticket": "CHG-9"}, {"ticket": "CHG-9", "many": "true"}):
+        page = client.get("/new", params=params).text
+        assert 'name="ticket" maxlength="80"' in page and 'value="CHG-9"' in page
+        assert 'name="note"' in page and 'maxlength="2000"' in page
+        assert page.index('name="ticket"') < page.index('name="note"')
+        assert 'name="title"' not in page and 'name="change"' not in page
 
 
 def wait_for_runs(store, count: int = 1) -> None:
@@ -761,15 +1111,15 @@ def test_the_activity_lists_the_runs_and_shows_their_log(client, store, monkeypa
     assert client.get(f"/api/v1/runs/{run.id}").json()["log"][0]["target"] == "R1"
 
 
-def test_the_new_diff_page_compares_many_targets(client, store) -> None:
+def test_the_new_diff_page_compares_many_targets(client, store, ticketed) -> None:
     page = client.get("/new", params={"many": "true"}).text
     assert 'action="/diffs/targets"' in page and 'name="live" value="true"' in page and 'action="/diffs"' not in page
-    data = {"left": "before", "right": "after", "live": "false", "title": "CHG-9", "description": "Swap of the core"}
+    data = {"left": "before", "right": "after", "live": "false", "ticket": "CHG-1", "note": "Swap of the core"}
     result = client.post("/diffs/targets", data=data)
     assert result.status_code == 200
-    assert "<h1>CHG-9</h1>" in result.text and "1 changed, 0 unchanged, 0 failed" in result.text
+    assert "<h1>Diffs of many targets</h1>" in result.text and "1 changed, 0 unchanged, 0 failed" in result.text
     newest = max(store.output_entries(), key=lambda entry: entry.created_at)
-    assert store.load_output(newest.name).description == "Swap of the core"
+    assert store.load_output(newest.name).note == "Swap of the core"
     assert 'href="/diffs/' in result.text
     refused = client.post("/diffs/targets", data={"left": "nope", "right": "after"})
     assert refused.status_code == 400 and "give targets, groups or all_targets" in refused.text

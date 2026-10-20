@@ -1,5 +1,6 @@
 from datetime import UTC, datetime
 
+from snapdelta.store import SnapshotQuery
 from snapdelta_web import views
 from snapdelta_web.access import SnapshotCache
 
@@ -98,13 +99,32 @@ def test_model_deltas_and_lists(store, names) -> None:
 def test_lists_are_paged_and_filtered(big_store) -> None:
     rows, _, pager = views.output_rows(big_store, query="dev", page=2, size=50)
     assert (len(rows), pager.number, pager.has_previous, pager.has_next) == (10, 2, True, False)
-    targets, pager = views.target_rows(big_store, page=1, size=50)
-    assert (len(targets), pager.has_next) == (31, False)
-    first = next(row for row in targets if row.name == "DEV000")
-    assert (first.count, first.latest.minute) == (60, 59)
+    entries, pager = views.snapshot_list(big_store, SnapshotQuery(), page=36, size=50)
+    assert (len(entries), pager.has_next) == (50, True)
+    entries, pager = views.snapshot_list(big_store, SnapshotQuery(), page=37, size=50)
+    assert (len(entries), pager.has_next) == (3, False)
+    entries, pager = views.snapshot_list(big_store, SnapshotQuery(targets=("DEV000",)), page=1, size=50)
+    assert (len(entries), pager.has_next, entries[0].captured_at.minute) == (50, True, 59)
     snapshots, unreadable, pager = views.target_snapshot_rows(big_store, "DEV000", page=2, size=50)
     assert (len(snapshots), unreadable, pager.has_next) == (10, [], False)
     assert snapshots[0].target == "DEV000"
+
+
+def test_a_snapshot_page_has_a_next_page_only_when_a_row_follows(big_store) -> None:
+    query = SnapshotQuery(targets=("DEV000",))
+    for size, has_next in ((59, True), (60, False), (61, False)):
+        entries, pager = views.snapshot_list(big_store, query, page=1, size=size)
+        assert (len(entries), pager.has_next) == (min(size, 60), has_next)
+    entries, pager = views.snapshot_list(big_store, query, page=7, size=10)
+    assert (entries, pager.has_next) == ([], False)
+
+
+def test_a_snapshot_page_reads_one_page_from_the_store(big_store, monkeypatch) -> None:
+    asked: list[SnapshotQuery] = []
+    original = big_store.snapshot_entries
+    monkeypatch.setattr(big_store, "snapshot_entries", lambda query: asked.append(query) or original(query))
+    views.snapshot_list(big_store, SnapshotQuery(), page=3, size=50)
+    assert [(query.limit, query.offset) for query in asked] == [(51, 100)]
 
 
 def test_target_matches_are_limited(big_store) -> None:
@@ -230,20 +250,22 @@ def test_marked_values_show_the_changed_words_and_items() -> None:
     )
 
 
-def test_diffs_group_by_day_and_by_change(store, names) -> None:
+def test_diffs_group_by_day(store, names) -> None:
     from dataclasses import replace
 
     row = views.output_rows(store)[0][0]
     rows = [
-        replace(row, title="CHG-1: r1"),
-        replace(row, title="CHG-1: r2"),
-        replace(row, title="other"),
-        replace(row, title="CHG-1: r3", created_at=datetime(2026, 9, 24, 9, 0, tzinfo=UTC)),
+        replace(row, ticket="CHG-1"),
+        replace(row, ticket="CHG-1"),
+        replace(row, note="other"),
+        replace(row, ticket="CHG-1", created_at=datetime(2026, 9, 24, 9, 0, tzinfo=UTC)),
     ]
     groups = views.output_groups(rows)
-    assert [(group.day, group.new_day, group.change, len(group.rows)) for group in groups] == [
-        ("25 Sep 2026", True, "CHG-1", 2),
-        ("25 Sep 2026", False, None, 1),
-        ("24 Sep 2026", True, "CHG-1", 1),
-    ]
-    assert views.change_of("CHG-1042: VLAN 20") == "CHG-1042" and views.change_of("no change here") is None
+    assert [(group.day, len(group.rows)) for group in groups] == [("25 Sep 2026", 3), ("24 Sep 2026", 1)]
+
+
+def test_the_snapshots_filters_keep_each_target_encoded() -> None:
+    query = views.snapshot_query([" A&B ", "", "<c>", "A&B"], " before ", " chg-1 ")
+    assert query == SnapshotQuery(targets=("A&B", "<c>"), label="before", ticket="chg-1")
+    assert views.snapshot_filters(query) == "target=A%26B&target=%3Cc%3E&label=before&ticket=chg-1"
+    assert views.snapshot_filters(views.snapshot_query([], "", "")) == ""

@@ -1,5 +1,91 @@
 # Changelog
 
+## v0.3.0
+
+### Added
+
+- A snapshot and a diff have a ticket: any text that names the work (`CHG-1042`), 80 characters at most, one line.
+- The ticket is set by `--ticket` in the CLI, by `ticket` in the API and in MCP, and by the **Ticket** field of the web UI.
+- With a ticket, `TARGET@LABEL` and `TARGET@latest` name the snapshots of that ticket only, so `before` and `after` never mix.
+- `TARGET/NAME` is not scoped by a ticket.
+- A diff with no ticket takes the ticket of its two snapshots when they have the same one.
+- A filter by ticket: `snapdelta list --ticket`, `?ticket=` in the API and in the web UI, and `ticket` in the MCP tools.
+- `snapdelta list --ticket` filters the snapshots too, not only the outputs.
+- The search (`snapdelta list --target`, `q`, `query`) also finds a part of a ticket.
+- The snapshot lists find the snapshots of every target by label and by ticket, and each row shows its `ticket` and its `source`.
+- The API takes a repeated `target`, and MCP takes `targets`, a list. Neither needs a target, and an empty filter does not filter.
+- `GET /api/v1/snapshots` has a `limit` (50 by default, 500 at most), and the store reads only that page.
+- The page of a snapshot has an **Export** menu: **json** downloads the document, **API call** copies the `curl` command.
+- The ticket of a snapshot shows in its title as a chip that lists the snapshots of that ticket.
+- The prompt `check_change` of MCP takes an optional `ticket`, which it gives to the snapshots and the diffs.
+- The error says when a label exists in another ticket, and what to do.
+- The text format shows the line `ticket: X`, and the Markdown format the heading `# TICKET · LEFT vs RIGHT`.
+- A ticket or a note that is too long is refused before any target is fetched.
+- A prune by age (`snapdelta prune --older-than`) also deletes the runs of Activity older than the age, when it prunes every target. `PrunePlan` has `runs`.
+- A **Discard** button next to **Save** in the Settings and Profiles forms restores the saved values.
+
+### Changed
+
+- SQLite is the default store: `~/.local/share/snapdelta/snapdelta.db`, or `$XDG_DATA_HOME/snapdelta/snapdelta.db`.
+- The old default directory is not read any more. Keep it with `--store`, `SNAPDELTA_STORE` or `[store] location`.
+- After a move to SQLite, delete only `snapshots/`, `outputs/` and `runs/` of the old store.
+- The file store stays a backend, documented as slow for a large number of snapshots and diffs.
+- A diff has a note, free text on many lines (2000 characters at most), in place of its title and its description.
+- `--note` replaces `--title` and `--description`, and so do `note` in the API, in MCP and in the web UI.
+- The lists show the first line of the note, cut at 120 characters.
+- The API refuses an argument it does not know, and MCP refuses the old argument `target` with a message that names `targets`.
+- In **Admin > Profiles**, each profile has a **Delete** button, with a confirmation, in place of the **Remove profile** checkbox.
+- A profile is created from its **Name** and a **Create** button, in place of the group of nine fields.
+- **Admin > Profiles** no longer shows the `file` or `default` tag at the end of each field. **Admin > Settings** keeps it.
+- The groups of **Admin > Settings** and **Admin > Profiles** have the box and the title size of the other Admin panels.
+- **Create** is a secondary button, so **Save profiles** is the only primary action of the page.
+- The save bar shows only the change status, **Discard** and **Save**.
+- **Admin > Store** says **Diffs** in place of **Outputs**, and **Keep newest, per target** in place of **Keep newest**.
+- On **Admin > Inventory**, the hosts table has its **Hosts** panel, like **Groups**.
+- The diff list has a **Ticket** column, and its filter finds the diffs by target or by a part of the ticket.
+- `snapdelta list` writes `ticket: X` and `source: Y` on a snapshot line.
+- Snapshots and outputs are schema 3. `Store.resolve_snapshot(reference, ticket)` takes a ticket.
+- A store lists its snapshots and its outputs with one query object each: `SnapshotQuery` and `OutputQuery`.
+- A `SnapshotQuery` with no `targets` lists the snapshots of every target, newest first. `limit` and `offset` cut one page.
+- A `limit` or an `offset` out of range is refused.
+- The label of a query matches the label as the reference writes it (`before swap` and `before_swap` are the same).
+- A `SnapshotEntry` carries its `ticket` and its `source`. `StoreContract` checks the interface of a store backend.
+- The constructor of a source takes its `ticket` by keyword, so a plugin that gives its arguments by position does not pass the capture time.
+- The column `label` of a snapshot holds the label as the reference writes it, with an index. `captured_at` holds the second of the reference.
+- SQLite and PostgreSQL get the columns `ticket` and `ticket_key`, with an index on `ticket_key`.
+- A store of 0.2, or of a development build of 0.3.0, must be made again: every command stops with a message.
+- The Snapshots page lists every snapshot of every target in one table, newest first, with **Captured**, **Target**, **Label**, **Ticket** and **Source**.
+- The filters **Target**, **Label** and **Ticket** stay in the URL. **Target** is a picker of chips, so the page lists several targets.
+- The page of a target and its timeline do not change.
+- The file store has no index: a snapshot list reads each document it lists. `snapdelta list --target` reads only the targets it names.
+
+### Removed
+
+- The list of targets of the Snapshots page, with the count and the latest capture of each target, and its `q` filter.
+- The grouping of the diff list by the start of the text before `: `; filter by ticket instead.
+- The **Before → after** button of **New diff**, which only knew the labels `before` and `after`.
+
+### Fixed
+
+- The Profiles and Settings forms show "Unsaved changes" and ask before the page is left only while their values differ from the saved ones.
+- A save that fails keeps that state: the values of the file are the baseline, and **Discard** restores them.
+- A store of an older snapdelta is refused, the file store like SQLite and PostgreSQL.
+- The PostgreSQL collation test is skipped, not failed, on a server without ICU or older than PostgreSQL 15.
+- Deleting a profile keeps the comments above the other tables, and a new profile goes before the comment of the next table.
+- A **Prune** error on **Admin > Store** shows in the Prune panel with the typed values, in place of the full error page.
+- **Admin > About** shows the store location once, without the backend name before it.
+- Creating a profile with an empty name says **Give a name**.
+- Enter in a **Target** search no longer submits the form of the page.
+- The theme toggle shows a sun in the light theme and a moon in the dark theme.
+- The Admin screenshots of the guides show the current pages.
+- A profile whose name is not ASCII opens at its group.
+- `snapdelta describe` shows the note it sets, and not only the ticket.
+- The ticket of a target is checked, so a ticket that is too long is refused before any target is fetched.
+- The targets of a snapshot list are trimmed, so a name with spaces around it finds its snapshots.
+- A run of the Activity whose id is not one of ours is left out, so a prune does not stop on it.
+- An error of the PostgreSQL database while the tables are made is a message and not a traceback, and the pool is closed.
+- The PostgreSQL store has an index that gives the order of the snapshots, so a page of the list does not sort every row.
+
 ## v0.2.0
 
 ### Added

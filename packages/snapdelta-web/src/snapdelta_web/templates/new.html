@@ -1,9 +1,9 @@
 {% extends "base.html" %}
 {% block title %}New diff · snapdelta{% endblock %}
 {% macro profile_field() %}{% if profiles %}<label class="field profile-field">Profile<select name="profile"><option value="">None</option>{% for name, text in profiles %}<option value="{{ name }}"{% if name == profile %} selected{% endif %}>{{ text }}</option>{% endfor %}</select></label>{% endif %}{% endmacro %}
-{% macro describe_fields(placeholder="") %}
-    <label class="field title-field">Title<input name="title" maxlength="120" placeholder="{{ placeholder }}" autocomplete="off" value="{{ title }}"></label>
-    <label class="field description-field">Description<input name="description" maxlength="2000" autocomplete="off" value="{{ description }}"></label>
+{% macro describe_fields() %}
+    <label class="field ticket-field">Ticket<input name="ticket" maxlength="80" autocomplete="off" value="{{ ticket }}"></label>
+    <label class="field note-field">Note<textarea name="note" rows="1" maxlength="2000">{{ note }}</textarea></label>
 {% endmacro %}
 {% block content %}
 <div class="title-row">
@@ -65,9 +65,8 @@
   {% endfor %}
   <div id="models" class="models-section" hx-get="/new/models" hx-trigger="load, change[target.type==='radio'] from:closest form, htmx:afterSettle[detail.target.classList.contains('snapshot-options')] from:closest form" hx-include="[name='left'], [name='right']"></div>
   <div class="form-foot">
-    {{ describe_fields("Change 42 on the core") }}
+    {{ describe_fields() }}
     {{ profile_field() }}
-    <button type="button" class="button" data-preset-labels="before after" title="The newest snapshots labelled before and after of the target of the Before side">Before → after</button>
     <button type="submit" class="button primary" data-busy="Comparing…">Compare</button>
   </div>
 </form>

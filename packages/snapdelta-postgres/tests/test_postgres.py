@@ -9,7 +9,7 @@ import pytest
 
 from snapdelta.errors import SnapdeltaError
 from snapdelta.settings import Secret
-from snapdelta.store import open_store
+from snapdelta.store import SnapshotQuery, open_store
 from snapdelta.testing import StoreContract, sample
 from snapdelta_postgres import PostgresSettings, PostgresStore
 
@@ -18,15 +18,36 @@ SERVER = os.environ.get("SNAPDELTA_POSTGRES_URL", "")
 needs_server = pytest.mark.skipif(not SERVER, reason="set SNAPDELTA_POSTGRES_URL to test against PostgreSQL")
 
 
-@pytest.fixture
-def database() -> Iterator[str]:
-    """The address of a new, empty database, dropped after the test."""
+def _new_database(options: str = "") -> Iterator[str]:
     name = f"snapdelta_test_{uuid.uuid4().hex[:12]}"
     with psycopg.connect(SERVER, autocommit=True) as admin:
-        admin.execute(f'create database "{name}"')
+        admin.execute(f'create database "{name}" {options}')
     yield SERVER.removeprefix("postgresql://").rsplit("/", 1)[0] + f"/{name}"
     with psycopg.connect(SERVER, autocommit=True) as admin:
         admin.execute(f'drop database "{name}" with (force)')
+
+
+@pytest.fixture
+def database() -> Iterator[str]:
+    """The address of a new, empty database, dropped after the test."""
+    yield from _new_database()
+
+
+def _server_version() -> int:
+    with psycopg.connect(SERVER) as connection:
+        return connection.info.server_version
+
+
+@pytest.fixture
+def linguistic_database() -> Iterator[str]:
+    """A new database whose collation sorts by language, not by code point."""
+    # The version is checked first: the locale_provider option is a syntax error before PostgreSQL 15.
+    if _server_version() < 150000:
+        pytest.skip("the server is older than PostgreSQL 15 and has no locale_provider option")
+    try:
+        yield from _new_database("template template0 locale_provider icu icu_locale 'en-US'")
+    except psycopg.errors.FeatureNotSupported:
+        pytest.skip("the server is built without ICU")
 
 
 @needs_server
@@ -35,6 +56,19 @@ class TestPostgresStore(StoreContract):
     def store(self, database: str) -> Iterator[PostgresStore]:
         store = PostgresStore.open(database, PostgresSettings())
         yield store
+        store.close()
+
+
+@needs_server
+def test_the_order_is_by_code_point_whatever_the_collation_of_the_database(linguistic_database: str) -> None:
+    store = PostgresStore.open(linguistic_database, PostgresSettings())
+    try:
+        for target in ("Zed", "alpha", "Beta"):
+            store.save_snapshot(sample(target=target))
+        assert store.targets() == ["Beta", "Zed", "alpha"]
+        lower, upper = (store.save_snapshot(sample(label=label)) for label in ("a", "B"))
+        assert [entry.reference for entry in store.snapshot_entries(SnapshotQuery(targets=("R1",)))] == [lower, upper]
+    finally:
         store.close()
 
 
@@ -51,6 +85,14 @@ def test_the_scheme_opens_the_backend_and_two_stores_share_the_tables(database: 
     finally:
         first.close()
         second.close()
+
+
+@needs_server
+def test_a_store_of_an_older_snapdelta_is_refused(database: str) -> None:
+    with psycopg.connect(f"postgresql://{database}") as db:
+        db.execute("create table snapdelta_snapshots (reference text primary key, target text not null)")
+    with pytest.raises(SnapdeltaError, match="made by an older snapdelta: make it again"):
+        PostgresStore.open(database, PostgresSettings())
 
 
 @needs_server

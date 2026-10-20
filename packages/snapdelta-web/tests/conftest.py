@@ -62,6 +62,43 @@ def store(base_store: Path, tmp_path: Path) -> Store:
 
 
 @pytest.fixture
+def ticketed(store: Store) -> Store:
+    """R1 before in two tickets (CHG-2 the newer) and R1 after in CHG-1, next to the snapshots of no ticket."""
+    day = BEFORE + timedelta(days=1)
+    for sample, label, ticket, moment in [
+        ("r1-before", "before", "CHG-1", day),
+        ("r1-before", "before", "CHG-2", day + timedelta(hours=1)),
+        ("r1-after", "after", "CHG-1", day + timedelta(hours=2)),
+    ]:
+        adapter = ExampleSource(files=[SAMPLES / f"{sample}.json"], label=label, ticket=ticket, captured_at=moment)
+        adapter.load()
+        store.save_snapshot(adapter)
+    return store
+
+
+@pytest.fixture
+def save_r2(store: Store, tmp_path: Path) -> Callable[[str, str, datetime], None]:
+    """Saves a snapshot of R2, made from the R1 sample, with a label, a ticket and a capture time."""
+    sample = json.loads((SAMPLES / "r1-before.json").read_text())
+    path = tmp_path / "r2.json"
+    path.write_text(json.dumps(sample | {"device": "R2"}))
+
+    def save(label: str, ticket: str, moment: datetime) -> None:
+        adapter = ExampleSource(files=[path], label=label, ticket=ticket, captured_at=moment)
+        adapter.load()
+        store.save_snapshot(adapter)
+
+    return save
+
+
+@pytest.fixture
+def two_targets(ticketed: Store, save_r2: Callable[[str, str, datetime], None]) -> Store:
+    """`ticketed`, plus R2 before in CHG-1 between the CHG-2 and the CHG-1 snapshots of R1."""
+    save_r2("before", "CHG-1", BEFORE + timedelta(days=1, minutes=90))
+    return ticketed
+
+
+@pytest.fixture
 def names() -> Names:
     return Names()
 

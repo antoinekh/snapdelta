@@ -10,24 +10,27 @@
   <h2>Groups</h2>
   <div class="picks">{% for group in inventory.groups %}<span class="tag"><b class="mono">{{ group }}</b> {{ inventory.members(group) | length }}</span>{% else %}<span class="muted">none</span>{% endfor %}</div>
 </section>
-<div class="scroll">
-  <table class="list dense">
-    <thead><tr><th>Host</th><th>Platform</th><th>Source</th><th>Groups</th><th>Address</th><th>Login</th><th>Data</th></tr></thead>
-    <tbody>
-      {% for name, host in inventory.hosts | dictsort %}
-      <tr>
-        <td class="mono strong">{{ name }}</td>
-        <td class="mono">{{ host.platform or "" }}</td>
-        <td>{% if sources[name] %}<span class="tag">{{ sources[name] }}</span>{% else %}<span class="warn-text">no source</span>{% endif %}</td>
-        <td class="mono">{{ host.groups | join(", ") }}</td>
-        <td class="mono">{{ host.hostname or "" }}{% if host.port %}:{{ host.port }}{% endif %}</td>
-        <td class="mono">{{ host.username or "" }}{% if host.password %} <span class="muted">(password set)</span>{% endif %}</td>
-        <td class="mono small">{% for key, value in host.data | dictsort %}<div>{{ key }}: {{ value }}</div>{% endfor %}</td>
-      </tr>
-      {% endfor %}
-    </tbody>
-  </table>
-</div>
+<section class="panel">
+  <h2>Hosts</h2>
+  <div class="scroll">
+    <table class="list dense">
+      <thead><tr><th>Host</th><th>Platform</th><th>Source</th><th>Groups</th><th>Address</th><th>Login</th><th>Data</th></tr></thead>
+      <tbody>
+        {% for name, host in inventory.hosts | dictsort %}
+        <tr>
+          <td class="mono strong">{{ name }}</td>
+          <td class="mono">{{ host.platform or "" }}</td>
+          <td>{% if sources[name] %}<span class="tag">{{ sources[name] }}</span>{% else %}<span class="warn-text">no source</span>{% endif %}</td>
+          <td class="mono">{{ host.groups | join(", ") }}</td>
+          <td class="mono">{{ host.hostname or "" }}{% if host.port %}:{{ host.port }}{% endif %}</td>
+          <td class="mono">{{ host.username or "" }}{% if host.password %} <span class="muted">(password set)</span>{% endif %}</td>
+          <td class="mono small">{% for key, value in host.data | dictsort %}<div>{{ key }}: {{ value }}</div>{% endfor %}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
 {% else %}
 <p class="empty">No inventory. Set its location in <a href="/admin/settings">Settings</a>, table inventory.</p>
 {% endif %}

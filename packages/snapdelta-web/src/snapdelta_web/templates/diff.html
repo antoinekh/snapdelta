@@ -1,16 +1,16 @@
 {% extends "base.html" %}
 {% from "_macros.html" import side_label, strip, counts, review_count %}
-{% block title %}{{ output.title or output.left.target ~ " vs " ~ output.right.target }} · snapdelta{% endblock %}
+{% block title %}{{ (output.note | note_line) or output.left.target ~ " vs " ~ output.right.target }} · snapdelta{% endblock %}
 {% block content %}
 <section class="diff-head">
   <div class="diff-about">
-    {% if output.title %}<h1 class="diff-title">{{ output.title }}</h1>{% endif %}
-    {% if output.description %}<p class="diff-description">{{ output.description }}</p>{% endif %}
+    {% if output.ticket %}<a class="ticket-chip" href="/diffs?ticket={{ output.ticket | urlencode }}">{{ output.ticket }}</a>{% endif %}
+    {% if output.note %}<p class="diff-note">{{ output.note }}</p>{% endif %}
     <details class="describe">
-      <summary class="button quiet small-button">{{ "Edit title" if output.title or output.description else "Add a title" }}</summary>
+      <summary class="button quiet small-button">Edit</summary>
       <form method="post" action="/diffs/{{ name }}/describe" class="describe-form">
-        <label class="field">Title<input name="title" value="{{ output.title or '' }}" maxlength="120" autocomplete="off"></label>
-        <label class="field">Description<textarea name="description" rows="3" maxlength="2000">{{ output.description or "" }}</textarea></label>
+        <label class="field">Ticket<input name="ticket" value="{{ output.ticket or '' }}" maxlength="80" autocomplete="off"></label>
+        <label class="field">Note<textarea name="note" rows="3" maxlength="2000">{{ output.note or "" }}</textarea></label>
         <button type="submit" class="button primary">Save</button>
       </form>
     </details>

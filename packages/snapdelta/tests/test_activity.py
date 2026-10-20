@@ -57,7 +57,7 @@ def test_take_snapshots_records_one_run_with_the_log_of_each_load(store) -> None
 def test_a_saved_diff_is_a_run_and_a_diff_that_saves_nothing_is_not(store, make_adapter) -> None:
     left = store.save_snapshot(make_adapter(label="before", description="old"))
     right = store.save_snapshot(make_adapter(label="after", description="new"))
-    done = diff_snapshots(store, Settings(), left, right, title="Change 1", origin="api")
+    done = diff_snapshots(store, Settings(), left, right, note="Change 1", origin="api")
     [run] = store.runs(kind="diff")
     assert (run.origin, run.status, run.outputs, run.targets) == ("api", "ok", [done.name], ["R1"])
     diff_snapshots(store, Settings(), left, right, save=False)

@@ -45,11 +45,12 @@ def make_adapter(tmp_path_factory: pytest.TempPathFactory) -> Callable[..., Sour
         target: str = "R1",
         label: str | None = None,
         captured_at: datetime = datetime(2026, 9, 25, 10, 0, tzinfo=UTC),
+        ticket: str | None = None,
     ) -> Source:
         path = tmp_path_factory.mktemp("input") / f"{target}.json"
         data = device_data(target, description, primary, extra_interface, with_config, with_state)
         path.write_text(json.dumps(data))
-        adapter = ExampleSource(files=[path], label=label, captured_at=captured_at)
+        adapter = ExampleSource(files=[path], label=label, ticket=ticket, captured_at=captured_at)
         adapter.load()
         return adapter
 

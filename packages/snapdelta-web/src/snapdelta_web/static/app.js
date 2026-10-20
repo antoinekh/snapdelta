@@ -129,12 +129,12 @@
     card.focus({ preventScroll: true });
   });
 
-  // Swap and the presets reload New diff with the chosen sides, and keep the title, the description and the profile.
+  // The reload keeps what was typed, because the ticket decides which snapshots the labels name.
   function reloadNewDiff(form, left, right) {
     var url = new URL("/new", location.origin);
     if (left) url.searchParams.set("left", left);
     if (right) url.searchParams.set("right", right);
-    ["title", "description", "profile"].forEach(function (name) {
+    ["ticket", "note", "profile"].forEach(function (name) {
       var field = form.elements[name];
       if (field && field.value) url.searchParams.set(name, field.value);
     });
@@ -149,19 +149,8 @@
   document.addEventListener("click", function (event) {
     var form = document.querySelector("form.new-diff");
     if (!form) return;
-    if (event.target.closest("[data-swap-sides]")) {
-      reloadNewDiff(form, sideValue(form, "right"), sideValue(form, "left"));
-      return;
-    }
-    var preset = event.target.closest("[data-preset-labels]");
-    if (!preset) return;
-    var target = (sideValue(form, "left") || sideValue(form, "right")).split(/[@/]/)[0];
-    if (!target) {
-      form.querySelector('input[type="search"]').focus();
-      return;
-    }
-    var labels = preset.dataset.presetLabels.split(" ");
-    reloadNewDiff(form, target + "@" + labels[0], target + "@" + labels[1]);
+    if (!event.target.closest("[data-swap-sides]")) return;
+    reloadNewDiff(form, sideValue(form, "right"), sideValue(form, "left"));
   });
 
   // The After side follows the target of the Before side, until the user picks another target for it.
@@ -356,35 +345,102 @@
     if (event.target.matches("[data-only-changed]")) document.body.classList.toggle("only-changed", event.target.checked);
   });
 
+  // A target picker keeps the ticked targets in its chips, apart from the matches that its search lists.
   document.addEventListener("change", function (event) {
     var box = event.target;
-    var selected = document.querySelector("[data-take-selected]");
-    if (box.id === "take-source" && selected) selected.replaceChildren();
+    var picker = box.closest("[data-target-picker]");
+    if (!picker) return;
+    var selected = picker.querySelector("[data-picked-targets]");
+    if (box.matches("[data-clears-targets]")) selected.replaceChildren();
     if (!box.matches(".target-pick input[type=checkbox]")) return;
     if (box.checked && !selected.contains(box)) selected.appendChild(box.closest(".target-pick"));
     else if (!box.checked && selected.contains(box)) {
       box.closest(".target-pick").remove();
       // The server leaves selected targets out of the list, so it must send the list again.
-      var search = document.getElementById("take-search");
+      var search = picker.querySelector("[data-target-search]");
       if (search) htmx.trigger(search, "refresh");
     }
   });
 
-  // A form with data-track-changes says when it holds unsaved changes, and asks before the page is left.
-  var dirtyForm = null;
+  // Enter in a target search would submit its form and add a q that the page does not use.
+  document.addEventListener("keydown", function (event) {
+    if (event.key === "Enter" && event.target.matches("[data-target-search]")) event.preventDefault();
+  });
 
-  function markDirty(event) {
-    var form = event.target.closest && event.target.closest("form[data-track-changes]");
-    if (!form || form === dirtyForm) return;
-    dirtyForm = form;
-    var bar = form.querySelector(".save-bar");
-    if (bar) bar.classList.add("dirty");
-    var status = form.querySelector("[data-dirty-status]");
-    if (status) status.hidden = false;
+  // Comparing with the values the settings file holds lets a reverted field clear the unsaved state, and the leave-page prompt follows it.
+  var dirtyForm = null;
+  var savedValues = new Map();
+
+  function fieldValues(form) {
+    var values = {};
+    new FormData(form).forEach(function (value, name) {
+      values[name] = value;
+    });
+    return values;
   }
 
-  document.addEventListener("input", markDirty);
-  document.addEventListener("change", markDirty);
+  function savedFields(form) {
+    // The saved value of each field, which the server puts in the markup: the form of a page that failed to save holds the values that were sent, not the ones of the file.
+    var values = fieldValues(form);
+    Array.prototype.forEach.call(form.elements, function (control) {
+      if (!control.name || !control.hasAttribute("data-saved")) return;
+      var saved = control.getAttribute("data-saved");
+      if (control.type === "checkbox") {
+        if (saved === "true") values[control.name] = "true";
+        else delete values[control.name];
+      } else {
+        values[control.name] = saved;
+      }
+    });
+    return values;
+  }
+
+  function sameValues(one, other) {
+    var names = Object.keys(one);
+    if (names.length !== Object.keys(other).length) return false;
+    return names.every(function (name) {
+      return one[name] === other[name];
+    });
+  }
+
+  function showChanges(form) {
+    var changed = !sameValues(fieldValues(form), savedValues.get(form));
+    if (changed) dirtyForm = form;
+    else if (dirtyForm === form) dirtyForm = null;
+    var bar = form.querySelector(".save-bar");
+    if (bar) bar.classList.toggle("dirty", changed);
+    var status = form.querySelector("[data-dirty-status]");
+    if (status) status.hidden = !changed;
+    var discard = form.querySelector("[data-discard]");
+    if (discard) discard.disabled = !changed;
+  }
+
+  function trackChanges(event) {
+    var form = event.target.closest && event.target.closest("form[data-track-changes]");
+    if (form) showChanges(form);
+  }
+
+  document.querySelectorAll("form[data-track-changes]").forEach(function (form) {
+    savedValues.set(form, savedFields(form));
+    // The page of a failed save holds the values that were sent, so the state of the form comes from the file and not from the markup.
+    showChanges(form);
+  });
+
+  document.addEventListener("input", trackChanges);
+  document.addEventListener("change", trackChanges);
+
+  document.addEventListener("click", function (event) {
+    var discard = event.target.closest("[data-discard]");
+    if (!discard) return;
+    event.preventDefault();
+    Array.prototype.forEach.call(discard.form.elements, function (control) {
+      if (!control.name || !control.hasAttribute("data-saved")) return;
+      var saved = control.getAttribute("data-saved");
+      if (control.type === "checkbox") control.checked = saved === "true";
+      else control.value = saved;
+    });
+    showChanges(discard.form);
+  });
 
   window.addEventListener("beforeunload", function (event) {
     if (dirtyForm) event.preventDefault();

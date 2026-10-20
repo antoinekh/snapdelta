@@ -1,12 +1,21 @@
 import time
+from datetime import UTC, datetime
 from pathlib import Path
 
 import pytest
 
 from snapdelta.errors import LoadError, SnapdeltaError
 from snapdelta.settings import Settings, SourceSettings
-from snapdelta.store import FileStore
-from snapdelta.take import load_source, take_snapshots, target_names
+from snapdelta.store import FileStore, SnapshotQuery
+from snapdelta.take import (
+    diff_snapshots,
+    diff_targets,
+    load_source,
+    snapshot_targets,
+    take_live,
+    take_snapshots,
+    target_names,
+)
 from snapdelta_example import ExampleLiveSource, ExampleSource
 
 
@@ -80,3 +89,113 @@ def test_a_plugin_bug_becomes_a_load_error_that_names_the_target() -> None:
     with pytest.raises(LoadError, match=r"^R1: KeyError: 'interfaces'$") as caught:
         load_source(BrokenSource, target="R1")
     assert isinstance(caught.value.__cause__, KeyError)
+
+
+def test_a_live_snapshot_takes_the_ticket_given_else_the_ticket_of_its_left_side(tmp_path) -> None:
+    store = FileStore(tmp_path)
+    left = load_source(ExampleLiveSource, target="R1", ticket="CHG-1")
+    assert take_live(store, left, Settings(), label="inherited").ticket == "CHG-1"
+    assert take_live(store, left, Settings(), label="given", ticket="CHG-2").ticket == "CHG-2"
+    assert take_live(store, left, Settings(), label="blank", ticket="   ").ticket == "CHG-1"
+
+
+def test_snapshot_targets_saves_each_snapshot_with_the_ticket(tmp_path) -> None:
+    from snapdelta.source import register_source
+
+    register_source(ExampleLiveSource)
+    store = FileStore(tmp_path)
+    taken, failures = snapshot_targets(store, Settings(), "example-live", targets=["R1", "R2"], jobs=1, ticket="CHG-1")
+    assert failures == {}
+    assert [store.load_snapshot(item.reference).ticket for item in taken.values()] == ["CHG-1", "CHG-1"]
+
+
+def test_diff_snapshots_resolves_its_labels_in_its_ticket_and_keeps_its_note(tmp_path) -> None:
+    from snapdelta.source import register_source
+
+    register_source(ExampleLiveSource)
+    store = FileStore(tmp_path)
+    settings = Settings()
+    for ticket, hour in (("CHG-1", 1), ("CHG-2", 2)):
+        captured_at = datetime(2026, 1, 1, hour, tzinfo=UTC)
+        store.save_snapshot(
+            load_source(ExampleLiveSource, target="R1", label="before", ticket=ticket, captured_at=captured_at)
+        )
+    done = diff_snapshots(store, settings, "R1@before", live=True, ticket="CHG-1", note="first\nsecond")
+    assert done.output.ticket == "CHG-1" and done.output.note == "first\nsecond"
+    assert done.live is not None and store.load_snapshot(done.live).ticket == "CHG-1"
+    with pytest.raises(SnapdeltaError, match="in ticket 'CHG-9'"):
+        diff_snapshots(store, settings, "R1@before", live=True, ticket="CHG-9")
+
+
+@pytest.mark.parametrize("blank", ["   ", ""])
+def test_a_blank_ticket_keeps_the_ticket_that_the_diff_inherits(tmp_path, blank) -> None:
+    from snapdelta.source import register_source
+
+    register_source(ExampleLiveSource)
+    store = FileStore(tmp_path)
+    for label, hour in (("before", 1), ("after", 2)):
+        captured_at = datetime(2026, 1, 1, hour, tzinfo=UTC)
+        store.save_snapshot(
+            load_source(ExampleLiveSource, target="R1", label=label, ticket="CHG-1", captured_at=captured_at)
+        )
+    between = diff_snapshots(store, Settings(), "R1@before", "R1@after", ticket=blank)
+    assert between.output.ticket == "CHG-1"
+    live = diff_snapshots(store, Settings(), "R1@before", live=True, ticket=blank)
+    assert live.output.ticket == "CHG-1"
+
+
+def test_diff_snapshots_looks_for_the_right_side_in_the_ticket_too(tmp_path) -> None:
+    from snapdelta.source import register_source
+
+    register_source(ExampleLiveSource)
+    store = FileStore(tmp_path)
+    for label, ticket, hour in (("before", "CHG-1", 1), ("after", "CHG-1", 2), ("after", "CHG-2", 3)):
+        captured_at = datetime(2026, 1, 1, hour, tzinfo=UTC)
+        store.save_snapshot(
+            load_source(ExampleLiveSource, target="R1", label=label, ticket=ticket, captured_at=captured_at)
+        )
+    done = diff_snapshots(store, Settings(), "R1@before", "R1@after", ticket="CHG-1")
+    assert done.output.right.snapshot == "R1/20260101T020000Z-after"
+
+
+def test_a_diff_keeps_the_text_of_the_ticket_of_its_sides_when_the_given_one_differs_in_case(tmp_path) -> None:
+    from snapdelta.source import register_source
+
+    register_source(ExampleLiveSource)
+    store = FileStore(tmp_path)
+    for label, hour in (("before", 1), ("after", 2)):
+        captured_at = datetime(2026, 1, 1, hour, tzinfo=UTC)
+        store.save_snapshot(
+            load_source(ExampleLiveSource, target="R1", label=label, ticket="CHG-1", captured_at=captured_at)
+        )
+    done = diff_snapshots(store, Settings(), "R1@before", "R1@after", ticket="chg-1", note="uplink")
+    assert (done.output.ticket, done.output.note) == ("CHG-1", "uplink")
+
+
+def test_a_ticket_or_a_note_that_is_too_long_stops_before_any_snapshot_is_taken(tmp_path) -> None:
+    from snapdelta.source import register_source
+
+    register_source(ExampleLiveSource)
+    store = FileStore(tmp_path)
+    settings = Settings()
+    store.save_snapshot(load_source(ExampleLiveSource, target="R1", label="before"))
+    long_ticket, long_note = "x" * 81, "x" * 2001
+    with pytest.raises(SnapdeltaError, match="not a valid ticket"):
+        take_snapshots(store, {"R2": ExampleLiveSource}, ticket=long_ticket)
+    with pytest.raises(SnapdeltaError, match="not a valid ticket"):
+        take_snapshots(store, {"R2": ExampleLiveSource}, tickets={"R2": long_ticket})
+    with pytest.raises(SnapdeltaError, match="not a valid ticket"):
+        load_source(ExampleLiveSource, target="R2", ticket=long_ticket)
+    with pytest.raises(SnapdeltaError, match="not a valid ticket"):
+        diff_snapshots(store, settings, "R1@before", live=True, ticket=long_ticket)
+    with pytest.raises(SnapdeltaError, match="not a valid note: 2000 characters at most"):
+        diff_snapshots(store, settings, "R1@before", live=True, note=long_note)
+    with pytest.raises(SnapdeltaError, match="not a valid note: 2000 characters at most"):
+        diff_targets(store, settings, "before", live=True, targets=["R1"], note=long_note)
+    with pytest.raises(SnapdeltaError, match="not a valid ticket"):
+        diff_targets(store, settings, "before", live=True, targets=["R1"], ticket=long_ticket)
+    assert (
+        store.targets() == ["R1"]
+        and len(store.snapshot_entries(SnapshotQuery(targets=("R1",)))) == 1
+        and store.output_entries() == []
+    )

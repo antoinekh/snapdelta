@@ -10,12 +10,13 @@ from .activity import collecting, recorded
 from .errors import LoadError, SnapdeltaError
 from .expected import ExpectedChange, check_expected
 from .inventory import Host
-from .output import Output, compare, described
+from .output import Output, check_note, compare, described
 from .plugins import require
 from .runners import RUNNERS, LoadTask, OnProgress
 from .settings import Settings, SourceSettings
 from .source import Source, require_source, source_classes
 from .store import Store
+from .ticket import check_ticket, ticket_key
 
 
 @dataclass(frozen=True)
@@ -105,22 +106,35 @@ def take_snapshots(
     settings: Settings | None = None,
     origin: str = "python",
     progress: OnProgress | None = None,
+    *,
+    ticket: str | None = None,
+    tickets: Mapping[str, str | None] | None = None,
 ) -> tuple[dict[str, Taken], dict[str, str]]:
     """The saved snapshots and the error messages, by target; a failed target does not stop the others.
 
-    The runner of `[snapshot] runner` runs the loads. The store records the command as a run of `origin` (cli,
-    web, api, mcp), with the log of each load. `progress` hears each target when it starts and when it ends.
+    A target in `tickets` has that ticket in place of `ticket`. The runner of `[snapshot] runner` runs the loads.
+    The store records the command as a run of `origin` (cli, web, api, mcp), with the log of each load. `progress`
+    hears each target when it starts and when it ends.
     """
     for cls in set(plan.values()):
         if require_source(cls.source) is not cls:
             # A task names its source, so the runner would load with the installed class of that name.
             raise SnapdeltaError(f"{cls.__qualname__} is not the source {cls.source!r} of the registry: register it")
+    ticket = check_ticket(ticket)
     chosen = settings or Settings()
     name = chosen.snapshot.runner
     runner = require(RUNNERS, name)
     options = chosen.plugin("runners", name, runner.settings_class)
+    per_target = {target: check_ticket(value) for target, value in (tickets or {}).items()}
     tasks = [
-        LoadTask(source=cls.source, target=target, label=label, captured_at=captured_at) for target, cls in plan.items()
+        LoadTask(
+            source=cls.source,
+            target=target,
+            label=label,
+            ticket=per_target.get(target, ticket),
+            captured_at=captured_at,
+        )
+        for target, cls in plan.items()
     ]
     with recorded(store, "snapshot", origin, list(plan), chosen) as run:
         outcomes = runner.run(tasks, chosen, store, jobs, options, progress)
@@ -150,6 +164,8 @@ def snapshot_targets(
     origin: str = "python",
     jobs: int | None = None,
     captured_at: datetime | None = None,
+    *,
+    ticket: str | None = None,
 ) -> tuple[dict[str, Taken], dict[str, str]]:
     """Fetch the named targets, the hosts of `groups`, or every target, with `source` or the source of each platform.
 
@@ -161,7 +177,7 @@ def snapshot_targets(
         raise SnapdeltaError("give targets, groups or all_targets")
     plan = plan_sources(names, settings, cls)
     chosen = jobs or settings.snapshot.jobs
-    return take_snapshots(store, plan, label, captured_at, chosen, settings, origin=origin)
+    return take_snapshots(store, plan, label, captured_at, chosen, settings, origin=origin, ticket=ticket)
 
 
 def load_source(
@@ -172,9 +188,13 @@ def load_source(
     captured_at: datetime | None = None,
     settings: SourceSettings | None = None,
     host: Host | None = None,
+    ticket: str | None = None,
 ) -> Source:
     """A loaded source; any error of the plugin becomes a LoadError, which the CLI and the web show as a message."""
-    adapter = cls(files=files, target=target, label=label, captured_at=captured_at, settings=settings, host=host)
+    ticket = check_ticket(ticket)
+    adapter = cls(
+        files=files, target=target, label=label, ticket=ticket, captured_at=captured_at, settings=settings, host=host
+    )
     with collecting(target) as lines:
         try:
             adapter.load()
@@ -194,8 +214,12 @@ def take_live(
     target: str | None = None,
     label: str | None = "live",
     save: bool = True,
+    ticket: str | None = None,
 ) -> Source:
-    """A fresh fetch of the target of `left` (or of `target`) with the source of `left`, saved as a snapshot."""
+    """A fresh fetch of the target of `left` (or of `target`) with the source of `left`, saved as a snapshot.
+
+    The snapshot has `ticket`, else the ticket of `left`.
+    """
     cls = require_source(left.source)
     if not cls.fetches:
         raise SnapdeltaError(
@@ -205,7 +229,14 @@ def take_live(
     name = target or left.target
     inventory = settings.hosts()
     host = inventory.host(name) if inventory and name else None
-    loaded = load_source(cls, target=name, label=label, settings=settings.source(cls), host=host)
+    loaded = load_source(
+        cls,
+        target=name,
+        label=label,
+        settings=settings.source(cls),
+        host=host,
+        ticket=check_ticket(ticket) or left.ticket,
+    )
     if not save:
         return loaded
     # The saved snapshot gives the output a reference, so that its page shows the unchanged values too.
@@ -231,20 +262,23 @@ def diff_snapshots(
     live_label: str | None = "live",
     models: Sequence[str] | None = None,
     profile: str | None = None,
-    title: str | None = None,
-    description: str | None = None,
+    ticket: str | None = None,
+    note: str | None = None,
     expected: Sequence[ExpectedChange] | None = None,
     save: bool = True,
     origin: str = "python",
 ) -> Compared:
     """Compare the snapshot `left` with `right` (a snapshot or a loaded source) or with its target now (`live`).
 
-    With `expected`, the output also holds its check against these expected changes. With `save`, the output and
-    the live snapshot are saved, and the store records the command as a run.
+    With `ticket`, the labels of `left` and `right` are looked up in the snapshots of that ticket, and the live
+    snapshot has it. With `expected`, the output also holds its check against these expected changes. With `save`,
+    the output and the live snapshot are saved, and the store records the command as a run.
     """
     if (right is None) == (not live):
         raise SnapdeltaError("give right, or live, not both")
-    left_adapter = store.load_snapshot(store.resolve_snapshot(left))
+    ticket = check_ticket(ticket)
+    check_note(note)
+    left_adapter = store.load_snapshot(store.resolve_snapshot(left, ticket))
     _check_expected_targets(expected, [target or left_adapter.target or left])
     run = recorded(store, "diff", origin, [left_adapter.target or left], settings) if save else contextlib.nullcontext()
     with run as record:
@@ -252,13 +286,12 @@ def diff_snapshots(
         if isinstance(right, Source):
             right_adapter = right
         elif right is not None:
-            right_adapter = store.load_snapshot(store.resolve_snapshot(right))
+            right_adapter = store.load_snapshot(store.resolve_snapshot(right, ticket))
         else:
-            right_adapter = take_live(store, left_adapter, settings, target, live_label, save)
+            right_adapter = take_live(store, left_adapter, settings, target, live_label, save, ticket)
             live_reference = getattr(right_adapter, "reference", None)
         output = compare(left_adapter, right_adapter, models or None, settings.profile(profile), profile)
-        if title or description:
-            output = described(output, title, description)
+        output = _described(output, ticket, note)
         if expected is not None:
             output = output.model_copy(update={"expectations": check_expected(output, expected)})
         name = store.save_output(output) if save else None
@@ -293,6 +326,13 @@ class TargetDiff:
         return self.output.expectations.as_expected
 
 
+def _described(output: Output, ticket: str | None, note: str | None) -> Output:
+    """The output with the ticket and note given; a ticket that differs from its sides only in case is dropped."""
+    if ticket_key(ticket) == ticket_key(output.ticket):
+        ticket = None
+    return described(output, ticket=ticket, note=note) if ticket or note else output
+
+
 def diff_targets(
     store: Store,
     settings: Settings,
@@ -306,8 +346,8 @@ def diff_targets(
     live_label: str = "live",
     models: Sequence[str] | None = None,
     profile: str | None = None,
-    title: str | None = None,
-    description: str | None = None,
+    ticket: str | None = None,
+    note: str | None = None,
     expected: Sequence[ExpectedChange] | None = None,
     save: bool = True,
     origin: str = "python",
@@ -317,27 +357,31 @@ def diff_targets(
 
     `left` and `right` are labels, or `latest`. A target that fails does not stop the others. With `live`, the
     runner takes the snapshots of every target at the same time, in one snapshot run; the compares are one diff run.
+    With `ticket`, the labels are looked up in the snapshots of that ticket; a live snapshot has `ticket`, else the
+    ticket of its left snapshot.
     """
     left, right = left.removeprefix("@"), right.removeprefix("@") if right is not None else None
     if (right is None) == (not live):
         raise SnapdeltaError("give the label of the right side, or live, not both")
+    ticket = check_ticket(ticket)
+    check_note(note)
     if live and not save:
         raise SnapdeltaError("a live diff of many targets saves the snapshots that it takes")
     chosen_profile = settings.profile(profile)
-    names = _diff_names(store, settings, left, targets, groups, all_targets)
+    names = _diff_names(store, settings, left, targets, groups, all_targets, ticket)
     _check_expected_targets(expected, names)
     results: dict[str, TargetDiff] = {}
     lefts: dict[str, str] = {}
     for name in names:
         try:
-            lefts[name] = store.resolve_snapshot(f"{name}@{left}")
+            lefts[name] = store.resolve_snapshot(f"{name}@{left}", ticket)
         except SnapdeltaError as error:
             results[name] = TargetDiff(name, error=str(error))
-    rights = _live_rights(store, settings, lefts, live_label, jobs, origin, results) if live else {}
+    rights = _live_rights(store, settings, lefts, live_label, jobs, origin, results, ticket) if live else {}
     if not live:
         for name in lefts:
             try:
-                rights[name] = store.resolve_snapshot(f"{name}@{right}")
+                rights[name] = store.resolve_snapshot(f"{name}@{right}", ticket)
             except SnapdeltaError as error:
                 results[name] = TargetDiff(name, error=str(error))
     run = recorded(store, "diff", origin, names, settings) if save else contextlib.nullcontext()
@@ -349,8 +393,7 @@ def diff_targets(
                 output = compare(
                     store.load_snapshot(lefts[name]), store.load_snapshot(rights[name]), models, chosen_profile, profile
                 )
-                if title or description:
-                    output = described(output, title, description)
+                output = _described(output, ticket, note)
                 if expected is not None:
                     output = output.model_copy(update={"expectations": check_expected(output, expected)})
                 saved = store.save_output(output) if save else None
@@ -369,7 +412,13 @@ def diff_targets(
 
 
 def _diff_names(
-    store: Store, settings: Settings, left: str, targets: Iterable[str], groups: Iterable[str], all_targets: bool
+    store: Store,
+    settings: Settings,
+    left: str,
+    targets: Iterable[str],
+    groups: Iterable[str],
+    all_targets: bool,
+    ticket: str | None,
 ) -> list[str]:
     """The targets of diff_targets(): the names, the hosts of `groups`, and with `all_targets` each target with LEFT."""
     names = list(dict.fromkeys(name.strip() for name in targets if name.strip()))
@@ -380,16 +429,16 @@ def _diff_names(
             raise SnapdeltaError("a group needs an inventory: set [inventory] location in the settings")
         names = inventory.select(names, wanted_groups)
     if all_targets:
-        with_left = [name for name in store.targets() if _has(store, f"{name}@{left}")]
+        with_left = [name for name in store.targets() if _has(store, f"{name}@{left}", ticket)]
         names = list(dict.fromkeys([*names, *with_left]))
     if not names:
         raise SnapdeltaError("give targets, groups or all_targets")
     return names
 
 
-def _has(store: Store, reference: str) -> bool:
+def _has(store: Store, reference: str, ticket: str | None) -> bool:
     try:
-        store.resolve_snapshot(reference)
+        store.resolve_snapshot(reference, ticket)
     except SnapdeltaError:
         return False
     return True
@@ -403,17 +452,21 @@ def _live_rights(
     jobs: int | None,
     origin: str,
     results: dict[str, TargetDiff],
+    ticket: str | None,
 ) -> dict[str, str]:
     """Take a snapshot of each target now, with the source of its left snapshot; the references by target."""
     plan: dict[str, type[Source]] = {}
+    tickets: dict[str, str | None] = {}
     for name, reference in lefts.items():
         try:
-            cls = require_source(store.read_snapshot(reference).source)
+            snapshot = store.read_snapshot(reference)
+            cls = require_source(snapshot.source)
         except SnapdeltaError as error:
             results[name] = TargetDiff(name, error=str(error))
             continue
         if cls.fetches:
             plan[name] = cls
+            tickets[name] = ticket or snapshot.ticket
         else:
             results[name] = TargetDiff(
                 name, error=f"{name}: the source {cls.source!r} reads input files, so it cannot fetch"
@@ -421,7 +474,7 @@ def _live_rights(
     if not plan:
         return {}
     taken, failures = take_snapshots(
-        store, plan, label, jobs=jobs or settings.snapshot.jobs, settings=settings, origin=origin
+        store, plan, label, jobs=jobs or settings.snapshot.jobs, settings=settings, origin=origin, tickets=tickets
     )
     for name, message in failures.items():
         results[name] = TargetDiff(name, error=message)

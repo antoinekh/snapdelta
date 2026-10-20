@@ -6,7 +6,7 @@
   <p><strong>Snapshot your devices and services, then see exactly what changed</strong></p>
   <p>snapshot &bull; diff &bull; profile &bull; inventory &bull; web UI</p>
   <img src="https://img.shields.io/badge/license-Apache%202.0-blue.svg" alt="License" />
-  <img src="https://img.shields.io/badge/version-0.2.0-3d5afe" alt="Version" />
+  <img src="https://img.shields.io/badge/version-0.3.0-3d5afe" alt="Version" />
   <img src="https://img.shields.io/badge/python-%3E%3D%203.13-blue" alt="Python version" />
   <img src="https://img.shields.io/badge/built%20on-diffsync-12876f" alt="Built on diffsync" />
   <img src="https://img.shields.io/badge/architecture-plug--in-8a4baf" alt="Plug-in architecture" />
@@ -37,7 +37,7 @@ You need Python 3.13 or later and [uv](https://github.com/astral-sh/uv). In a cl
 
 ```bash
 uv sync
-uv run snapdelta-web --store /tmp/snapdelta-demo
+uv run snapdelta-web --store sqlite:///tmp/snapdelta-demo.db
 ```
 
 Open the link that it prints, then:
@@ -73,7 +73,7 @@ flowchart LR
 |---|---|
 | Source | A plugin class that fills diffsync models: from input files, or by fetching from a target (`fetches = True`) |
 | Target | What a snapshot describes: a device, a service, an API |
-| Snapshot | One load of one target, saved as `TARGET/TIME-LABEL` (`R1/20260101T100000Z-before`); `R1@latest` is the newest of R1, `R1@before` the newest with the label `before` |
+| Snapshot | One load of one target, saved as `TARGET/TIME-LABEL` (`R1/20260101T100000Z-before`); `R1@latest` is the newest of R1, `R1@before` the newest with the label `before`; an optional ticket (`CHG-1042`, `#216`, any text) names the work, and the labels then look inside it |
 | Output | The result of one compare, saved as `TIME-LEFT-vs-RIGHT`; `-` is the left value, `+` the right value |
 | Store | Where snapshots and outputs go: a directory, a SQLite file, a PostgreSQL database, or a plugin backend |
 | Profile | Optional rules of a compare: ignore, tolerance (`"5%"`), counts, pairs of names |
@@ -84,18 +84,27 @@ flowchart LR
 The web UI and the CLI use the same store. The demo above, in the CLI:
 
 ```bash
-uv run snapdelta --store /tmp/snapdelta-demo snapshot --source example-live --all-targets --label demo
-uv run snapdelta --store /tmp/snapdelta-demo diff R1@demo R2@demo
+uv run snapdelta --store sqlite:///tmp/snapdelta-demo.db snapshot --source example-live --all-targets --label demo
+uv run snapdelta --store sqlite:///tmp/snapdelta-demo.db diff R1@demo R2@demo
+```
+
+To check a change on many targets, give the same ticket to the snapshots and to the diff:
+
+```bash
+uv run snapdelta snapshot --group core --label before --ticket CHG-1042
+uv run snapdelta snapshot --group core --label after --ticket CHG-1042
+uv run snapdelta diff --group core @before @after --ticket CHG-1042 --note "VLAN 20"
 ```
 
 | Command | What it does |
 |---|---|
-| `snapshot` | Load input files (`FILES --source S`), or fetch targets (`--target`, `--group`, `--all-targets`, `--jobs N`); `--label`, `--captured-at` |
-| `diff LEFT RIGHT` | Compare two snapshots, or a snapshot and its target now (`--live`); or many targets at once, `diff --group core @before @after` (`--target`, `--all-targets`), one diff per target; `--model`, `--profile`, `--title`, `--description`, `--format`, `--no-save` |
-| `output NAME`, `describe NAME` | Print a saved output again (`--format text`, `json`, `markdown`, `csv`); give it a title and a description |
+| `snapshot` | Load input files (`FILES --source S`), or fetch targets (`--target`, `--group`, `--all-targets`, `--jobs N`); `--label`, `--ticket`, `--captured-at` |
+| `diff LEFT RIGHT` | Compare two snapshots, or a snapshot and its target now (`--live`); or many targets at once, `diff --group core @before @after` (`--target`, `--all-targets`), one diff per target; `--model`, `--profile`, `--ticket`, `--note`, `--format`, `--no-save` |
+| `output NAME` | Print a saved output again (`--format text`, `json`, `markdown`, `csv`) |
+| `describe NAME` | Give a saved diff a ticket and a note, or change them (`--ticket`, `--note`) |
 | `accept NAME KEY...` | Accept changes after a review (`--all`, `--comment`, `--undo`); the Markdown report lists them |
-| `list`, `show REF` | List the snapshots and outputs; print the data of a snapshot |
-| `delete`, `prune`, `info` | Delete snapshots or outputs; keep the N newest or the last days; show the store |
+| `list`, `show REF` | List the snapshots (newest first, with their ticket and source) and the outputs (`--target` keeps the targets and the outputs whose target or ticket has this text, `--label` the snapshots with that label, `--ticket` the snapshots and outputs of exactly that ticket); print the data of a snapshot |
+| `delete`, `prune`, `info` | Delete snapshots or outputs; keep the N newest or the last days, with the runs of Activity; show the store |
 | `activity [RUN]` | The runs: each snapshot and saved diff, from the CLI, the web UI, the API or MCP, with the log of its loads |
 | `sources`, `models`, `inventory` | The installed sources; their models and attributes; the hosts of the inventory |
 | `plugins`, `plugins new NAME`, `doctor` | The plugins of every extension point; a new plugin package to start from (`--kind source`, `store`, `format`, `inventory`, `secret`, `notifier`, `rule`, `runner`, `auth`); a check of each plugin against its interface, then of the settings, the store and the inventory (exit code 1 on an error) |
@@ -109,11 +118,11 @@ By default, `snapdelta-web` listens on 127.0.0.1 only, refuses other host names 
 
 ## API
 
-`snapdelta-web` also serves a JSON API under `/api/v1`, for a pipeline or an AI agent: take snapshots before and after a change, compare them (`R1@before` with `R1@after`, or with the target now), read the diff in any format, and give it a title. Its OpenAPI description is at `/api/v1/openapi.json`; see [docs/api.md](docs/api.md).
+`snapdelta-web` also serves a JSON API under `/api/v1`, for a pipeline or an AI agent: take snapshots before and after a change, compare them (`R1@before` with `R1@after`, or with the target now), read the diff in any format, and give it a ticket and a note. Its OpenAPI description is at `/api/v1/openapi.json`; see [docs/api.md](docs/api.md).
 
 ```bash
 curl -s -X POST http://127.0.0.1:8765/api/v1/diffs -H 'Content-Type: application/json' \
-  -d '{"left": "R1@before", "right": "R1@after", "title": "CHG-1234"}' | jq .has_differences
+  -d '{"left": "R1@before", "right": "R1@after", "ticket": "CHG-1234"}' | jq .has_differences
 ```
 
 ## AI agents

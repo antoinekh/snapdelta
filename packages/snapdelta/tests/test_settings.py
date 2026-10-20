@@ -16,7 +16,7 @@ from snapdelta.settings import (
     user_settings_path,
 )
 from snapdelta.source import Source
-from snapdelta.store import default_store_path
+from snapdelta.store import default_store_location
 
 
 class DemoSettings(SourceSettings):
@@ -49,12 +49,14 @@ def write(path: Path, text: str, mode: int = 0o600) -> Path:
     return path
 
 
-def test_no_file_gives_the_defaults() -> None:
+def test_no_file_gives_the_defaults(monkeypatch, tmp_path) -> None:
+    monkeypatch.setenv("XDG_DATA_HOME", str(tmp_path))
     settings = load_settings(installed=INSTALLED)
     assert settings.file is None
     assert settings.snapshot.jobs == 4
     assert settings.web.port == 8765
-    assert settings.store.location == str(default_store_path())
+    assert settings.store.location == f"sqlite://{tmp_path}/snapdelta/snapdelta.db"
+    assert settings.store.location == default_store_location()
     assert settings.origins["web.port"] == Origin.DEFAULT
 
 
@@ -242,6 +244,209 @@ def test_save_removes_a_key_back_at_its_default(tmp_path) -> None:
     path = write(tmp_path / "snapdelta.toml", "[web]\nport = 9000\n")
     save_settings(path, {"web": {"port": 8765}}, INSTALLED)
     assert "port" not in path.read_text()
+
+
+def test_save_keeps_a_new_profile_with_all_its_values_at_the_default(tmp_path) -> None:
+    path = write(tmp_path / "snapdelta.toml", "[web]\nport = 9000\n")
+    save_settings(path, {"profiles.night": {}})
+    assert "[profiles.night]" in path.read_text() and "port = 9000" in path.read_text()
+    assert load_settings(path).profiles.keys() == {"night"}
+    save_settings(path, {}, removed=["profiles.night"])
+    assert "night" not in path.read_text()
+
+
+PROFILES_WITH_COMMENTS = """\
+# top
+[store]
+location = "x"
+
+# first
+[profiles.a]
+description = "a"
+
+# second
+[profiles.b]
+description = "b"
+
+# third
+[profiles.c]
+description = "c"
+"""
+
+
+def profiles_with_comments(*profiles: str, head: str = '# top\n[store]\nlocation = "x"\n\n') -> str:
+    comments = {"a": "first", "b": "second", "c": "third"}
+    tables = [f'# {comments[name]}\n[profiles.{name}]\ndescription = "{name}"\n' for name in profiles]
+    return head + "\n".join(tables)
+
+
+def remove_profiles(path: Path, text: str, *names: str) -> str:
+    write(path, text)
+    save_settings(path, {}, removed=[f"profiles.{name}" for name in names])
+    return path.read_text()
+
+
+# Removing the last table leaves the blank line that separated it from the table before.
+@pytest.mark.parametrize(
+    ("removed", "kept", "trailing"),
+    [
+        (["a"], ["b", "c"], ""),
+        (["b"], ["a", "c"], ""),
+        (["c"], ["a", "b"], "\n"),
+        (["a", "b"], ["c"], ""),
+        (["b", "c"], ["a"], "\n"),
+        (["a", "b", "c"], [], ""),
+    ],
+)
+def test_removing_profiles_keeps_the_comments_of_the_other_tables(tmp_path, removed, kept, trailing) -> None:
+    text = remove_profiles(tmp_path / "snapdelta.toml", PROFILES_WITH_COMMENTS, *removed)
+    assert text == profiles_with_comments(*kept) + trailing
+
+
+def test_removing_the_first_table_of_the_file_keeps_the_comment_of_the_next_one(tmp_path) -> None:
+    head = "# top\n\n"
+    text = remove_profiles(tmp_path / "snapdelta.toml", profiles_with_comments("a", "b", head=head), "a")
+    assert text == profiles_with_comments("b", head=head)
+
+
+def test_removing_a_profile_without_comment_keeps_the_comment_of_the_next_one(tmp_path) -> None:
+    text = '[store]\nlocation = "x"\n\n[profiles.a]\n\n# second\n[profiles.b]\n'
+    assert (
+        remove_profiles(tmp_path / "snapdelta.toml", text, "a") == '[store]\nlocation = "x"\n\n# second\n[profiles.b]\n'
+    )
+
+
+def test_removing_a_profile_keeps_the_comments_in_an_explicit_profiles_table(tmp_path) -> None:
+    text = '[profiles]\n\n# first\n[profiles.a]\ndescription = "a"\n\n# second\n[profiles.b]\ndescription = "b"\n'
+    expected = '[profiles]\n\n# second\n[profiles.b]\ndescription = "b"\n'
+    assert remove_profiles(tmp_path / "snapdelta.toml", text, "a") == expected
+
+
+def test_a_comment_at_the_start_of_a_table_body_stays(tmp_path) -> None:
+    text = '[store]\n# location = "y"\n[profiles.a]\ndescription = "a"\n\n# second\n[profiles.b]\n'
+    expected = '[store]\n# location = "y"\n\n# second\n[profiles.b]\n'
+    assert remove_profiles(tmp_path / "snapdelta.toml", text, "a") == expected
+
+
+def test_removing_a_profile_with_a_subtable_keeps_the_comment_of_the_next_one(tmp_path) -> None:
+    text = (
+        '# first\n[profiles.a]\n[profiles.a.tolerance]\n"interface.mtu" = 10\n\n'
+        '# second\n[profiles.b]\ndescription = "b"\n'
+    )
+    # The comment of a file start that no blank line separates stays: it may be the file header.
+    assert (
+        remove_profiles(tmp_path / "snapdelta.toml", text, "a")
+        == '# first\n\n# second\n[profiles.b]\ndescription = "b"\n'
+    )
+
+
+def test_a_comment_that_no_blank_line_separates_from_the_content_before_it_stays(tmp_path) -> None:
+    text = '[store]\nlocation = "x"\n# port = 1\n# first\n[profiles.a]\ndescription = "a"\n# second\n[profiles.b]\n'
+    expected = '[store]\nlocation = "x"\n# port = 1\n# first\n# second\n[profiles.b]\n'
+    assert remove_profiles(tmp_path / "snapdelta.toml", text, "a") == expected
+
+
+def test_a_comment_at_the_start_of_the_file_that_no_blank_line_separates_stays(tmp_path) -> None:
+    text = '# top\n# first\n[profiles.a]\ndescription = "a"\n\n# second\n[profiles.b]\n'
+    assert remove_profiles(tmp_path / "snapdelta.toml", text, "a") == "# top\n# first\n\n# second\n[profiles.b]\n"
+
+
+def test_removing_a_profile_without_any_blank_line_keeps_the_other_comments(tmp_path) -> None:
+    text = '[store]\nlocation = "x"\n[profiles.a]\nignore = []\n# second\n[profiles.b]\nignore = []\n'
+    assert (
+        remove_profiles(tmp_path / "snapdelta.toml", text, "a")
+        == '[store]\nlocation = "x"\n# second\n[profiles.b]\nignore = []\n'
+    )
+
+
+def test_removing_the_last_profile_moves_the_comment_at_the_end_of_the_file_to_the_table_before(tmp_path) -> None:
+    text = '[store]\nlocation = "x"\n\n# first\n[profiles.a]\ndescription = "a"\n\n# end of file\n'
+    assert remove_profiles(tmp_path / "snapdelta.toml", text, "a") == '[store]\nlocation = "x"\n\n# end of file\n'
+
+
+OUT_OF_ORDER_PROFILES = """\
+[profiles.a]
+description = "a"
+
+# web
+[web]
+port = 9000
+
+# second
+[profiles.b]
+description = "b"
+"""
+
+
+def test_removing_a_profile_of_out_of_order_tables_keeps_the_comment_of_the_next_table(tmp_path) -> None:
+    text = remove_profiles(tmp_path / "snapdelta.toml", OUT_OF_ORDER_PROFILES, "a")
+    assert text == '# web\n[web]\nport = 9000\n\n# second\n[profiles.b]\ndescription = "b"\n'
+    assert load_settings(tmp_path / "snapdelta.toml").profiles.keys() == {"b"}
+
+
+def test_saving_a_new_empty_profile_in_a_file_with_out_of_order_tables_keeps_it(tmp_path) -> None:
+    path = write(tmp_path / "snapdelta.toml", OUT_OF_ORDER_PROFILES)
+    save_settings(path, {"profiles.c": {}})
+    text = path.read_text()
+    assert "[profiles.c]" in text
+    assert all(line in text for line in OUT_OF_ORDER_PROFILES.splitlines() if line)
+    assert load_settings(path).profiles.keys() == {"a", "b", "c"}
+
+
+def test_removing_the_second_part_of_out_of_order_tables_keeps_the_comments_before_it(tmp_path) -> None:
+    text = remove_profiles(tmp_path / "snapdelta.toml", OUT_OF_ORDER_PROFILES, "b")
+    assert text == '[profiles.a]\ndescription = "a"\n\n# web\n[web]\nport = 9000\n\n'
+
+
+SPLIT_PROFILE = """\
+# top
+[profiles.a]
+description = "a"
+
+# web
+[web]
+port = 9000
+
+# tol
+[profiles.a.tolerance]
+"interface.mtu" = 10
+
+# second
+[profiles.b]
+description = "b"
+"""
+
+
+def test_removing_a_split_profile_keeps_the_comment_of_the_next_table(tmp_path) -> None:
+    path = tmp_path / "snapdelta.toml"
+    text = remove_profiles(path, SPLIT_PROFILE, "a")
+    assert text == '# top\n\n# web\n[web]\nport = 9000\n\n# second\n[profiles.b]\ndescription = "b"\n'
+    assert load_settings(path).profiles.keys() == {"b"}
+
+
+def test_removing_a_profile_keeps_an_explicit_profiles_header_and_its_comments(tmp_path) -> None:
+    text = (
+        '[store]\nlocation = "x"\n\n[profiles]\n# body note\n\n# first\n[profiles.a]\ndescription = "a"\n\n'
+        '# web\n[web]\nport = 9000\n\n# second\n[profiles.b]\ndescription = "b"\n'
+    )
+    assert remove_profiles(tmp_path / "snapdelta.toml", text, "a") == (
+        '[store]\nlocation = "x"\n\n[profiles]\n# body note\n\n# web\n[web]\nport = 9000\n\n'
+        '# second\n[profiles.b]\ndescription = "b"\n'
+    )
+
+
+def test_a_new_profile_goes_before_the_comment_of_the_next_table(tmp_path) -> None:
+    path = write(
+        tmp_path / "snapdelta.toml",
+        '# first\n[profiles.a]\ndescription = "a"\n\n# second\n[profiles.b]\ndescription = "b"\n\n'
+        "# web\n[web]\nport = 9000\n",
+    )
+    save_settings(path, {"profiles.c": {}})
+    assert path.read_text() == (
+        '# first\n[profiles.a]\ndescription = "a"\n\n# second\n[profiles.b]\ndescription = "b"\n\n'
+        "[profiles.c]\n\n# web\n[web]\nport = 9000\n"
+    )
+    assert load_settings(path).profiles.keys() == {"a", "b", "c"}
 
 
 def test_save_writes_source_tables_and_secrets(tmp_path) -> None:

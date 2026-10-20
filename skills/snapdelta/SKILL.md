@@ -21,17 +21,18 @@ snapdelta takes snapshots of targets (routers, services) through source plugins,
 
 - In a uv project, run every command with `uv run` (`uv run snapdelta ...`): the sources are plugins installed in the environment of the project.
 - Run the commands in the directory of the `snapdelta.toml` of the project, or give `--settings PATH`: it names the store, the inventory and the profiles.
-- `snapdelta settings` shows the settings file and the store in use. `file: none, defaults` means no project settings and the default store `~/.local/share/snapdelta`: ask the user if this is the right place before you take snapshots.
+- `snapdelta settings` shows the settings file and the store in use. `file: none, defaults` means no project settings and the default store `~/.local/share/snapdelta/snapdelta.db`: ask the user if this is the right place before you take snapshots.
 - `snapdelta inventory` lists the targets with their platform (the source) and their groups; `snapdelta sources` lists the installed sources; `snapdelta doctor` checks the plugins, the settings, the store and the inventory when a command fails for no clear reason.
 - No project yet: follow `docs/getting-started.md`, or show the demo of the README (the example plugin, in the web UI).
-- A snapshot reference is `TARGET/NAME`, `TARGET@latest`, or `TARGET@LABEL` (the newest snapshot with that label, for example `r1@before`).
+- A snapshot reference is `TARGET/NAME`, `TARGET@latest`, or `TARGET@LABEL` (the newest snapshot with that label, for example `r1@before`). With `--ticket`, the labels look inside the snapshots of that ticket only: give the ticket when you take the snapshots, else their labels do not resolve with it.
+- Find the snapshots of a piece of work with `snapdelta list --label before --ticket CHG-1042` (every target, newest first, each line with its ticket and source); `--target` keeps the targets whose name has that text.
 
 ## Check a change
 
-1. Snapshot before: `snapdelta snapshot --group GROUP --label before` (or `--target T` several times, or `--all-targets`). With no inventory, add `--source SOURCE`. Exit code 2 when a target fails: read its error, then `snapdelta activity` for the log.
+1. Snapshot before: `snapdelta snapshot --group GROUP --label before --ticket CHG-1042` (or `--target T` several times, or `--all-targets`). With no inventory, add `--source SOURCE`. Exit code 2 when a target fails: read its error, then `snapdelta activity` for the log.
 2. Let the change happen. Do not apply a change yourself unless the user asked for it.
-3. Snapshot after: the same command with `--label after`.
-4. Compare every target at once: `snapdelta diff --group GROUP @before @after --title "CHG-1042: VLAN 20"` (or `--target T` several times, or `--all-targets`); add `--profile NAME` when a profile of the settings fits the change (`snapdelta settings` lists them). It prints one diff per target, then the targets that changed, did not change or failed. Exit code 0: no difference; 1: differences; 2: a target failed. One target: `snapdelta diff T@before T@after`.
+3. Snapshot after: the same command with `--label after` and the same ticket.
+4. Compare every target at once: `snapdelta diff --group GROUP @before @after --ticket CHG-1042 --note "VLAN 20"` (or `--target T` several times, or `--all-targets`); add `--profile NAME` when a profile of the settings fits the change (`snapdelta settings` lists them). It prints one diff per target, then the targets that changed, did not change or failed. Exit code 0: no difference; 1: differences; 2: a target failed. One target: `snapdelta diff T@before T@after --ticket CHG-1042`. The ticket is free text that names the work (`CHG-1042`, `#216`); ask the user for it, and leave it out when there is none. `snapdelta list --ticket CHG-1042` lists the diffs of the work again.
 5. Read the differences: the text output, or `snapdelta output NAME --format json` for the full document (`diff`: `-` is the left value, `+` the right value; keys `MODEL:UNIQUE_ID`).
 6. Accept each change that the intent of the change explains: `snapdelta accept NAME KEY... --comment "planned in CHG-1042"`. Report every other change to the user, with its target and its values.
 

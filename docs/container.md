@@ -9,8 +9,9 @@ docker run -d -p 8765:8765 -e SNAPDELTA_TOKEN="$(openssl rand -hex 32)" -v snapd
 | Path | Content |
 |---|---|
 | `/etc/snapdelta/snapdelta.toml` | The settings. The default listens on `0.0.0.0` with the token of `SNAPDELTA_TOKEN`; mount your own file over it. |
-| `/data` | A volume: the default store, `/data/snapdelta`, and the files that relative paths of your settings name |
+| `/data` | A volume: the default store, `/data/snapdelta/snapdelta.db`, and the files that relative paths of your settings name |
 
+- A volume with a store of an older version (the directory `/data/snapdelta`) is kept with `SNAPDELTA_STORE=/data/snapdelta`, else the store looks empty after the upgrade. If you move that store to SQLite, delete only `snapshots/`, `outputs/` and `runs/` of the old store afterwards, because `/data/snapdelta/snapdelta.db` is in the same directory.
 - `snapdelta-web` refuses to start without `SNAPDELTA_TOKEN`, or with your own settings, without a login: see [api.md](api.md#access). Put a proxy with TLS in front, or give `tls_cert` and `tls_key`.
 - The health check of the image calls `/healthz`, which needs no login and reads no store.
 - The image runs as the user `snapdelta` (uid 10001); the volume must be writable by it.
@@ -21,7 +22,7 @@ docker run -d -p 8765:8765 -e SNAPDELTA_TOKEN="$(openssl rand -hex 32)" -v snapd
 The image holds no source: add your plugins in an image of your own.
 
 ```dockerfile
-FROM ghcr.io/antoinekh/snapdelta:v0.2.0
+FROM ghcr.io/antoinekh/snapdelta:v0.3.0
 RUN pip install --no-cache-dir my-snapdelta-plugin
 COPY snapdelta.toml /etc/snapdelta/snapdelta.toml
 COPY inventory /data/inventory

@@ -1,4 +1,4 @@
-from snapdelta.output import compare
+from snapdelta.output import compare, described
 from snapdelta.render import change_rows, render_csv, render_markdown, render_output, render_snapshot, renderers
 
 
@@ -71,3 +71,19 @@ def test_the_profile_and_its_count_checks_are_printed(make_adapter) -> None:
     assert "profile: loose (A few more interfaces)" in text
     assert "count interface: 2 -> 3 (+1, +50.0%), limit 50%: within, 1 objects of one side not shown" in text
     assert "- Count interface: 2 -> 3" in render_markdown(output)
+
+
+def test_the_text_shows_the_ticket_then_the_note(make_adapter) -> None:
+    output = described(
+        compare(make_adapter(), make_adapter(description="other")), ticket="CHG-1042", note="VLAN 20\non the trunk"
+    )
+    assert render_output(output).startswith("ticket: CHG-1042\nVLAN 20\non the trunk\n\nleft:")
+    assert render_output(described(output, note="")).startswith("ticket: CHG-1042\n\nleft:")
+    assert render_output(described(output, ticket="")).startswith("VLAN 20\non the trunk\n\nleft:")
+
+
+def test_the_markdown_heading_is_the_ticket_and_the_targets(make_adapter) -> None:
+    output = compare(make_adapter(), make_adapter(description="other"))
+    ticketed = described(output, ticket="CHG-1042", note="VLAN 20")
+    assert render_markdown(ticketed).startswith("# CHG-1042 · R1 vs R1\n\nVLAN 20\n\n| Side")
+    assert render_markdown(output).startswith("# R1 vs R1\n")

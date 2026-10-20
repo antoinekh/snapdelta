@@ -63,7 +63,7 @@ All the commands of this guide run in `lab/example`, so snapdelta reads the sett
 
 | Key | Value in the lab | Effect |
 |---|---|---|
-| `store.location` | `.store` | the snapshots and diffs go to `lab/example/.store`, one JSON file each (file store); the path is relative to the file |
+| `store.location` | `sqlite://.store/snapdelta.db` | the snapshots and diffs go to the SQLite file `lab/example/.store/snapdelta.db`; the path is relative to the file |
 | `stores.sqlite.busy_timeout_s` | default, 30 | SQLite only: how long a writer waits for the lock |
 | `snapshot.jobs` | `3` | `--all-targets` fetches the three routers at the same time |
 | `web.*` | defaults | port 8765 |
@@ -79,13 +79,13 @@ Check the values in use and where each one comes from:
 uv run snapdelta settings
 ```
 
-**Use the SQLite store instead.** Change `store.location` to `sqlite://.store/snapdelta.db` (the commented line), in the file or in the web UI (Admin, then Settings, field `location`, then **Save settings**). snapdelta creates the database on first use; `uv run snapdelta info` then says `backend: sqlite`. To copy the snapshots that you already took into the new store, see "Move a store to the other backend" in [docs/stores.md](../../docs/stores.md).
+**Use the file store instead.** Change `store.location` to `.store` (the commented line), in the file or in the web UI (Admin, then Settings, field `location`, then **Save settings**). The snapshots and diffs are then one JSON file each, which is slow for a large number of them; `uv run snapdelta info` says `backend: file`. To copy the snapshots that you already took into the new store, see "Move a store to another backend" in [docs/stores.md](../../docs/stores.md).
 
 **Use another store for one command.** `SNAPDELTA_STORE` and `--store` win over the file: `uv run snapdelta --store /tmp/lab-store list`, or `SNAPDELTA_STORE=/tmp/lab-store scripts/lab.sh scenario`.
 
 **Run without Docker.** The lab ships the outputs of the three routers in `tests/outputs`, one directory per source, then one per router. To use them instead of the live lab, edit three lines of `snapdelta.toml`:
 
-- in `[store]`, replace `location = ".store"` with the commented line `location = ".store-saved"`, so these snapshots never mix with the snapshots of the live lab;
+- in `[store]`, replace `location = "sqlite://.store/snapdelta.db"` with the commented line `location = ".store-saved"`, so these snapshots never mix with the snapshots of the live lab;
 - in `[sources.frr]` and in `[sources.srlinux]`, uncomment `outputs = "tests/outputs"`.
 
 Then every command of this guide works without Docker; `uv run snapdelta settings` shows `sources.frr.outputs` with the origin `file`. Put the lines back to use the live lab again.
@@ -118,11 +118,11 @@ In the web UI, Take snapshot offers the source "By platform (inventory)" and the
 scripts/lab.sh scenario
 ```
 
-The script deploys the lab from scratch, takes the `before` snapshots, applies the change, takes the `after` snapshots and prints the diff of each router. The snapshots and diffs go to the store of the settings file (`lab/example/.store`); set `SNAPDELTA_STORE` to use another store, for example `SNAPDELTA_STORE=sqlite:///tmp/lab.db scripts/lab.sh scenario`. `scripts/lab.sh --help` lists every command.
+The script deploys the lab from scratch, takes the `before` snapshots, applies the change, takes the `after` snapshots and prints the diff of each router. The snapshots and diffs go to the store of the settings file (`lab/example/.store/snapdelta.db`); set `SNAPDELTA_STORE` to use another store, for example `SNAPDELTA_STORE=sqlite:///tmp/lab.db scripts/lab.sh scenario`. `scripts/lab.sh --help` lists every command.
 
 ## Step by step in the CLI
 
-All the commands run in `lab/example`, so snapdelta reads the settings file of the lab (see [Configure the store and the settings](#configure-the-store-and-the-settings)): the store is `lab/example/.store`, with no `--store` option.
+All the commands run in `lab/example`, so snapdelta reads the settings file of the lab (see [Configure the store and the settings](#configure-the-store-and-the-settings)): the store is `lab/example/.store/snapdelta.db`, with no `--store` option.
 
 1. Deploy the lab and wait for BGP:
 
@@ -135,7 +135,7 @@ All the commands run in `lab/example`, so snapdelta reads the settings file of t
 2. Take a snapshot of every router, at the same time:
 
    ```bash
-   uv run snapdelta snapshot --all-targets --label before
+   uv run snapdelta snapshot --all-targets --label before --ticket CHG-1042
    ```
 
    ```
@@ -145,7 +145,7 @@ All the commands run in `lab/example`, so snapdelta reads the settings file of t
    saved r3/20261013T183028Z-before
    ```
 
-   For one router only: `--target r1`. `--jobs N` sets how many routers load at the same time; without it, `snapshot.jobs` of the settings file applies (3 in the lab).
+   `--ticket` names the work: the labels `before` and `after` then belong to CHG-1042 only, so a later change with the same labels never mixes in. For one router only: `--target r1`. `--jobs N` sets how many routers load at the same time; without it, `snapshot.jobs` of the settings file applies (3 in the lab).
 
 3. Apply the change:
 
@@ -158,17 +158,18 @@ All the commands run in `lab/example`, so snapdelta reads the settings file of t
 4. Take the `after` snapshots:
 
    ```bash
-   uv run snapdelta snapshot --all-targets --label after
+   uv run snapdelta snapshot --all-targets --label after --ticket CHG-1042
    ```
 
-5. Compare before and after for r1 (`r1@before` is the newest snapshot of r1 with the label `before`):
+5. Compare before and after for r1 (`r1@before` is the newest snapshot of r1 with the label `before`, among the snapshots of the ticket):
 
    ```bash
-   uv run snapdelta diff r1@before r1@after --title "CHG-1042: VLAN 20, r1"
+   uv run snapdelta diff r1@before r1@after --ticket CHG-1042 --note "VLAN 20, r1"
    ```
 
    ```
-   title: CHG-1042: VLAN 20, r1
+   ticket: CHG-1042
+   VLAN 20, r1
 
    left:  r1 [before] frr 2026-10-13T18:30:26+00:00
    right: r1 [after] frr 2026-10-13T18:30:31+00:00
@@ -234,13 +235,13 @@ All the commands run in `lab/example`, so snapdelta reads the settings file of t
 
    It prints the link of the web UI, `http://127.0.0.1:8765/diffs`: open it in your browser.
 
-2. **Snapshots**, then **Take snapshot**. The source is "By platform (inventory)": each router uses the source of its platform. Check **All targets**, type the label `before`, then **Take snapshot**. The page of the job follows the three routers live, then links each saved snapshot; SR Linux answers last.
+2. **Snapshots**, then **Take snapshot**. The source is "By platform (inventory)": each router uses the source of its platform. Check **All targets**, type the label `before` and the ticket `CHG-1042`, then **Take snapshot**. The page of the job follows the three routers live, then links each saved snapshot; SR Linux answers last.
 
 3. In a terminal, apply the change: `scripts/lab.sh change`.
 
-4. **Take snapshot** again, with **All targets** and the label `after`.
+4. **Take snapshot** again, with **All targets**, the label `after` and the ticket `CHG-1042`.
 
-5. **New diff**: pick `r1` on the left, then **Before → after** selects its `before` and `after` snapshots. Give a title, then **Compare**.
+5. **New diff**: pick `r1` and its `before` snapshot on the left, then its `after` snapshot on the right. Give the ticket `CHG-1042` and a note, then **Compare**.
 
 6. The diff page: the two sides, the delta strip, the chips and the search that filter the objects, the change map at the right edge, and **Accept** on each change. `?` lists the keyboard shortcuts; see [docs/web-ui.md](../../docs/web-ui.md).
 

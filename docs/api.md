@@ -97,20 +97,20 @@ allowed_hosts = ["10.0.0.5", "snapdelta.lab"]   # required on the network; "*" a
 | `GET /api/v1/plugins` | Every plugin of every extension point, the built-ins and the broken ones included, with the problems that `snapdelta doctor` finds |
 | `GET /api/v1/sources` | The installed sources, and whether each fetches its data |
 | `GET /api/v1/targets?q=R` | The targets that have snapshots |
-| `GET /api/v1/snapshots?target=R1` | The snapshots of one target, newest first |
+| `GET /api/v1/snapshots?target=R1&target=R2&label=before&ticket=CHG-1042&limit=50` | The snapshots of every target, newest first, each with its `ticket` and `source`; `target` (a whole name, repeated for several targets), `label` and `ticket` (any case) are optional filters; `limit` is 1 to 500, 50 by default |
 | `GET /api/v1/snapshots/{target}/{name}` | One snapshot: metadata and data |
-| `POST /api/v1/snapshots` | Fetch targets and save a snapshot of each: `source`, `targets`, `groups`, `all_targets`, `label` |
-| `POST /api/v1/diffs` | Compare: `left`, then `right` or `live`, with `models`, `profile`, `title`, `description`, `save`; `?include_output=true` returns the whole output |
-| `POST /api/v1/diffs/targets` | For each target: `targets`, `groups` or `all_targets`, with the labels `left`, then `right` or `live`; one diff per target, and the targets that `changed`, are `unchanged` or `failed` |
-| `GET /api/v1/diffs?q=R1&limit=50` | The newest saved diffs |
+| `POST /api/v1/snapshots` | Fetch targets and save a snapshot of each: `source`, `targets`, `groups`, `all_targets`, `label`, `ticket` |
+| `POST /api/v1/diffs` | Compare: `left`, then `right` or `live`, with `models`, `profile`, `ticket`, `note`, `save`; `?include_output=true` returns the whole output |
+| `POST /api/v1/diffs/targets` | For each target: `targets`, `groups` or `all_targets`, with the labels `left`, then `right` or `live`, and `ticket`, `note`; one diff per target, and the targets that `changed`, are `unchanged` or `failed` |
+| `GET /api/v1/diffs?q=R1&ticket=CHG-1042&limit=50` | The newest saved diffs whose target or ticket contains `q` (any case); with `ticket`, only the diffs of exactly that ticket (any case) |
 | `GET /api/v1/diffs/{name}?format=json` | One saved diff: `json`, `text`, `markdown` or `csv` |
-| `PATCH /api/v1/diffs/{name}` | Change its `title` or `description` |
+| `PATCH /api/v1/diffs/{name}` | Change its `ticket` or `note`; a field that you leave out stays, an empty text removes it |
 | `GET /api/v1/runs?kind=snapshot&limit=50` | The newest runs (snapshot or diff) and their result, without their log |
 | `GET /api/v1/runs/{id}` | One run, with the log messages of its loads |
 | `GET /api/v1/diffs/{name}/reviews` | The accepted changes, and `to_review`: the keys of the changes that nobody accepted yet |
 | `POST /api/v1/diffs/{name}/reviews` | Accept one change: `key`, `by`, `comment`; `"accepted": false` withdraws it |
 
-A snapshot reference is `TARGET/NAME`, `TARGET@latest`, or `TARGET@LABEL`: the newest snapshot of the target with that label. An error answers with a status `400` or `404` and `{"error": "..."}`.
+A snapshot reference is `TARGET/NAME`, `TARGET@latest`, or `TARGET@LABEL`: the newest snapshot of the target with that label. An error answers with a status `400` or `404` and `{"error": "..."}`. A call that sends a field the API does not know is refused with a `422`, so a pipeline of an older version learns it at once.
 
 Every call waits for its result: `POST /api/v1/snapshots` returns when every target is done, with `ok`, the reference of each saved snapshot, and the error of each failed target.
 
@@ -121,16 +121,18 @@ API=https://snapdelta.example.net/api/v1
 AUTH="Authorization: Bearer $SNAPDELTA_TOKEN"
 
 # Before the change: every host of the group core
-curl -sf -H "$AUTH" -X POST $API/snapshots -d '{"groups": ["core"], "label": "before"}' -H 'Content-Type: application/json'
+curl -sf -H "$AUTH" -X POST $API/snapshots -d '{"groups": ["core"], "label": "before", "ticket": "CHG-1234"}' -H 'Content-Type: application/json'
 
 # ... apply the change ...
 
 # After the change, then one diff per host of the group
-curl -sf -H "$AUTH" -X POST $API/snapshots -d '{"groups": ["core"], "label": "after"}' -H 'Content-Type: application/json'
+curl -sf -H "$AUTH" -X POST $API/snapshots -d '{"groups": ["core"], "label": "after", "ticket": "CHG-1234"}' -H 'Content-Type: application/json'
 curl -sf -H "$AUTH" -X POST $API/diffs/targets -H 'Content-Type: application/json' \
-  -d '{"groups": ["core"], "left": "before", "right": "after", "profile": "change-window", "title": "CHG-1234"}' \
+  -d '{"groups": ["core"], "left": "before", "right": "after", "profile": "change-window", "ticket": "CHG-1234"}' \
   | jq -e '.has_differences == false and .failed == {}'      # fails the step when a host changed or failed
 ```
+
+The same `ticket` on the snapshots and on the diff keeps the labels inside that ticket: `before` and `after` are then the ones of CHG-1234 only, whatever other work uses the same labels. The ticket is free text (`CHG-1234`, `#216`, `Migration Lyon phase 2`) of 80 characters at most; a diff with no `ticket` takes the ticket of its two snapshots when they have the same one. A `note` is free text about one diff, of 2000 characters at most.
 
 `has_differences` is the result to check, and `changed` names the hosts that changed; the `url` of each diff opens it in the web UI, and `GET /api/v1/diffs/{name}?format=markdown` gives a report to attach to the change ticket. `{"groups": ["core"], "left": "before", "live": true}` takes the after snapshots and compares them in one call.
 

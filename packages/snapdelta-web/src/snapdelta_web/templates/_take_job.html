@@ -4,6 +4,7 @@
   <div class="title-row">
     <h1>{{ "Snapshots taken" if job.done else "Taking snapshots" }}</h1>
     {% if job.label %}<span class="tag label">{{ job.label }}</span>{% endif %}
+    {% if job.ticket %}<span class="ticket-chip">{{ job.ticket }}</span>{% endif %}
     {% if job.done and job.failed %}<form method="post" action="/take/jobs/{{ job.id }}/retry" class="push"><button type="submit" class="button primary">Retry the {{ job.failed | length }} failed</button></form>{% endif %}
     <a class="button{{ ' push' if not (job.done and job.failed) }}" href="/take">Take more</a>
   </div>

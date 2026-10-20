@@ -3,7 +3,7 @@
 import functools
 import hashlib
 import json
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Callable
 from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Annotated, Any
@@ -24,7 +24,7 @@ from snapdelta.catalog import catalog
 from snapdelta.doctor import plugin_reports
 from snapdelta.errors import NotFoundError, SnapdeltaError
 from snapdelta.inventory import INVENTORIES
-from snapdelta.output import Output, common_models, new_review, skipped_models
+from snapdelta.output import Output, common_models, new_review, note_line, skipped_models
 from snapdelta.plugins import discover, extension_points
 from snapdelta.render import renderer, renderers
 from snapdelta.runners import RUNNERS
@@ -32,8 +32,9 @@ from snapdelta.secrets import SECRETS
 from snapdelta.settings import Settings, SettingsError, save_settings, user_settings_path
 from snapdelta.snapshot import top_level_models
 from snapdelta.source import Source, broken_sources, source_classes
-from snapdelta.store import LATEST, PrunePlan, Store, age_cutoff
+from snapdelta.store import LATEST, PrunePlan, SnapshotQuery, Store, age_cutoff
 from snapdelta.take import diff_snapshots, diff_targets, plan_sources, platform_source, target_names
+from snapdelta.ticket import normalize_ticket
 
 from . import views
 from .access import LruCache, SnapshotCache
@@ -55,7 +56,7 @@ from .auth import (
 from .jobs import TakeJobs
 from .mcp_server import GUIDE as MCP_GUIDE
 from .mcp_server import create_mcp
-from .settings_form import NEW_PROFILE_NAME, FormGroup, errors_by_field, form_groups, parse_form, profile_groups
+from .settings_form import FormGroup, errors_by_field, form_groups, parse_form, profile_groups
 from .state import AppState
 
 HERE = Path(__file__).parent
@@ -63,6 +64,8 @@ HERE = Path(__file__).parent
 BY_PLATFORM = ""
 # The Admin tabs that edit the settings file.
 SETTINGS, PROFILES = "settings", "profiles"
+# The field of the form that creates a profile, in its form, the errors and the posted values of the page.
+NEW_PROFILE_FIELD = "name"
 # A filter of Activity reads this many of the newest runs, since a store lists its runs without a filter of its own.
 ACTIVITY_WINDOW = 1000
 
@@ -161,6 +164,7 @@ def create_app(state: AppState) -> FastAPI:
     templates = Jinja2Templates(directory=HERE / "templates")
     templates.env.filters["when"] = views.when
     templates.env.filters["size"] = views.size_text
+    templates.env.filters["note_line"] = note_line
     templates.env.filters["ticks"] = views.ticks
     templates.env.filters["id_label"] = views.id_label
     templates.env.globals["asset"] = asset_url
@@ -249,15 +253,16 @@ def create_app(state: AppState) -> FastAPI:
             raise NotFoundError(f"no side {side!r}: left or right")
 
     def snapshot_options(target: str, side: str, offset: int, selected: str | None) -> dict[str, Any]:
-        entries = state.store.snapshot_entries(target)
         start = max(offset, 0)
+        # One row more than the page tells that a next page exists.
+        entries = state.store.snapshot_entries(SnapshotQuery(targets=(target,), limit=PAGE_SIZE + 1, offset=start))
         return {
             "target": target,
             "side": side,
             "offset": start,
             "next_offset": start + PAGE_SIZE,
-            "entries": entries[start : start + PAGE_SIZE],
-            "more": len(entries) > start + PAGE_SIZE,
+            "entries": entries[:PAGE_SIZE],
+            "more": len(entries) > PAGE_SIZE,
             "selected": selected or f"{target}@{LATEST}",
         }
 
@@ -290,9 +295,13 @@ def create_app(state: AppState) -> FastAPI:
         return RedirectResponse("/diffs")
 
     @app.get("/diffs", response_class=HTMLResponse)
-    def diffs(request: Request, q: str = "", page: int = 1, deleted: int | None = None) -> HTMLResponse:
-        rows, unreadable, pager = views.output_rows(state.store, q, page, PAGE_SIZE, row_cache)
+    def diffs(
+        request: Request, q: str = "", ticket: str = "", page: int = 1, deleted: int | None = None
+    ) -> HTMLResponse:
+        wanted = normalize_ticket(ticket)
+        rows, unreadable, pager = views.output_rows(state.store, q, page, PAGE_SIZE, row_cache, wanted)
         context = {"tab": "diffs", "rows": rows, "unreadable": unreadable, "pager": pager, "q": q, "deleted": deleted}
+        context["ticket"] = wanted
         context["groups"] = views.output_groups(rows)
         return render(request, "diffs.html", context)
 
@@ -326,7 +335,7 @@ def create_app(state: AppState) -> FastAPI:
     def export_diff(name: str, output_format: str) -> Response:
         resolved = state.store.resolve_output(name)
         chosen = renderer(output_format)
-        headers = {"Content-Disposition": f'attachment; filename="{resolved}.{chosen.suffix}"'}
+        headers = views.attachment(f"{resolved}.{chosen.suffix}")
         return Response(chosen.render(state.store.load_output(resolved)), media_type=chosen.media_type, headers=headers)
 
     @app.post("/diffs")
@@ -336,8 +345,8 @@ def create_app(state: AppState) -> FastAPI:
         models: Annotated[list[str] | None, Form()] = None,
         pick_models: Annotated[bool, Form()] = False,
         profile: Annotated[str, Form()] = "",
-        title: Annotated[str, Form()] = "",
-        description: Annotated[str, Form()] = "",
+        ticket: Annotated[str, Form()] = "",
+        note: Annotated[str, Form()] = "",
     ) -> RedirectResponse:
         if not left or not right:
             raise SnapdeltaError("select a left and a right snapshot")
@@ -350,8 +359,8 @@ def create_app(state: AppState) -> FastAPI:
             right,
             models=models,
             profile=profile or None,
-            title=title,
-            description=description,
+            ticket=ticket,
+            note=note,
             origin="web",
         )
         return RedirectResponse(f"/diffs/{done.name}", status_code=303)
@@ -364,8 +373,8 @@ def create_app(state: AppState) -> FastAPI:
         group: Annotated[str, Form()] = "",
         live: Annotated[bool, Form()] = False,
         profile: Annotated[str, Form()] = "",
-        title: Annotated[str, Form()] = "",
-        description: Annotated[str, Form()] = "",
+        ticket: Annotated[str, Form()] = "",
+        note: Annotated[str, Form()] = "",
     ) -> HTMLResponse:
         """For each host of the group, or each target of the store, TARGET@LEFT with TARGET@RIGHT or the target now."""
         results = diff_targets(
@@ -377,8 +386,8 @@ def create_app(state: AppState) -> FastAPI:
             all_targets=not group,
             live=live,
             profile=profile or None,
-            title=title,
-            description=description,
+            ticket=ticket,
+            note=note,
             origin="web",
         )
         items = list(results.values())
@@ -387,7 +396,7 @@ def create_app(state: AppState) -> FastAPI:
             "results": items,
             "left": left.strip(),
             "right": "now" if live else right.strip(),
-            "title": title.strip(),
+            "ticket": normalize_ticket(ticket),
             "changed": [item for item in items if item.changed],
             "unchanged": [item for item in items if item.output is not None and not item.changed],
             "failed": [item for item in items if item.error],
@@ -396,10 +405,12 @@ def create_app(state: AppState) -> FastAPI:
 
     @app.post("/diffs/{name}/describe")
     def describe_diff(
-        name: str, title: Annotated[str, Form()] = "", description: Annotated[str, Form()] = ""
+        name: str,
+        ticket: Annotated[str, Form()] = "",
+        note: Annotated[str, Form()] = "",
     ) -> RedirectResponse:
         resolved = state.store.resolve_output(name)
-        state.store.describe_output(resolved, title, description)
+        state.store.describe_output(resolved, ticket=ticket, note=note)
         row_cache.discard((state.store.location, resolved))
         return RedirectResponse(f"/diffs/{resolved}", status_code=303)
 
@@ -444,9 +455,18 @@ def create_app(state: AppState) -> FastAPI:
         return render(request, "_models.html", context)
 
     @app.get("/snapshots", response_class=HTMLResponse)
-    def snapshots(request: Request, q: str = "", page: int = 1, deleted: int | None = None) -> HTMLResponse:
-        rows, pager = views.target_rows(state.store, q, page, PAGE_SIZE)
-        context = {"tab": "snapshots", "rows": rows, "pager": pager, "q": q, "deleted": deleted}
+    def snapshots(
+        request: Request,
+        target: Annotated[list[str] | None, Query()] = None,
+        label: str = "",
+        ticket: str = "",
+        page: int = 1,
+        deleted: int | None = None,
+    ) -> HTMLResponse:
+        query = views.snapshot_query(target or [], label, ticket)
+        rows, pager = views.snapshot_list(state.store, query, page, PAGE_SIZE)
+        context = {"tab": "snapshots", "rows": rows, "pager": pager, "query": query, "deleted": deleted}
+        context |= {"filters": views.snapshot_filters(query)}
         return render(request, "snapshots.html", context)
 
     @app.get("/snapshots/{target}", response_class=HTMLResponse)
@@ -490,6 +510,13 @@ def create_app(state: AppState) -> FastAPI:
         context |= {"tab": "snapshots", "adapter": adapter, "tables": views.model_tables(adapter, size), "live": live}
         context["profiles"] = profile_choices()
         return render(request, "snapshot.html", context)
+
+    @app.get("/snapshots/{target}/{name}/export/json")
+    def export_snapshot(target: str, name: str) -> Response:
+        reference = state.store.resolve_snapshot(f"{target}/{name}")
+        headers = views.attachment(f"{reference.replace('/', '-')}.json")
+        body = state.store.read_snapshot(reference).model_dump_json(by_alias=True, indent=2)
+        return Response(body, media_type="application/json", headers=headers)
 
     def group_members(group: str) -> list[str] | None:
         inventory = state.settings.hosts()
@@ -568,6 +595,14 @@ def create_app(state: AppState) -> FastAPI:
         matches, more = views.target_matches(state.store, q, MATCH_LIMIT, group_members(group))
         return render(request, "_target_options.html", {"side": side, "targets": matches, "more": more})
 
+    @app.get("/targets/matches", response_class=HTMLResponse)
+    def store_target_matches(
+        request: Request, q: str = "", target: Annotated[list[str] | None, Query()] = None
+    ) -> HTMLResponse:
+        """The targets of the store that a picker offers, without the ones it already holds."""
+        matches, more = views.target_matches(state.store, q, MATCH_LIMIT, chosen=set(target or []))
+        return render(request, "_target_matches.html", {"targets": matches, "more": more})
+
     @app.get("/targets/{target}/snapshots", response_class=HTMLResponse)
     def target_snapshots(request: Request, target: str, side: str, offset: int = 0) -> HTMLResponse:
         check_side(side)
@@ -585,21 +620,23 @@ def create_app(state: AppState) -> FastAPI:
         request: Request,
         left: str | None = None,
         right: str | None = None,
-        title: str = "",
-        description: str = "",
+        ticket: str = "",
+        note: str = "",
         profile: str = "",
         many: bool = False,
     ) -> HTMLResponse:
         pickers = {}
         missing = []
+        ticket_text = normalize_ticket(ticket)
+        in_ticket = f" in the ticket {ticket_text}" if ticket_text else ""
         for side, selected in (("left", left), ("right", right)):
             if selected and "@" in selected and not selected.endswith(f"@{LATEST}"):
                 # TARGET@LABEL selects the snapshot that it names, as one of the choices of the list.
                 target, _, label = selected.partition("@")
                 try:
-                    selected = state.store.resolve_snapshot(selected)
+                    selected = state.store.resolve_snapshot(selected, ticket_text)
                 except NotFoundError:
-                    missing.append(f"No snapshot of {target} is labelled {label}")
+                    missing.append(f"No snapshot of {target} is labelled {label}{in_ticket}")
                     selected = f"{target}@{LATEST}"
             target = selected.split("@")[0].split("/")[0] if selected else None
             options = snapshot_options(target, side, 0, selected) if target else None
@@ -611,7 +648,12 @@ def create_app(state: AppState) -> FastAPI:
         groups = inventory.groups if inventory else []
         members = {group: inventory.members(group) for group in groups} if inventory else {}
         context = {"tab": "new", "pickers": pickers, "profiles": profile_choices(), "groups": groups, "many": many}
-        context |= {"missing": missing, "title": title, "description": description, "profile": profile}
+        context |= {
+            "missing": missing,
+            "ticket": ticket,
+            "note": note,
+            "profile": profile,
+        }
         context |= {"group_members": members}
         return render(request, "new.html", context)
 
@@ -619,6 +661,7 @@ def create_app(state: AppState) -> FastAPI:
     def delete_diffs(
         names: Annotated[list[str] | None, Form()] = None,
         q: Annotated[str, Form()] = "",
+        ticket: Annotated[str, Form()] = "",
         page: Annotated[int, Form()] = 1,
     ) -> RedirectResponse:
         resolved = [state.store.resolve_output(name) for name in _selected(names)]
@@ -626,7 +669,8 @@ def create_app(state: AppState) -> FastAPI:
             state.store.delete_output(name)
             row_cache.discard((state.store.location, name))
         query = urlencode(
-            {key: value for key, value in (("q", q), ("page", page)) if value} | {"deleted": len(resolved)}
+            {key: value for key, value in (("q", q), ("ticket", ticket), ("page", page)) if value}
+            | {"deleted": len(resolved)}
         )
         return RedirectResponse(f"/diffs?{query}", status_code=303)
 
@@ -636,7 +680,7 @@ def create_app(state: AppState) -> FastAPI:
         resolved = [state.store.resolve_snapshot(reference) for reference in _selected(references)]
         if len(resolved) != 2:
             raise SnapdeltaError(f"select two snapshots to compare, not {len(resolved)}")
-        newest_first = [entry.reference for entry in state.store.snapshot_entries(target)]
+        newest_first = [entry.reference for entry in state.store.snapshot_entries(SnapshotQuery(targets=(target,)))]
         if any(reference not in newest_first for reference in resolved):
             raise NotFoundError(f"a selected snapshot is not a snapshot of {target}")
         newer, older = sorted(resolved, key=newest_first.index)
@@ -656,7 +700,7 @@ def create_app(state: AppState) -> FastAPI:
             raise NotFoundError(f"a selected snapshot is not a snapshot of {target}")
         for reference in resolved:
             state.store.delete_snapshot(reference)
-        if not state.store.snapshot_entries(target):
+        if not state.store.snapshot_entries(SnapshotQuery(targets=(target,))):
             return RedirectResponse(f"/snapshots?deleted={len(resolved)}", status_code=303)
         period = views.Period.parse(since, until)
         kept = f"{period.query}&" if period.active else ""
@@ -672,7 +716,9 @@ def create_app(state: AppState) -> FastAPI:
     @app.post("/snapshots/{target}/{name}/delete")
     def delete_snapshot(target: str, name: str) -> RedirectResponse:
         state.store.delete_snapshot(state.store.resolve_snapshot(f"{target}/{name}"))
-        target = f"/snapshots/{target}" if state.store.snapshot_entries(target) else "/snapshots"
+        target = (
+            f"/snapshots/{target}" if state.store.snapshot_entries(SnapshotQuery(targets=(target,))) else "/snapshots"
+        )
         return RedirectResponse(target, status_code=303)
 
     def collectors() -> dict[str, type[Source]]:
@@ -715,7 +761,7 @@ def create_app(state: AppState) -> FastAPI:
         typed = wanted if wanted and not matches and wanted not in known and wanted not in selected else None
         more = max(len(matches) - MATCH_LIMIT, 0)
         context = {"targets": matches[:MATCH_LIMIT], "more": more, "typed": typed}
-        return render(request, "_take_targets.html", context)
+        return render(request, "_target_matches.html", context)
 
     @app.post("/take", response_model=None)
     def take(
@@ -725,6 +771,7 @@ def create_app(state: AppState) -> FastAPI:
         group: Annotated[list[str] | None, Form()] = None,
         all_targets: Annotated[bool, Form()] = False,
         label: Annotated[str, Form()] = "",
+        ticket: Annotated[str, Form()] = "",
     ) -> HTMLResponse | RedirectResponse:
         cls = None if source == BY_PLATFORM else collector(source)
         names = target_names(cls, target or [], all_targets, state.settings, group or [])
@@ -732,7 +779,7 @@ def create_app(state: AppState) -> FastAPI:
             raise SnapdeltaError("select a target, a group, or all targets")
         plan = plan_sources(names, state.settings, cls)
         # The loads run in the background: the page of the job follows each target live.
-        job = take_jobs.start(state, plan, source, label.strip() or None)
+        job = take_jobs.start(state, plan, source, label.strip() or None, normalize_ticket(ticket))
         return RedirectResponse(f"/take/jobs/{job.id}", status_code=303)
 
     @app.get("/take/jobs/{job_id}", response_class=HTMLResponse)
@@ -745,12 +792,12 @@ def create_app(state: AppState) -> FastAPI:
 
     @app.post("/take/jobs/{job_id}/retry")
     def retry_take_job(job_id: str) -> RedirectResponse:
-        """A new job with the failed targets of this one, with the same source and label."""
+        """A new job with the failed targets of this one, with the same source, label and ticket."""
         job = take_jobs.get(job_id)
         if not job.failed:
             raise SnapdeltaError("no failed target to take again")
         cls = None if job.source == BY_PLATFORM else collector(job.source)
-        retry = take_jobs.start(state, plan_sources(job.failed, state.settings, cls), job.source, job.label)
+        retry = take_jobs.start(state, plan_sources(job.failed, state.settings, cls), job.source, job.label, job.ticket)
         return RedirectResponse(f"/take/jobs/{retry.id}", status_code=303)
 
     @app.get("/admin/settings", response_class=HTMLResponse)
@@ -801,12 +848,45 @@ def create_app(state: AppState) -> FastAPI:
         return render(request, "admin_plugins.html", {"tab": "admin", "section": "plugins", "points": points})
 
     @app.get("/admin/profiles", response_class=HTMLResponse)
-    def profiles_page(request: Request, saved: str | None = None) -> HTMLResponse:
-        return render(request, "admin_settings.html", settings_context(PROFILES, saved=saved))
+    def profiles_page(request: Request, saved: str | None = None, deleted: str | None = None) -> HTMLResponse:
+        return render(request, "admin_settings.html", settings_context(PROFILES, saved=saved, deleted=deleted))
 
     @app.post("/admin/profiles", response_model=None)
     async def save_profiles_page(request: Request) -> HTMLResponse | RedirectResponse:
         return await save_section(request, PROFILES)
+
+    @app.post("/admin/profiles/{name}/delete", response_model=None)
+    def delete_profile(request: Request, name: str) -> HTMLResponse | RedirectResponse:
+        if name not in state.settings.profiles:
+            raise NotFoundError(f"no profile {name!r}")
+        path = state.settings.file or user_settings_path()
+        failure = write_and_reload(path, lambda: save_settings(path, {}, removed=[f"profiles.{name}"]))
+        if failure:
+            return render(request, "admin_settings.html", settings_context(PROFILES, failure=failure), 400)
+        return RedirectResponse(f"/admin/{PROFILES}?{urlencode({'deleted': name})}", status_code=303)
+
+    @app.post("/admin/profiles/new", response_model=None)
+    def create_profile(
+        request: Request, name: Annotated[str, Form(alias=NEW_PROFILE_FIELD)] = ""
+    ) -> HTMLResponse | RedirectResponse:
+        name = name.strip()
+        path = state.settings.file or user_settings_path()
+        posted = {NEW_PROFILE_FIELD: name}
+        errors: dict[str, str] = {}
+        failure = None
+        if not name:
+            errors[NEW_PROFILE_FIELD] = "Give a name"
+        elif name in state.settings.profiles:
+            errors[NEW_PROFILE_FIELD] = f"a profile {name!r} exists already"
+        else:
+            try:
+                failure = write_and_reload(path, lambda: save_settings(path, {f"profiles.{name}": {}}))
+            except SettingsError as error:
+                errors[NEW_PROFILE_FIELD] = "\n".join(error.errors.values())
+        if errors or failure:
+            context = settings_context(PROFILES, errors=errors, failure=failure, posted=posted)
+            return render(request, "admin_settings.html", context, 400)
+        return RedirectResponse(f"/admin/{PROFILES}#profile-{name}", status_code=303)
 
     def section_groups(section: str) -> list[FormGroup]:
         if section == PROFILES:
@@ -818,24 +898,16 @@ def create_app(state: AppState) -> FastAPI:
         }
         return form_groups(state.settings, source_classes(), plugin_choices)
 
-    async def save_section(request: Request, section: str) -> HTMLResponse | RedirectResponse:
-        """Save the tables of one Admin tab; the other tables and the comments of the file stay."""
-        installed = source_classes()
-        groups = section_groups(section)
-        posted = {key: str(value) for key, value in (await request.form()).items()}
-        path = state.settings.file or user_settings_path()
+    def write_and_reload(path: Path, write: Callable[[], None]) -> str | None:
+        """Change the settings file with `write`, then reload; the reason it failed, or None.
+
+        A `SettingsError` of `write` goes to the caller; the file is as before when this fails.
+        """
         previous = path.read_bytes() if path.is_file() else None
         try:
-            parsed = parse_form(posted, groups)
-            save_settings(path, parsed.values, installed, parsed.removed)
-        except SettingsError as error:
-            errors = errors_by_field(error.errors, groups, posted.get(NEW_PROFILE_NAME, "").strip())
-            context = settings_context(section, errors=errors, posted=posted)
-            return render(request, "admin_settings.html", context, 400)
+            write()
         except OSError as error:
-            context = settings_context(section, failure=f"{path}: {error.strerror}", posted=posted)
-            return render(request, "admin_settings.html", context, 400)
-        started = [getattr(state.settings.web, key) for key in START_KEYS]
+            return f"{path}: {error.strerror}"
         try:
             state.reload()
             configure_logging(state.settings.snapshot.log_level)
@@ -845,7 +917,24 @@ def create_app(state: AppState) -> FastAPI:
                 path.unlink(missing_ok=True)
             else:
                 path.write_bytes(previous)
-            failure = f"the store or the settings cannot be opened: {error}"
+            return f"the store or the settings cannot be opened: {error}"
+        return None
+
+    async def save_section(request: Request, section: str) -> HTMLResponse | RedirectResponse:
+        """Save the tables of one Admin tab; the other tables and the comments of the file stay."""
+        installed = source_classes()
+        groups = section_groups(section)
+        posted = {key: str(value) for key, value in (await request.form()).items()}
+        path = state.settings.file or user_settings_path()
+        started = [getattr(state.settings.web, key) for key in START_KEYS]
+        try:
+            parsed = parse_form(posted, groups)
+            failure = write_and_reload(path, lambda: save_settings(path, parsed, installed))
+        except SettingsError as error:
+            errors = errors_by_field(error.errors, groups)
+            context = settings_context(section, errors=errors, posted=posted)
+            return render(request, "admin_settings.html", context, 400)
+        if failure:
             context = settings_context(section, failure=failure, posted=posted)
             return render(request, "admin_settings.html", context, 400)
         changed = started != [getattr(state.settings.web, key) for key in START_KEYS]
@@ -861,16 +950,26 @@ def create_app(state: AppState) -> FastAPI:
             "target_file": state.settings.file or user_settings_path(),
             "warnings": state.settings.warnings,
             "errors": {},
+            "new_profile_field": NEW_PROFILE_FIELD,
             "posted": None,
             "failure": None,
             "saved": None,
+            "deleted": None,
             "restart": False,
             "secret_backends": sorted(discover(SECRETS).plugins),
         } | extra
 
     @app.get("/admin", response_class=HTMLResponse)
     def admin(request: Request, deleted: str | None = None) -> HTMLResponse:
-        context = {"tab": "admin", "info": state.store.info(), "plan": None, "form": {}, "deleted": deleted}
+        context = {
+            "tab": "admin",
+            "section": "store",
+            "info": state.store.info(),
+            "plan": None,
+            "form": {},
+            "deleted": deleted,
+            "error": None,
+        }
         return render(request, "admin.html", context)
 
     @app.post("/admin/prune", response_class=HTMLResponse)
@@ -882,13 +981,32 @@ def create_app(state: AppState) -> FastAPI:
         outputs: Annotated[str, Form()] = "",
         confirm: Annotated[str, Form()] = "",
     ) -> Response:
-        plan = _prune_plan(state.store, target, keep, older_than, bool(outputs))
+        form = {"target": target, "keep": keep, "older_than": older_than, "outputs": outputs}
+        try:
+            plan = _prune_plan(state.store, target, keep, older_than, bool(outputs))
+        except SnapdeltaError as error:
+            context = {
+                "tab": "admin",
+                "section": "store",
+                "info": state.store.info(),
+                "plan": None,
+                "form": form,
+                "deleted": None,
+                "error": str(error),
+            }
+            return render(request, "admin.html", context, 400)
         if confirm:
             state.store.apply(plan)
-            counts = f"{len(plan.snapshots)} snapshots and {len(plan.outputs)} outputs"
-            return RedirectResponse(f"/admin?deleted={counts}", status_code=303)
-        form = {"target": target, "keep": keep, "older_than": older_than, "outputs": outputs}
-        context = {"tab": "admin", "info": state.store.info(), "plan": plan, "form": form, "deleted": None}
+            return RedirectResponse(f"/admin?deleted={plan.counts}", status_code=303)
+        context = {
+            "tab": "admin",
+            "section": "store",
+            "info": state.store.info(),
+            "plan": plan,
+            "form": form,
+            "deleted": None,
+            "error": None,
+        }
         return render(request, "admin.html", context)
 
     return app

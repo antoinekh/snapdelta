@@ -15,6 +15,9 @@ from typing import TYPE_CHECKING, Annotated, Any, Literal, cast
 
 import tomlkit
 from pydantic import AfterValidator, BaseModel, ConfigDict, Field, ValidationError, model_validator
+from tomlkit import TOMLDocument
+from tomlkit.container import Container
+from tomlkit.items import Comment, Item, Key, Null, Table, Whitespace
 
 from .errors import SnapdeltaError
 
@@ -548,9 +551,9 @@ def _apply_store(settings: Settings, option: str | None) -> None:
     if option:
         location = _local_address(option, _expand_user)
         settings.origins["store.location"], settings.notes["store.location"] = Origin.OPTION, "--store"
-    from .store import default_store_path
+    from .store import default_store_location
 
-    settings.store = settings.store.model_copy(update={"location": location or str(default_store_path())})
+    settings.store = settings.store.model_copy(update={"location": location or default_store_location()})
 
 
 def _local_address(location: str, change: Callable[[str], str | Path]) -> str:
@@ -670,12 +673,8 @@ def save_settings(
         raise SettingsError("\n".join(f"{path}: {key}: {message}" for key, message in errors.items()), errors)
     document = tomlkit.parse(path.read_text()) if path.is_file() else tomlkit.document()
     for table in removed:
-        *parents, last = table.split(".")
-        container = document
-        for part in parents:
-            container = container.get(part, {})
-        container.pop(last, None)
-    created: list[tuple[Any, str]] = []
+        document = _remove_table(document, table.split("."))
+    created: list[tuple[Any, list[str]]] = []
     for table, model in checked.items():
         defaults = type(model)()
         target = _table(document, table.split("."), created)
@@ -689,21 +688,163 @@ def save_settings(
                 target[key] = written
     # Only the tables that this save added go away when empty: a table of the file can hold comments.
     # A new profile stays even when empty: its name is what the user asked for.
-    for container, key in reversed(created):
-        if not container[key] and container is not document.get("profiles"):
-            del container[key]
+    for container, parts in reversed(created):
+        if not container[parts[-1]] and parts[:-1] != ["profiles"]:
+            del container[parts[-1]]
     _write_atomic(path, tomlkit.dumps(document))
 
 
-def _table(document: Any, parts: list[str], created: list[tuple[Any, str]]) -> Any:
+def _remove_table(document: TOMLDocument, parts: list[str]) -> TOMLDocument:
+    """Drop every part of a table path, with the comments that belong to it.
+
+    A table that another table splits into several parts sits in several places of the body, and each
+    part carries the comment of the table that follows it.
+    """
+    while paths := _find_table_paths(document, parts):
+        document = _remove_table_at(document, paths[0])
+    return document
+
+
+def _remove_table_at(document: TOMLDocument, path: list[tuple[Container, int]]) -> TOMLDocument:
+    table = _table_at(path[-1])
+    parents = [(entry[0], _table_at(entry)) for entry in path[:-1]]
+    kept = _tail(_last_container(table))
+    container, start, stop = _comment_run_above(path)
+    previous = _previous_item(container.body, start)
+    if kept and isinstance(kept[0], Whitespace) and (previous is None or isinstance(previous, Whitespace)):
+        kept = kept[1:]
+    # The splice leaves the key index of the container stale, so the drops below find their item again.
+    container.body[start:stop] = [(None, item) for item in kept]
+    _drop_entry(path[-1][0], table)
+    for outer, parent in reversed(parents):
+        if not parent.is_super_table():
+            break
+        if any(key is not None for key, _ in parent.value.body):
+            break
+        _drop_entry(outer, parent)
+    return tomlkit.parse(tomlkit.dumps(document))
+
+
+def _drop_entry(container: Container, item: Item) -> None:
+    for index, (_, value) in enumerate(container.body):
+        if value is item:
+            del container.body[index]
+            return
+
+
+def _find_table_paths(
+    container: Container, parts: list[str], prefix: list[tuple[Container, int]] | None = None
+) -> list[list[tuple[Container, int]]]:
+    """Every place of a table path in the body; a table split by another table has more than one."""
+    found: list[list[tuple[Container, int]]] = []
+    prefix = prefix or []
+    for index, (key, item) in enumerate(container.body):
+        if key is None or key.key != parts[0] or not isinstance(item, Table):
+            continue
+        path = [*prefix, (container, index)]
+        if len(parts) == 1:
+            found.append(path)
+        else:
+            found.extend(_find_table_paths(item.value, parts[1:], path))
+    return found
+
+
+def _table_at(entry: tuple[Container, int]) -> Table:
+    container, index = entry
+    return cast(Table, container.body[index][1])
+
+
+def _last_container(table: Table) -> Container:
+    """The comment of the next table is stored at the end of the last table of the subtree."""
+    container = table.value
+    while True:
+        last = next((item for key, item in reversed(container.body) if key is not None), None)
+        if not isinstance(last, Table):
+            return container
+        container = last.value
+
+
+def _tail(container: Container) -> list[Item]:
+    start = next((i + 1 for i, (key, _) in reversed(list(enumerate(container.body))) if key is not None), 0)
+    return [item for _, item in container.body[start:] if not isinstance(item, Null)]
+
+
+def _previous_item(body: list[tuple[Key | None, Item]], index: int) -> Item | None:
+    return next((item for _, item in reversed(body[:index]) if not isinstance(item, Null)), None)
+
+
+def _comment_start(body: list[tuple[Key | None, Item]], stop: int) -> int:
+    start = stop
+    for index in range(stop - 1, -1, -1):
+        key, item = body[index]
+        if key is not None or isinstance(item, Whitespace):
+            break
+        if isinstance(item, Comment):
+            start = index
+    return start
+
+
+def _comment_run_above(path: list[tuple[Container, int]]) -> tuple[Container, int, int]:
+    """The comment lines above the table go with it, unless a note of the content before them could be among them."""
+    container, stop = path[-1]
+    body = container.body
+    begin = stop
+    while begin and body[begin - 1][0] is None:
+        begin -= 1
+    previous = body[begin - 1][1] if begin else None
+    if isinstance(previous, Table):
+        container = _last_container(previous)
+        body = container.body
+        stop = len(body)
+    start = _comment_start(body, stop)
+    if start == stop and begin == 0 and len(path) > 1 and _table_at(path[-2]).is_super_table():
+        return _comment_run_above(path[:-1])
+    # A stale comment is harmless and a lost one is not, so a comment that nothing separates stays.
+    before = _previous_item(body, start)
+    if isinstance(before, Whitespace):
+        return container, start, stop
+    return container, stop, stop
+
+
+def _table(document: Any, parts: list[str], created: list[tuple[Any, list[str]]]) -> Any:
+    if len(parts) == 2 and parts[0] == "profiles" and parts[1] not in document.get("profiles", {}):
+        profile = _new_profile(document, parts[1])
+        if profile is not None:
+            return profile
     current = document
     super_tables = (*plugin_tables(), "profiles")
-    for part in parts:
+    for depth, part in enumerate(parts, 1):
         if part not in current:
             current[part] = tomlkit.table(is_super_table=part in super_tables)
-            created.append((current, part))
+            created.append((current, parts[:depth]))
         current = current[part]
     return current
+
+
+def _new_profile(document: TOMLDocument, name: str) -> Table | None:
+    """A profile goes after the last profile, before the comment run of the next table; None without a profile."""
+    parts = [index for index, (key, item) in enumerate(document.body) if key is not None and key.key == "profiles"]
+    if not parts:
+        return None
+    last = parts[-1]
+    following = next(
+        (index for index in range(last + 1, len(document.body)) if document.body[index][0] is not None), None
+    )
+    run: list[Item] = []
+    if following is not None:
+        container, start, stop = _comment_run_above([(document, following)])
+        run = [item for _, item in container.body[start:stop]]
+        if run:
+            del container.body[start:stop]
+    table = tomlkit.table(is_super_table=True)
+    profile = tomlkit.table()
+    table[name] = profile
+    document.body.insert(last + 1, (tomlkit.key("profiles"), table))
+    if run:
+        tail = _last_container(profile)
+        tail.body.append((None, tomlkit.ws("\n")))
+        tail.body.extend((None, item) for item in run)
+    return profile
 
 
 def _toml_value(value: Any) -> Any:

@@ -20,7 +20,7 @@ from .errors import NotFoundError, SnapdeltaError
 from .output import Output, compare, new_review
 from .plugins import Severity, register_plugin, unregister_plugin
 from .source import SOURCES, Source
-from .store import FileStore, Store, open_store
+from .store import FileStore, OutputQuery, SnapshotQuery, Store, open_store
 
 FIRST = datetime(2026, 1, 1, 10, 0, tzinfo=UTC)
 
@@ -55,9 +55,10 @@ def sample(
     label: str | None = None,
     captured_at: datetime = FIRST,
     interfaces: dict[str, int] | None = None,
+    ticket: str | None = None,
 ) -> SampleSource:
     """A loaded sample source, with no input file."""
-    adapter = SampleSource(target=target, label=label, captured_at=captured_at)
+    adapter = SampleSource(target=target, label=label, ticket=ticket, captured_at=captured_at)
     for name, mtu in (interfaces or {"eth0": 1500, "eth1": 9000}).items():
         adapter.add(SampleInterface(name=name, mtu=mtu))
     adapter.finish_load(target, ["interface"])
@@ -140,13 +141,13 @@ class StoreContract:
         assert store.targets() == ["EDGE1", "R1", "R2"]
         assert store.targets("r") == ["R1", "R2"]
         assert store.targets("GE1") == ["EDGE1"]
-        entries = store.snapshot_entries("R1")
+        entries = store.snapshot_entries(SnapshotQuery(targets=("R1",)))
         assert [(entry.reference, entry.label) for entry in entries] == [
             ("R1/20260101T100000Z", None),
             ("R1/20260101T090000Z-before", "before"),
         ]
         assert entries[1].captured_at == FIRST - timedelta(hours=1)
-        assert store.snapshot_entries("R9") == []
+        assert store.snapshot_entries(SnapshotQuery(targets=("R9",))) == []
 
     def test_an_output_reads_back_and_lists_newest_first(self, store: Store) -> None:
         names = [store.save_output(compare(sample(), sample(target=right))) for right in ("R2", "EDGE1")]
@@ -154,11 +155,125 @@ class StoreContract:
         entries = store.output_entries()
         assert {entry.name for entry in entries} == set(names)
         assert [entry.name for entry in entries] == sorted((entry.name for entry in entries), reverse=True)
-        assert [entry.right for entry in store.output_entries("edge")] == ["EDGE1"]
+        assert [entry.right for entry in store.output_entries(OutputQuery(search="edge"))] == ["EDGE1"]
         assert store.resolve_output(f"{names[0]}.json") == names[0]
         assert store.load_output(names[0]).right.target == "R2"
         with pytest.raises(NotFoundError, match="no output matches"):
             store.resolve_output("nope")
+
+    def test_a_label_resolves_inside_its_ticket(self, store: Store) -> None:
+        first = store.save_snapshot(sample(label="before", ticket="CHG-1"))
+        store.save_snapshot(sample(label="before", ticket="CHG-2", captured_at=FIRST + timedelta(hours=1)))
+        assert store.resolve_snapshot("R1@before", ticket="chg-1") == first
+        with pytest.raises(NotFoundError, match="in ticket 'CHG-3'"):
+            store.resolve_snapshot("R1@before", ticket="CHG-3")
+
+    def test_a_label_outside_the_ticket_is_named_in_the_error(self, store: Store) -> None:
+        store.save_snapshot(sample(label="before"))
+        with pytest.raises(NotFoundError, match="R1@before exists outside this ticket"):
+            store.resolve_snapshot("R1@before", ticket="CHG-1")
+        with pytest.raises(NotFoundError, match="R1@latest exists outside this ticket"):
+            store.resolve_snapshot("R1@latest", ticket="CHG-1")
+        with pytest.raises(NotFoundError) as unknown:
+            store.resolve_snapshot("R1@after", ticket="CHG-1")
+        assert "exists outside" not in str(unknown.value)
+
+    def test_the_snapshots_of_a_ticket(self, store: Store) -> None:
+        store.save_snapshot(sample(label="before"))
+        marked = store.save_snapshot(
+            sample(label="after", ticket="Évolution / lot 2", captured_at=FIRST + timedelta(hours=1))
+        )
+        assert [
+            entry.reference
+            for entry in store.snapshot_entries(SnapshotQuery(targets=("R1",), ticket="ÉVOLUTION / LOT 2"))
+        ] == [marked]
+
+    def test_the_snapshots_of_every_target_newest_first(self, store: Store) -> None:
+        for target in ("R1", "R2"):
+            store.save_snapshot(sample(target=target))
+        newest = store.save_snapshot(sample(captured_at=FIRST + timedelta(hours=1)))
+        oldest = store.save_snapshot(sample(target="R3", captured_at=FIRST - timedelta(hours=1)))
+        references = [entry.reference for entry in store.snapshot_entries()]
+        assert references == [newest, "R2/20260101T100000Z", "R1/20260101T100000Z", oldest]
+
+    def test_a_label_is_found_as_written_or_in_its_reference_form(self, store: Store) -> None:
+        saved = store.save_snapshot(sample(label="before swap"))
+        store.save_snapshot(sample(label="after", captured_at=FIRST + timedelta(hours=1)))
+        for label in ("before swap", "before_swap"):
+            assert [entry.reference for entry in store.snapshot_entries(SnapshotQuery(label=label))] == [saved]
+        assert store.snapshot_entries(SnapshotQuery(label="before")) == []
+
+    def test_a_blank_filter_does_not_filter(self, store: Store) -> None:
+        store.save_snapshot(sample(label="before", ticket="CHG-1"))
+        store.save_snapshot(sample(target="R2", captured_at=FIRST + timedelta(hours=1)))
+        assert len(store.snapshot_entries(SnapshotQuery(targets=("", " "), label=" ", ticket="  "))) == 2
+
+    def test_the_snapshots_of_several_targets(self, store: Store) -> None:
+        for hour, target in enumerate(("R1", "R2", "R3")):
+            store.save_snapshot(sample(target=target, captured_at=FIRST + timedelta(hours=hour)))
+        references = [entry.reference for entry in store.snapshot_entries(SnapshotQuery(targets=("R3", "R1")))]
+        assert references == ["R3/20260101T120000Z", "R1/20260101T100000Z"]
+        assert store.snapshot_entries(SnapshotQuery(targets=("R9", "R7"))) == []
+
+    def test_a_page_of_the_snapshots(self, store: Store) -> None:
+        for hour in range(4):
+            store.save_snapshot(sample(captured_at=FIRST + timedelta(hours=hour)))
+        newest_first = [entry.reference for entry in store.snapshot_entries()]
+        page = store.snapshot_entries(SnapshotQuery(limit=2, offset=1))
+        assert [entry.reference for entry in page] == newest_first[1:3]
+        assert [entry.reference for entry in store.snapshot_entries(SnapshotQuery(offset=3))] == newest_first[3:]
+        assert store.snapshot_entries(SnapshotQuery(limit=0)) == []
+        assert store.snapshot_entries(SnapshotQuery(limit=2, offset=4)) == []
+        assert store.snapshot_entries(SnapshotQuery(offset=40)) == []
+
+    def test_a_page_beyond_the_integer_range_of_sql_is_refused(self) -> None:
+        with pytest.raises(SnapdeltaError, match="from 0 to 9223372036854775807"):
+            SnapshotQuery(offset=2**63)
+        with pytest.raises(SnapdeltaError, match="from 0 to 9223372036854775807"):
+            SnapshotQuery(limit=2**63)
+
+    def test_a_page_applies_after_the_filters(self, store: Store) -> None:
+        for hour in (0, 2, 4):
+            store.save_snapshot(sample(ticket="CHG-1", captured_at=FIRST + timedelta(hours=hour)))
+            store.save_snapshot(sample(ticket="CHG-2", captured_at=FIRST + timedelta(hours=hour + 1)))
+        page = store.snapshot_entries(SnapshotQuery(ticket="chg-1", limit=2, offset=1))
+        assert [entry.reference for entry in page] == ["R1/20260101T120000Z", "R1/20260101T100000Z"]
+
+    def test_the_snapshots_of_a_ticket_across_targets_carry_their_ticket_and_source(self, store: Store) -> None:
+        store.save_snapshot(sample(ticket="CHG-2"))
+        older = store.save_snapshot(sample(target="R2", ticket="CHG-1"))
+        newer = store.save_snapshot(sample(ticket="CHG-1", captured_at=FIRST + timedelta(hours=1)))
+        entries = store.snapshot_entries(SnapshotQuery(ticket="chg-1"))
+        assert [entry.reference for entry in entries] == [newer, older]
+        assert {(entry.ticket, entry.source) for entry in entries} == {("CHG-1", SampleSource.source)}
+        assert [
+            entry.reference for entry in store.snapshot_entries(SnapshotQuery(targets=("R2",), ticket="CHG-1"))
+        ] == [older]
+
+    def test_the_target_the_label_and_the_ticket_apply_together(self, store: Store) -> None:
+        store.save_snapshot(sample(label="before", ticket="CHG-1"))
+        wanted = store.save_snapshot(sample(label="before", ticket="CHG-1", captured_at=FIRST + timedelta(hours=1)))
+        store.save_snapshot(sample(label="before", ticket="CHG-2", captured_at=FIRST + timedelta(hours=2)))
+        store.save_snapshot(sample(target="R2", label="before", ticket="CHG-1", captured_at=FIRST + timedelta(hours=3)))
+        query = SnapshotQuery(targets=("R1",), label="before", ticket="CHG-1")
+        assert store.snapshot_entries(query)[0].reference == wanted
+        assert len(store.snapshot_entries(query)) == 2
+
+    def test_a_snapshot_without_a_ticket_has_none(self, store: Store) -> None:
+        store.save_snapshot(sample())
+        [entry] = store.snapshot_entries()
+        assert (entry.ticket, entry.label) == (None, None)
+
+    def test_an_output_is_found_by_its_ticket(self, store: Store) -> None:
+        first = store.save_output(compare(sample(), sample(target="R2")))
+        second = store.save_output(compare(sample(), sample(target="R3")))
+        store.describe_output(second, ticket="CHG-1042")
+        assert [entry.name for entry in store.output_entries(OutputQuery(search="chg-10"))] == [second]
+        assert [entry.name for entry in store.output_entries(OutputQuery(ticket="chg-1042"))] == [second]
+        assert store.output_entries(OutputQuery(ticket="CHG-10")) == []
+        assert [entry.name for entry in store.output_entries(OutputQuery(search="r2"))] == [first]
+        store.describe_output(second, ticket="")
+        assert store.output_entries(OutputQuery(ticket="CHG-1042")) == []
 
     def test_an_output_keeps_the_order_of_its_models_and_objects(self, store: Store) -> None:
         # A diff shows its models and objects in this order: a backend that sorts the keys changes every report.
@@ -174,14 +289,14 @@ class StoreContract:
         assert second == first.replace("Z-", "Z.2-", 1)
         assert [entry.name for entry in store.output_entries()] == [second, first]
 
-    def test_the_title_and_the_reviews_of_an_output_change_and_stay(self, store: Store) -> None:
+    def test_the_note_and_the_reviews_of_an_output_change_and_stay(self, store: Store) -> None:
         output = compare(sample(), sample(interfaces={"eth0": 9000, "eth1": 9000}))
         name = store.save_output(output)
-        store.describe_output(name, "Change 42", "MTU of eth0")
+        store.describe_output(name, ticket="CHG-42", note="MTU of eth0")
         [key] = output.change_keys()
         store.review_output(name, key, new_review("ops", "expected"))
         saved = _reopened(store).load_output(name)
-        assert (saved.title, saved.description) == ("Change 42", "MTU of eth0")
+        assert (saved.ticket, saved.note) == ("CHG-42", "MTU of eth0")
         assert saved.reviews[key].comment == "expected" and saved.review_counts() == (1, 1)
         assert store.review_output(name, key, None).reviews == {}
 
@@ -207,13 +322,24 @@ class StoreContract:
         plan = store.prune_plan(keep=1, older_than=FIRST, outputs=True)
         assert plan.snapshots == ["R1/20260101T090000Z", "R1/20260101T080000Z"] and plan.outputs == []
         store.apply(plan)
-        assert [entry.reference for entry in store.snapshot_entries("R1")] == [
+        assert [entry.reference for entry in store.snapshot_entries(SnapshotQuery(targets=("R1",)))] == [
             "R1/20260101T110000Z",
             "R1/20260101T100000Z",
         ]
         assert store.targets() == ["R1", "R2"]
         future = datetime(2100, 1, 1, tzinfo=UTC)
         assert store.prune_plan(older_than=future, outputs=True).outputs == [name]
+
+    def test_prune_by_age_deletes_the_older_runs(self, store: Store) -> None:
+        for second in range(3):
+            store.save_run(sample_run(second))
+        cutoff = FIRST + timedelta(seconds=1)
+        assert store.prune_plan(keep=0).runs == []
+        assert store.prune_plan(target="R1", older_than=cutoff).runs == []
+        plan = store.prune_plan(older_than=cutoff)
+        assert plan.runs == [sample_run(0).id]
+        store.apply(plan)
+        assert [run.id for run in store.runs()] == [sample_run(2).id, sample_run(1).id]
 
     def test_the_runs_newest_first_and_the_newest_only(self, store: Store, monkeypatch: pytest.MonkeyPatch) -> None:
         from . import store as store_module

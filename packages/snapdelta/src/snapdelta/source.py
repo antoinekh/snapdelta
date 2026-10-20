@@ -29,6 +29,7 @@ from .plugins import (
     settings_problems,
 )
 from .settings import SourceSettings
+from .ticket import normalize_ticket
 
 
 def model_groups(model: type[DiffSyncModel]) -> tuple[str, ...]:
@@ -68,11 +69,14 @@ class Source(Adapter):
         captured_at: datetime | None = None,
         settings: SourceSettings | None = None,
         host: Host | None = None,
+        *,
+        ticket: str | None = None,
     ) -> None:
         super().__init__(name=target)
         self.files = _unique_files(files)
         self.target = target
         self.label = label
+        self.ticket = normalize_ticket(ticket)
         self.captured_at = captured_at
         self.inputs: list[InputRef] = []
         self.loaded: list[str] = []

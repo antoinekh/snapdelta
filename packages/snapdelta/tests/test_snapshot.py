@@ -3,7 +3,15 @@ import json
 import pytest
 
 from snapdelta.errors import NotFoundError, SchemaVersionError, SnapdeltaError
-from snapdelta.snapshot import StoredSource, load_snapshot, read_snapshot_file, save_snapshot, top_level_models
+from snapdelta.snapshot import (
+    StoredSource,
+    build_snapshot_file,
+    load_snapshot,
+    read_snapshot_file,
+    save_snapshot,
+    top_level_models,
+)
+from snapdelta.testing import sample
 
 EXCLUDE = {"adapter", "model_flags"}
 
@@ -27,7 +35,7 @@ def test_file_content(make_adapter, tmp_path) -> None:
     path = tmp_path / "R1.json"
     save_snapshot(make_adapter(), path)
     value = json.loads(path.read_text())
-    assert value["schema"] == 2
+    assert value["schema"] == 3
     assert value["loaded"] == ["interface", "address", "vlan"]
     assert value["data"]["interface"]["eth0"]["description"] == "to R2"
     assert value["data"]["interface"]["eth0"]["addresses"] == ["eth0__10.0.0.1/30"]
@@ -60,7 +68,7 @@ def test_missing_and_broken_files(tmp_path) -> None:
     with pytest.raises(SnapdeltaError, match="not a valid JSON file"):
         load_snapshot(broken)
     incomplete = tmp_path / "incomplete.json"
-    incomplete.write_text(json.dumps({"schema": 2, "target": "R1"}))
+    incomplete.write_text(json.dumps({"schema": 3, "target": "R1"}))
     with pytest.raises(SnapdeltaError, match="not a valid snapshot"):
         load_snapshot(incomplete)
 
@@ -96,3 +104,8 @@ def test_top_level_models_come_from_the_file(make_adapter, tmp_path) -> None:
     path = tmp_path / "R1.json"
     save_snapshot(make_adapter(with_state=True), path)
     assert top_level_models(read_snapshot_file(path)) == ["interface", "vlan", "interface_state"]
+
+
+def test_a_snapshot_keeps_its_ticket() -> None:
+    snapshot = build_snapshot_file(sample(label="before", ticket=" CHG-1042 "))
+    assert snapshot.ticket == "CHG-1042"

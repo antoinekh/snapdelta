@@ -7,7 +7,7 @@ import functools
 import itertools
 import json
 import re
-from collections.abc import Collection
+from collections.abc import Collection, Iterable
 from dataclasses import dataclass, field, replace
 from datetime import UTC, datetime
 from enum import StrEnum
@@ -19,11 +19,12 @@ from markupsafe import Markup, escape
 from snapdelta.activity import LogLine
 from snapdelta.catalog import context_fields
 from snapdelta.errors import SnapdeltaError
-from snapdelta.output import Output, Review, Side, change_key, compare
+from snapdelta.output import Output, Review, Side, change_key, compare, note_line
 from snapdelta.profile import accepted
 from snapdelta.settings import Profile
 from snapdelta.source import Source
-from snapdelta.store import SnapshotEntry, Store
+from snapdelta.store import OutputQuery, SnapshotEntry, SnapshotQuery, Store
+from snapdelta.ticket import normalize_ticket
 
 from .access import LruCache
 
@@ -127,7 +128,8 @@ class OutputRow:
     left: Side
     right: Side
     delta: Delta
-    title: str | None = None
+    ticket: str | None = None
+    note: str | None = None
     # Accepted changes, and all the changes.
     reviewed: tuple[int, int] = (0, 0)
 
@@ -429,15 +431,8 @@ class Pager:
     has_next: bool
 
 
-@dataclass(frozen=True)
-class TargetRow:
-    name: str
-    count: int
-    latest: datetime | None
-
-
 def page_of[T](items: list[T], page: int, size: int) -> tuple[list[T], Pager]:
-    """One page of a list; the lists come from names only, so only the page is read further."""
+    """One page of a list; a list holds rows, not documents, so only the page is read further."""
     number = max(page, 1)
     start = (number - 1) * size
     return items[start : start + size], Pager(number, number > 1, len(items) > start + size)
@@ -447,10 +442,15 @@ RowCache = LruCache[tuple[str, str], "OutputRow"]
 
 
 def output_rows(
-    store: Store, query: str = "", page: int = 1, size: int = 50, cache: RowCache | None = None
+    store: Store,
+    query: str = "",
+    page: int = 1,
+    size: int = 50,
+    cache: RowCache | None = None,
+    ticket: str | None = None,
 ) -> tuple[list[OutputRow], list[str], Pager]:
     """One page of the outputs; `cache` keeps the small rows, so that a page does not read whole outputs again."""
-    entries, pager = page_of(store.output_entries(query), page, size)
+    entries, pager = page_of(store.output_entries(OutputQuery(search=query, ticket=ticket)), page, size)
     rows: list[OutputRow] = []
     unreadable: list[str] = []
     for entry in entries:
@@ -477,7 +477,7 @@ PALETTE_PAGES = [
     ("MCP server", "/mcp/docs"),
 ]
 PALETTE_LIMIT = 8
-# The palette searches the titles of the newest diffs only: each one is a row to read.
+# The palette matches the text of the newest diffs only: each one is a row to read.
 PALETTE_DIFFS = 300
 
 
@@ -505,9 +505,13 @@ def palette(store: Store, query: str, cache: RowCache | None = None) -> list[Pal
     targets = [PaletteItem(target, f"/snapshots/{quote(target, safe='')}") for target in store.targets() if hit(target)]
     rows, _, _ = output_rows(store, "", 1, PALETTE_DIFFS, cache)
     diffs = [
-        PaletteItem(row.title or f"{row.left.target} vs {row.right.target}", f"/diffs/{row.name}", when(row.created_at))
+        PaletteItem(
+            note_line(row.note) or f"{row.left.target} vs {row.right.target}",
+            f"/diffs/{row.name}",
+            when(row.created_at),
+        )
         for row in rows
-        if hit(row.title, row.left.target, row.right.target, row.left.label, row.right.label)
+        if hit(row.ticket, row.note, row.left.target, row.right.target, row.left.label, row.right.label)
     ]
     pages = [PaletteItem(label, url) for label, url in PALETTE_PAGES if hit(label)]
     groups = [
@@ -518,56 +522,60 @@ def palette(store: Store, query: str, cache: RowCache | None = None) -> list[Pal
     return [group for group in groups if group.items]
 
 
-# The change of a diff is the start of its title, before ": ", as in "CHG-1042: VLAN 20 on the trunk".
-CHANGE_RE = re.compile(r"^([^:]{1,40}):\s")
-
-
 @dataclass(frozen=True)
-class OutputGroup:
-    """Rows in a row of the list with the same day, and the same change when they have one."""
+class DayGroup:
+    """The rows of the list that were made on one day."""
 
     day: str
-    new_day: bool
-    change: str | None
     rows: list[OutputRow]
 
-    @property
-    def reviewed(self) -> tuple[int, int]:
-        return sum(row.reviewed[0] for row in self.rows), sum(row.reviewed[1] for row in self.rows)
 
-
-def change_of(title: str | None) -> str | None:
-    found = CHANGE_RE.match(title or "")
-    return found.group(1).strip() if found else None
-
-
-def output_groups(rows: list[OutputRow]) -> list[OutputGroup]:
-    """The rows by day, newest first, and inside a day the rows of one change together under its name."""
-    groups: list[OutputGroup] = []
+def output_groups(rows: list[OutputRow]) -> list[DayGroup]:
+    """The rows by day, newest first."""
+    groups: list[DayGroup] = []
     for row in rows:
         day = row.created_at.astimezone(UTC).strftime("%d %b %Y")
-        change = change_of(row.title)
-        last = groups[-1] if groups else None
-        if last is not None and last.day == day and change is not None and last.change == change:
-            last.rows.append(row)
+        if groups and groups[-1].day == day:
+            groups[-1].rows.append(row)
         else:
-            groups.append(OutputGroup(day, last is None or last.day != day, change, [row]))
+            groups.append(DayGroup(day, [row]))
     return groups
 
 
 def _output_row(store: Store, name: str) -> OutputRow:
     output = store.load_output(name)
     delta = output_delta(output)
-    return OutputRow(name, output.created_at, output.left, output.right, delta, output.title, output.review_counts())
+    return OutputRow(
+        name, output.created_at, output.left, output.right, delta, output.ticket, output.note, output.review_counts()
+    )
 
 
-def target_rows(store: Store, query: str = "", page: int = 1, size: int = 50) -> tuple[list[TargetRow], Pager]:
-    names, pager = page_of(store.targets(query), page, size)
-    rows = []
-    for name in names:
-        entries = store.snapshot_entries(name)
-        rows.append(TargetRow(name, len(entries), entries[0].captured_at if entries else None))
-    return rows, pager
+def attachment(filename: str) -> dict[str, str]:
+    """The header of a download, with an ASCII name for old clients and the real name for the others (RFC 6266)."""
+    fallback = re.sub(r"[^\x20-\x7e]", "_", filename)
+    return {"Content-Disposition": f"attachment; filename=\"{fallback}\"; filename*=UTF-8''{quote(filename, safe='')}"}
+
+
+def snapshot_query(targets: Iterable[str], label: str, ticket: str) -> SnapshotQuery:
+    """The filters of the Snapshots page; a field left empty does not filter."""
+    names = tuple(name.strip() for name in targets)
+    return SnapshotQuery(targets=names, label=label.strip(), ticket=normalize_ticket(ticket))
+
+
+def snapshot_filters(query: SnapshotQuery) -> str:
+    """The filters as a URL query string, for the links that keep them."""
+    pairs = [("target", name) for name in query.targets] + [("label", query.label), ("ticket", query.ticket)]
+    return urlencode([(name, value) for name, value in pairs if value])
+
+
+def snapshot_list(
+    store: Store, query: SnapshotQuery, page: int = 1, size: int = 50
+) -> tuple[list[SnapshotEntry], Pager]:
+    """One page of the snapshots that match `query`, newest first; the store cuts the page, not this list."""
+    number = max(page, 1)
+    # One row more than the page tells that a next page exists.
+    entries = store.snapshot_entries(replace(query, limit=size + 1, offset=(number - 1) * size))
+    return entries[:size], Pager(number, number > 1, len(entries) > size)
 
 
 PERIOD_FORMAT = "%Y-%m-%dT%H:%M"
@@ -627,7 +635,7 @@ def _period_end(text: str) -> datetime | None:
 def target_snapshot_rows(
     store: Store, target: str, page: int = 1, size: int = 50, period: Period = ALL_TIME
 ) -> tuple[list[SnapshotRow], list[str], Pager]:
-    entries, pager = page_of(period.select(store.snapshot_entries(target)), page, size)
+    entries, pager = page_of(period.select(store.snapshot_entries(SnapshotQuery(targets=(target,)))), page, size)
     rows: list[SnapshotRow] = []
     unreadable: list[str] = []
     for entry in entries:
@@ -709,7 +717,7 @@ def timeline(
     size: int = TIMELINE_SIZE,
     period: Period = ALL_TIME,
 ) -> Timeline:
-    entries = period.select(store.snapshot_entries(target))
+    entries = period.select(store.snapshot_entries(SnapshotQuery(targets=(target,))))
     shown = list(reversed(entries[:size]))
     points = [TimelinePoint(entry.reference, entry.captured_at, entry.label) for entry in shown]
     steps = [
@@ -731,10 +739,13 @@ def _timeline_step(store: Store, left: str, right: str, rules: Profile | None, p
 
 
 def target_matches(
-    store: Store, query: str, limit: int = 20, members: Collection[str] | None = None
+    store: Store, query: str, limit: int = 20, members: Collection[str] | None = None, chosen: Collection[str] = ()
 ) -> tuple[list[str], int]:
-    """The first matching targets, and how many more match; `members` keeps the hosts of one inventory group."""
-    names = [name for name in store.targets(query) if members is None or name in members]
+    """The first matching targets, and how many more match; `members` keeps the hosts of one inventory group.
+
+    `chosen` leaves out the targets that a picker already shows.
+    """
+    names = [name for name in store.targets(query) if (members is None or name in members) and name not in chosen]
     return names[:limit], max(len(names) - limit, 0)
 
 

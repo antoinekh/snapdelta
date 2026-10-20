@@ -1,8 +1,11 @@
+from datetime import UTC, datetime
+
 import pytest
 from typer.testing import CliRunner
 
 from snapdelta.cli import app
-from snapdelta.store import FileStore, SqliteStore
+from snapdelta.store import FileStore, SnapshotQuery, SqliteStore
+from snapdelta.testing import sample_run
 
 runner = CliRunner()
 
@@ -39,7 +42,7 @@ def test_identical_snapshots_exit_code_0_and_no_save(make_adapter, location) -> 
     args = ["--store", location, "diff", "20260925T100000Z-a", "20260925T100000Z-b", "--no-save", "--format", "json"]
     result = runner.invoke(app, args)
     assert result.exit_code == 0, result.output
-    assert '"schema": 2' in result.output
+    assert '"schema": 3' in result.output
     assert store.output_entries() == []
 
 
@@ -99,12 +102,10 @@ def test_prune_refuses_a_bad_number(location, make_adapter) -> None:
     too_big = runner.invoke(app, ["--store", location, "prune", "--older-than=1000000000000", "--dry-run"])
     assert too_big.exit_code == 2, too_big.output
     assert "too big" in too_big.output
-    assert len(store.snapshot_entries("R1")) == 1
+    assert len(store.snapshot_entries(SnapshotQuery(targets=("R1",)))) == 1
 
 
 def test_info_delete_and_prune(make_adapter, location) -> None:
-    from datetime import UTC, datetime
-
     store = open_location(location)
     for hour in (8, 9, 10):
         store.save_snapshot(make_adapter(captured_at=datetime(2026, 9, 25, hour, 0, tzinfo=UTC)))
@@ -113,18 +114,29 @@ def test_info_delete_and_prune(make_adapter, location) -> None:
     assert "snapshots: 3" in info.output and f"backend: {store.backend}" in info.output
     preview = runner.invoke(app, ["--store", location, "prune", "--keep", "1", "--dry-run"])
     assert preview.exit_code == 0, preview.output
-    assert "would delete 2 snapshots and 0 outputs" in preview.output
-    assert len(store.snapshot_entries("R1")) == 3
+    assert "would delete 2 snapshots, 0 outputs and 0 runs" in preview.output
+    assert len(store.snapshot_entries(SnapshotQuery(targets=("R1",)))) == 3
     pruned = runner.invoke(app, ["--store", location, "prune", "--keep", "2"])
-    assert "deleted 1 snapshots and 0 outputs" in pruned.output
+    assert "deleted 1 snapshots, 0 outputs and 0 runs" in pruned.output
     deleted = runner.invoke(app, ["--store", location, "delete", "snapshot", "R1@latest"])
     assert deleted.exit_code == 0, deleted.output
     assert "deleted R1/20260925T100000Z" in deleted.output
-    assert [entry.reference for entry in store.snapshot_entries("R1")] == ["R1/20260925T090000Z"]
+    assert [entry.reference for entry in store.snapshot_entries(SnapshotQuery(targets=("R1",)))] == [
+        "R1/20260925T090000Z"
+    ]
     missing = runner.invoke(app, ["--store", location, "delete", "output", "nope"])
     assert missing.exit_code == 2
     no_rule = runner.invoke(app, ["--store", location, "prune"])
     assert no_rule.exit_code == 2 and "give a number of snapshots to keep" in no_rule.output
+
+
+def test_prune_by_age_deletes_the_old_runs(location) -> None:
+    store = open_location(location)
+    store.save_run(sample_run(0))
+    pruned = runner.invoke(app, ["--store", location, "prune", "--older-than", "30"])
+    assert pruned.exit_code == 0, pruned.output
+    assert f"run {sample_run(0).id}" in pruned.output and "deleted 0 snapshots, 0 outputs and 1 runs" in pruned.output
+    assert store.runs() == []
 
 
 def test_snapshot_from_a_device_needs_no_file(location) -> None:
@@ -187,7 +199,7 @@ def test_diff_of_selected_models(make_adapter, location) -> None:
     store = open_location(location)
     store.save_snapshot(make_adapter(label="before", description="old"))
     store.save_snapshot(make_adapter(label="after", description="new"))
-    names = [entry.reference for entry in store.snapshot_entries("R1")]
+    names = [entry.reference for entry in store.snapshot_entries(SnapshotQuery(targets=("R1",)))]
     only_vlan = runner.invoke(app, ["--store", location, "diff", names[1], names[0], "--model", "vlan"])
     assert only_vlan.exit_code == 0, only_vlan.output
     assert "not selected: interface" in only_vlan.output
@@ -270,12 +282,12 @@ def test_diff_live_fetches_the_target_of_the_left_snapshot(tmp_path) -> None:
     result = runner.invoke(app, ["--store", location, "diff", "R1@latest", "--live"])
     assert result.exit_code == 0, result.output
     store = FileStore(tmp_path / "store")
-    live = store.snapshot_entries("R1")[0]
+    live = store.snapshot_entries(SnapshotQuery(targets=("R1",)))[0]
     assert live.label == "live" and f"saved {live.reference}" in result.output
     output = store.load_output(store.output_entries()[0].name)
     assert output.right.snapshot == live.reference
     quick = runner.invoke(app, ["--store", location, "diff", "R1@latest", "--live", "--no-save"])
-    assert quick.exit_code == 0 and len(store.snapshot_entries("R1")) == 2
+    assert quick.exit_code == 0 and len(store.snapshot_entries(SnapshotQuery(targets=("R1",)))) == 2
 
 
 def test_diff_live_needs_a_source_that_fetches(make_adapter, tmp_path) -> None:
@@ -312,21 +324,91 @@ def test_a_broken_settings_file_stops_only_the_commands_that_need_it(tmp_path) -
     assert listed.exit_code == 2 and "web.port" in listed.output
 
 
-def test_diff_with_a_title_and_describe_it_later(make_adapter, tmp_path) -> None:
+def test_snapshot_saves_the_ticket(tmp_path) -> None:
     store = FileStore(tmp_path / "store")
-    store.save_snapshot(make_adapter(label="before", description="old"))
-    store.save_snapshot(make_adapter(label="after", description="new"))
+    args = ["--store", str(tmp_path / "store"), "snapshot", "--source", "example-live", "--target", "R1"]
+    result = runner.invoke(app, [*args, "--label", "before", "--ticket", "  CHG-1 "])
+    assert result.exit_code == 0, result.output
+    assert store.load_snapshot(store.resolve_snapshot("R1@latest")).ticket == "CHG-1"
+
+
+def test_snapshot_refuses_a_ticket_that_is_too_long_before_it_loads_anything(tmp_path) -> None:
+    store = FileStore(tmp_path / "store")
+    args = ["--store", str(tmp_path / "store"), "snapshot", "--source", "example-live", "--target", "R1"]
+    result = runner.invoke(app, [*args, "--ticket", "x" * 81])
+    assert result.exit_code == 2 and "not a valid ticket: 80 characters at most" in result.output
+    assert "Traceback" not in result.output and store.targets() == []
+
+
+def test_diff_resolves_its_labels_in_its_ticket(make_adapter, tmp_path) -> None:
+    store = FileStore(tmp_path / "store")
+    older = datetime(2026, 9, 25, 9, 0, tzinfo=UTC)
+    store.save_snapshot(make_adapter(label="before", description="old", ticket="CHG-1", captured_at=older))
+    store.save_snapshot(make_adapter(label="before", description="other", ticket="CHG-2"))
+    store.save_snapshot(make_adapter(label="after", description="new", ticket="CHG-1"))
+    base = ["--store", str(tmp_path / "store"), "diff", "R1@before", "R1@after", "--format", "json"]
+    result = runner.invoke(app, [*base, "--ticket", "chg-1", "--note", "first\nsecond"])
+    assert result.exit_code == 1, result.output
+    saved = store.load_output(store.output_entries()[0].name)
+    assert (saved.ticket, saved.note) == ("CHG-1", "first\nsecond")
+    assert '"old"' in result.output
+
+
+def test_describe_sets_the_ticket_and_the_note_and_keeps_what_is_not_given(make_adapter, tmp_path) -> None:
+    store = FileStore(tmp_path / "store")
+    store.save_snapshot(make_adapter(label="before", description="old", ticket="CHG-7"))
+    store.save_snapshot(make_adapter(label="after", description="new", ticket="CHG-7"))
     base = ["--store", str(tmp_path / "store")]
-    args = ["diff", "R1/20260925T100000Z-before", "R1/20260925T100000Z-after", "--title", "Change 42"]
-    result = runner.invoke(app, [*base, *args, "--description", "New uplink description"])
-    assert "\ntitle: Change 42\nNew uplink description\n" in result.output
+    runner.invoke(app, [*base, "diff", "R1@before", "R1@after", "--ticket", "CHG-7", "--note", "uplink"])
     name = store.output_entries()[0].name
-    described = runner.invoke(app, [*base, "describe", name, "--title", "Change 43"])
-    assert described.exit_code == 0 and described.output == f"{name}: Change 43\n"
-    kept = store.load_output(name)
-    assert (kept.title, kept.description) == ("Change 43", "New uplink description")
-    markdown = runner.invoke(app, [*base, "output", name, "--format", "markdown"])
-    assert markdown.output.startswith("# Change 43\n\nNew uplink description\n")
+    noted = runner.invoke(app, [*base, "describe", name, "--note", "r1 uplink"])
+    assert noted.exit_code == 0 and noted.output == f"{name}: CHG-7\nnote: r1 uplink\n"
+    assert (store.load_output(name).ticket, store.load_output(name).note) == ("CHG-7", "r1 uplink")
+    cleared = runner.invoke(app, [*base, "describe", name, "--note", ""])
+    assert cleared.output == f"{name}: CHG-7\n"
+    assert (store.load_output(name).ticket, store.load_output(name).note) == ("CHG-7", None)
+    removed = runner.invoke(app, [*base, "describe", name, "--ticket", ""])
+    assert removed.output == f"{name}: no ticket\n" and store.load_output(name).ticket is None
+
+
+def test_list_filters_the_outputs_by_ticket_and_by_a_part_of_it(make_adapter, tmp_path) -> None:
+    store = FileStore(tmp_path / "store")
+    store.save_snapshot(make_adapter(label="before", description="old", ticket="CHG-7"))
+    store.save_snapshot(make_adapter(label="after", description="new", ticket="CHG-7"))
+    base = ["--store", str(tmp_path / "store")]
+    runner.invoke(app, [*base, "diff", "R1@before", "R1@after", "--ticket", "CHG-7"])
+    name = store.output_entries()[0].name
+    exact = runner.invoke(app, [*base, "list", "--ticket", "chg-7"])
+    assert exact.output.endswith(f"outputs:\n  {name}\n")
+    part = runner.invoke(app, [*base, "list", "--target", "hg-7"])
+    assert part.output.endswith(f"outputs:\n  {name}\n")
+    other = runner.invoke(app, [*base, "list", "--ticket", "hg-7"])
+    assert other.output.endswith("outputs:\n")
+
+
+def test_list_finds_the_snapshots_by_label_ticket_and_a_part_of_the_target(make_adapter, tmp_path) -> None:
+    store = FileStore(tmp_path / "store")
+    moment = datetime(2026, 9, 25, 10, 0, tzinfo=UTC)
+    taken = [("R1", "before", "CHG-1"), ("R2", "before", "CHG-1"), ("R2", "after", "CHG-1"), ("R1", "before", "CHG-2")]
+    for hour, (target, label, ticket) in enumerate(taken):
+        adapter = make_adapter(target=target, label=label, ticket=ticket, captured_at=moment.replace(hour=hour))
+        store.save_snapshot(adapter)
+    store.save_snapshot(make_adapter(target="R3", label="before", captured_at=moment.replace(hour=9)))
+    base = ["--store", str(tmp_path / "store")]
+
+    def listed(*options: str) -> list[str]:
+        output = runner.invoke(app, [*base, "list", *options]).output
+        return output.partition("snapshots:\n")[2].partition("outputs:")[0].splitlines()
+
+    assert listed("--label", "before", "--ticket", "chg-1") == [
+        "  R2/20260925T010000Z-before  ticket: CHG-1  source: example",
+        "  R1/20260925T000000Z-before  ticket: CHG-1  source: example",
+    ]
+    assert listed("--label", "before", "--target", "R2") == [
+        "  R2/20260925T010000Z-before  ticket: CHG-1  source: example"
+    ]
+    assert listed("--target", "R3") == ["  R3/20260925T090000Z-before  source: example"]
+    assert len(listed()) == 5 and listed("--ticket", "chg") == []
 
 
 def test_accept_changes_after_a_review(make_adapter, tmp_path, monkeypatch) -> None:

@@ -13,15 +13,18 @@ from snapdelta.settings import StoreBackendSettings
 from snapdelta.snapshot import SnapshotFile
 from snapdelta.store import (
     OutputEntry,
+    OutputQuery,
     SnapshotEntry,
+    SnapshotQuery,
     Store,
     StoreInfo,
     output_entry,
     parse_output,
     parse_run,
     parse_snapshot,
-    snapshot_entry,
+    snapshot_row,
 )
+from snapdelta.ticket import ticket_key
 
 
 class {{Class}}StoreSettings(StoreBackendSettings):
@@ -61,16 +64,33 @@ class {{Class}}Store(Store):
         names = {reference.partition("/")[0] for reference in self.tables.snapshots}
         return sorted(name for name in names if query.strip().lower() in name.lower())
 
-    def snapshot_entries(self, target: str) -> list[SnapshotEntry]:
-        references = [reference for reference in self.tables.snapshots if reference.partition("/")[0] == target]
-        entries = [entry for reference in references if (entry := snapshot_entry(reference))]
-        return sorted(entries, key=lambda entry: entry.reference, reverse=True)
+    def snapshot_entries(self, query: SnapshotQuery = SnapshotQuery()) -> list[SnapshotEntry]:
+        key = ticket_key(query.ticket)
+        rows = [
+            snapshot_row(reference, parse_snapshot(body, reference))
+            for reference, body in self.tables.snapshots.items()
+        ]
+        wanted = [
+            row
+            for row in rows
+            if (not query.targets or row.target in query.targets)
+            and query.safe_label in (None, row.label)
+            and key in (None, ticket_key(row.ticket))
+        ]
+        return query.page(sorted(wanted, key=lambda row: (row.captured_at, row.reference), reverse=True))
 
-    def output_entries(self, query: str = "") -> list[OutputEntry]:
-        wanted = query.strip().lower()
+    def output_entries(self, query: OutputQuery = OutputQuery()) -> list[OutputEntry]:
+        wanted = ticket_key(query.search) or ""
+        key = ticket_key(query.ticket)
         entries = [entry for name in self.tables.outputs if (entry := output_entry(name))]
-        chosen = [entry for entry in entries if wanted in entry.left.lower() or wanted in entry.right.lower()]
+        chosen = [entry for entry in entries if self._matches(entry, wanted, key)]
         return sorted(chosen, key=lambda entry: entry.name, reverse=True)
+
+    def _matches(self, entry: OutputEntry, wanted: str, ticket: str | None) -> bool:
+        found = ticket_key(parse_output(self.tables.outputs[entry.name], entry.name).ticket)
+        if ticket is not None and found != ticket:
+            return False
+        return any(wanted in text.casefold() for text in (entry.left, entry.right, found or ""))
 
     def info(self) -> StoreInfo:
         size = sum(len(body) for table in (self.tables.snapshots, self.tables.outputs) for body in table.values())

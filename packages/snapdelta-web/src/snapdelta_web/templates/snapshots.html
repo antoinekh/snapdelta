@@ -1,26 +1,44 @@
 {% extends "base.html" %}
-{% from "_macros.html" import pager as pages, search %}
+{% from "_macros.html" import pager as pages, target_pick %}
 {% block title %}Snapshots · snapdelta{% endblock %}
 {% block content %}
-<div class="title-row"><h1>Snapshots</h1>{{ search("/snapshots", q, "Filter by target") }}<a class="button primary" href="/take">Take snapshot</a></div>
+<div class="title-row">
+  <h1>Snapshots</h1>
+  <a class="button primary" href="/take">Take snapshot</a>
+</div>
+<form class="filters" method="get" action="/snapshots" role="search" data-target-picker hx-params="not q" hx-disinherit="*"
+      hx-get="/snapshots" hx-trigger="input[target.name!='q'] delay:250ms, search[target.name!='q']" hx-target="#results" hx-select="#results" hx-push-url="true">
+  <label class="inline-field">Target<input type="search" name="q" id="snapshot-target-search" data-target-search autocomplete="off"
+         hx-get="/targets/matches" hx-include="#snapshot-targets" hx-trigger="input changed delay:200ms, focus once, refresh" hx-target="#snapshot-matches" hx-sync="this:replace"></label>
+  <label class="inline-field">Label<input name="label" value="{{ query.label or '' }}" autocomplete="off"></label>
+  <label class="inline-field">Ticket<input name="ticket" value="{{ query.ticket or '' }}" maxlength="80" autocomplete="off"></label>
+  <div id="snapshot-matches" class="picks"></div>
+  <div id="snapshot-targets" class="picks selected" data-picked-targets>{% for name in query.targets %}{{ target_pick(name, checked=True) }}{% endfor %}</div>
+</form>
 <div id="results">
 {% if deleted %}<p class="notice">Deleted {{ deleted }}.</p>{% endif %}
 {% if rows %}
-<table class="list">
-  <thead><tr><th>Target</th><th class="num-col">Snapshots</th><th>Latest capture</th></tr></thead>
+<table class="list snapshots">
+  <thead><tr><th>Captured</th><th>Target</th><th>Label</th><th>Ticket</th><th>Source</th></tr></thead>
   <tbody>
     {% for row in rows %}
     <tr>
-      <td><a class="row-link mono" href="/snapshots/{{ row.name }}">{{ row.name }}</a></td>
-      <td class="num-col mono">{{ row.count }}</td>
-      <td class="muted">{{ row.latest | when if row.latest else "" }}</td>
+      <td><a class="row-link" href="/snapshots/{{ row.reference | urlencode }}">{{ row.captured_at | when }}</a></td>
+      <td><a class="mono" href="/snapshots/{{ row.target | urlencode }}">{{ row.target }}</a></td>
+      <td>{% if row.label %}<span class="tag label">{{ row.label }}</span>{% endif %}</td>
+      <td class="ticket-cell">{% if row.ticket %}<a class="ticket-chip" href="/snapshots?ticket={{ row.ticket | urlencode }}">{{ row.ticket }}</a>{% endif %}</td>
+      <td><span class="tag">{{ row.source }}</span></td>
     </tr>
     {% endfor %}
   </tbody>
 </table>
-{{ pages(pager, "/snapshots", q) }}
-{% elif q %}
-<p class="empty">No target matches "{{ q }}".</p>
+{{ pages(pager, "/snapshots", "", filters) }}
+{% elif filters %}
+{% set given = [] %}
+{% if query.targets %}{% set _ = given.append(("the target " if query.targets | length == 1 else "the targets ") ~ query.targets | join(", ")) %}{% endif %}
+{% if query.label %}{% set _ = given.append("the label " ~ query.label) %}{% endif %}
+{% if query.ticket %}{% set _ = given.append("the ticket " ~ query.ticket) %}{% endif %}
+<p class="empty">No snapshot for {{ given | join(", ") }}.</p>
 {% else %}
 <div class="empty-state"><p>No snapshot yet. Take one here, or run <code>snapdelta snapshot</code> in a terminal.</p><a class="button primary" href="/take">Take snapshot</a></div>
 {% endif %}

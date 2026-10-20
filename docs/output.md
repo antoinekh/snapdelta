@@ -1,6 +1,6 @@
 # Diff outputs
 
-A compare gives an output: a JSON document (schema 2) that the store keeps and that every format reads.
+A compare gives an output: a JSON document (schema 3) that the store keeps and that every format reads.
 
 ## Expected changes
 
@@ -18,9 +18,9 @@ The output then keeps `expectations`: the expected changes `done`, the `missing`
 
 ```json
 {
-  "schema": 2,
+  "schema": 3,
   "created_at": "2026-10-13T07:21:16Z",
-  "versions": {"diffsync": "2.2.3", "snapdelta": "0.2.0"},
+  "versions": {"diffsync": "2.2.3", "snapdelta": "0.3.0"},
   "left":  {"target": "PE1", "source": "junos", "label": "before", "captured_at": "...", "snapshot": "PE1/20261013T072114Z-before"},
   "right": {"target": "PE2", "source": "sros",  "label": "after",  "captured_at": "...", "snapshot": "PE2/20261013T072115Z-after"},
   "compared": ["interface", "lag", "interface_state", "lag_state"],
@@ -29,8 +29,8 @@ The output then keeps `expectations`: the expected changes `done`, the `missing`
   "summary": {"create": 65, "update": 30, "delete": 31, "no-change": 10, "skip": 0},
   "diff": {"...": "see below"},
   "profile": null,
-  "title": "CHG-1042 on PE1",
-  "description": null,
+  "ticket": "CHG-1042",
+  "note": "Swap of PE1 to PE2",
   "reviews": {"interface:ge-0/0/6": {"by": "alice", "at": "2026-10-13T07:40:02Z", "comment": "planned"}}
 }
 ```
@@ -44,7 +44,8 @@ The output then keeps `expectations`: the expected changes `done`, the `missing`
 | `summary` | The diffsync counts: `create` = only right, `delete` = only left, `update` = changed, `no-change` = unchanged; children included |
 | `diff` | The diffsync `Diff.dict()`, below |
 | `profile` | The profile of the compare, its rules and its count checks, or `null`; see [profiles.md](profiles.md) |
-| `title`, `description` | What the diff is about, given at the compare or later (`snapdelta describe`) |
+| `ticket` | The work that the diff belongs to (`CHG-1042`, `#216`, any text of 80 characters at most), or `null`; given at the compare or later (`snapdelta describe`), else the ticket that both snapshots share; found by the searches of diffs |
+| `note` | Free text about the diff, on many lines, 2000 characters at most, or `null`; the lists show its first line |
 | `reviews` | The changes that a person accepted, by `MODEL:UNIQUE_ID` of the changed object: who, when, and an optional comment (`snapdelta accept`, **Accept** in the web UI) |
 
 ## The diff tree
@@ -83,9 +84,9 @@ A unique id joins the identifiers of the object with `__`: the sub-interface `0`
 
 | Format | For |
 |---|---|
-| `text` (default) | A terminal: `- name` only left, `+ name` only right, `~ name` changed with `attribute: left -> right`, children indented under their model |
+| `text` (default) | A terminal: `- name` only left, `+ name` only right, `~ name` changed with `attribute: left -> right`, children indented under their model; before them, the line `ticket: X` and the note, when the diff has them |
 | `json` | A tool: the document above |
-| `markdown` | A ticket or a merge request: the two sides, the counts, one table per model (object, change, attribute, left, right) |
+| `markdown` | A ticket or a merge request: the heading `# TICKET · LEFT vs RIGHT` (`# LEFT vs RIGHT` with no ticket), the note, the two sides, the counts, one table per model (object, change, attribute, left, right) |
 | `csv` | A spreadsheet: one row per object of one side only and per changed attribute (`model,object,parents,change,attribute,left,right`) |
 
 A plugin adds a format with a `snapdelta.render.Renderer(media_type, suffix, render)` in the entry point group `snapdelta.renderers`; `render` takes an `Output` and returns the text. `snapdelta.render.change_rows()` gives the changes as flat rows, as the Markdown and CSV formats use them.

@@ -102,9 +102,14 @@
 {% endif %}
 {%- endmacro %}
 
-{% macro search(base, q, placeholder) -%}
+{% macro target_pick(name, checked=False, hint="") -%}
+<label class="target-pick mono"><input type="checkbox" name="target" value="{{ name }}"{% if checked %} checked{% endif %}> {% if hint %}<span class="hint">{{ hint }}</span> {% endif %}{{ name }}</label>
+{%- endmacro %}
+
+{% macro search(base, q, placeholder, ticket="") -%}
 <form class="search-form" method="get" action="{{ base }}" role="search">
+  {% if ticket %}<input type="hidden" name="ticket" value="{{ ticket }}">{% endif %}
   <input type="search" name="q" value="{{ q }}" placeholder="{{ placeholder }}" aria-label="{{ placeholder }}"
-         hx-get="{{ base }}" hx-trigger="input changed delay:250ms, search" hx-target="#results" hx-select="#results" hx-push-url="true">
+         hx-get="{{ base }}" hx-trigger="input changed delay:250ms, search" hx-target="#results" hx-select="#results" hx-push-url="true"{% if ticket %} hx-include="[name='ticket']"{% endif %}>
 </form>
 {%- endmacro %}

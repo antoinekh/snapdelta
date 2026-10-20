@@ -1,7 +1,7 @@
 """The forms of the Admin tabs Settings and Profiles: one group per table, built from the settings models."""
 
 from collections.abc import Mapping, Sequence
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from pathlib import Path
 from types import NoneType, UnionType
 from typing import Any, Literal, Union, get_args, get_origin
@@ -10,9 +10,7 @@ from pydantic import BaseModel
 
 from snapdelta.settings import (
     CORE_SECTIONS,
-    PROFILE_NAME_RE,
     Origin,
-    Profile,
     Secret,
     Settings,
     SettingsError,
@@ -22,12 +20,9 @@ from snapdelta.settings import (
     read_settings_file,
 )
 from snapdelta.source import Source
-from snapdelta.store import default_store_path
+from snapdelta.store import SQLITE_PREFIX, default_store_location
 
 Kind = Literal["text", "number", "bool", "secret", "list", "table", "choice"]
-# The group of the form that adds a profile; its name comes from the field NEW_PROFILE_NAME.
-NEW_PROFILE = "profiles.+"
-NEW_PROFILE_NAME = "new_profile"
 
 
 @dataclass(frozen=True)
@@ -54,16 +49,6 @@ class FormGroup:
     table: str
     title: str
     fields: list[FormField]
-    # A profile group can be removed; the other tables always exist.
-    removable: bool = False
-
-
-@dataclass(frozen=True)
-class FormValues:
-    """The posted values by table, and the tables to remove."""
-
-    values: dict[str, dict[str, Any]]
-    removed: list[str] = field(default_factory=list)
 
 
 def form_groups(
@@ -75,7 +60,14 @@ def form_groups(
     """
     raw = read_settings_file(settings.file)
     groups = [
-        _group(section, section, getattr(settings, section), raw.get(section, {}), settings, plugin_choices or {})
+        _group(
+            section,
+            section.capitalize(),
+            getattr(settings, section),
+            raw.get(section, {}),
+            settings,
+            plugin_choices or {},
+        )
         for section in CORE_SECTIONS
     ]
     kinds = plugin_tables()
@@ -89,24 +81,19 @@ def form_groups(
 
 
 def profile_groups(settings: Settings) -> list[FormGroup]:
-    """One group per profile, then the group that adds a profile."""
+    """One group per profile."""
     written = read_settings_file(settings.file).get("profiles", {})
-    groups = []
-    for name, profile in sorted(settings.profiles.items()):
-        group = _group(f"profiles.{name}", name, profile, written.get(name, {}), settings)
-        groups.append(FormGroup(group.table, group.title, group.fields, removable=True))
-    groups.append(_group(NEW_PROFILE, "New profile", Profile(), {}, settings))
-    return groups
+    return [
+        _group(f"profiles.{name}", name, profile, written.get(name, {}), settings)
+        for name, profile in sorted(settings.profiles.items())
+    ]
 
 
-def parse_form(form: Mapping[str, str], groups: list[FormGroup]) -> FormValues:
+def parse_form(form: Mapping[str, str], groups: list[FormGroup]) -> dict[str, dict[str, Any]]:
     """The posted values by table; an empty field goes back to its default, an empty secret keeps the current one."""
-    parsed = FormValues({})
+    parsed: dict[str, dict[str, Any]] = {}
     errors: dict[str, str] = {}
     for group in groups:
-        if group.removable and form.get(f"{group.table}.remove"):
-            parsed.removed.append(group.table)
-            continue
         table: dict[str, Any] = {}
         for item in group.fields:
             if item.kind == "bool":
@@ -123,29 +110,17 @@ def parse_form(form: Mapping[str, str], groups: list[FormGroup]) -> FormValues:
                     errors[item.key] = error
             else:
                 table[item.name] = form.get(item.key, "").strip() or None
-        if group.table == NEW_PROFILE:
-            name = form.get(NEW_PROFILE_NAME, "").strip()
-            if not name:
-                continue
-            if not PROFILE_NAME_RE.match(name):
-                errors[NEW_PROFILE_NAME] = f"{name!r}: a profile name holds letters, digits, _ and - only"
-            elif any(group.table == f"profiles.{name}" for group in groups):
-                errors[NEW_PROFILE_NAME] = f"a profile {name!r} exists already"
-            parsed.values[f"profiles.{name}"] = table
-        else:
-            parsed.values[group.table] = table
+        parsed[group.table] = table
     if errors:
         raise SettingsError("\n".join(f"{key}: {message}" for key, message in errors.items()), errors)
     return parsed
 
 
-def errors_by_field(errors: Mapping[str, str], groups: list[FormGroup], new_name: str) -> dict[str, str]:
+def errors_by_field(errors: Mapping[str, str], groups: list[FormGroup]) -> dict[str, str]:
     """The errors under the key of their form field: `profiles.x.tolerance.interface.mtu` is the field `tolerance`."""
     keys = sorted((item.key for group in groups for item in group.fields), key=len, reverse=True)
     found: dict[str, str] = {}
     for key, message in errors.items():
-        if new_name and key.startswith(f"profiles.{new_name}."):
-            key = NEW_PROFILE + key.removeprefix(f"profiles.{new_name}")
         field_key = next((candidate for candidate in keys if key == candidate or key.startswith(f"{candidate}.")), key)
         found.setdefault(field_key, message)
     return found
@@ -213,8 +188,8 @@ def _choices(key: str, annotation: Any, value: Any, plugin_choices: Mapping[str,
 def _default_text(key: str, default: Any) -> str:
     # The model gives no store location: the default path depends on XDG_DATA_HOME when snapdelta runs.
     if key == "store.location":
-        path = default_store_path()
-        return f"~/{path.relative_to(Path.home())}" if path.is_relative_to(Path.home()) else str(path)
+        location, home = default_store_location(), f"{SQLITE_PREFIX}{Path.home()}/"
+        return f"{SQLITE_PREFIX}~/{location.removeprefix(home)}" if location.startswith(home) else location
     return format_setting(default)
 
 

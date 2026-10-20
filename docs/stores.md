@@ -4,21 +4,24 @@ snapdelta saves every snapshot, every diff output and every run in a store. Two 
 
 | Backend | Location | Choose it when |
 |---|---|---|
-| File store (`FileStore`) | a directory: one JSON file per snapshot and per output | you want to read the files, back them up with any tool, or keep them in git (private repositories only) |
-| SQLite store (`SqliteStore`) | one SQLite file | you have many targets and snapshots, or several processes of one machine write at the same time |
+| SQLite store (`SqliteStore`), the default | one SQLite file | most cases: many targets and snapshots, or several processes of one machine write at the same time |
 | PostgreSQL store (`snapdelta-postgres`) | a PostgreSQL database | several servers share the store, or the database is where your team keeps its data and its backups |
+| File store (`FileStore`) | a directory: one JSON file per snapshot and per output | you want to read the files, back them up with any tool, or keep them in git (private repositories only) |
+
+> [!NOTE]
+> The file store is possible, but slow for a large number of snapshots and diffs: it has no index, so every snapshot list reads each document of the snapshots it lists, for its ticket and source, and a search of the diffs reads the diffs. Use SQLite (the default) or PostgreSQL for those.
 
 ## Choose the store
 
 The CLI and the web UI take the same option:
 
 ```bash
-snapdelta --store /data/snapdelta ...                    # file store in this directory
 snapdelta --store sqlite:///data/snapdelta.db ...        # SQLite store in this file
+snapdelta --store /data/snapdelta ...                    # file store in this directory
 snapdelta-web --store sqlite:///data/snapdelta.db
 ```
 
-Without `--store`, snapdelta uses the environment variable `SNAPDELTA_STORE`, else `[store] location` of the [settings file](settings.md), else the directory `~/.local/share/snapdelta` (file store). Set the variable once to use the same store everywhere:
+Without `--store`, snapdelta uses the environment variable `SNAPDELTA_STORE`, else `[store] location` of the [settings file](settings.md), else the SQLite file `~/.local/share/snapdelta/snapdelta.db` (`$XDG_DATA_HOME/snapdelta/snapdelta.db` when `XDG_DATA_HOME` is set). Set the variable once to use the same store everywhere:
 
 ```bash
 export SNAPDELTA_STORE=sqlite:///data/snapdelta.db
@@ -48,11 +51,11 @@ The store creates its tables `snapdelta_snapshots`, `snapdelta_outputs` and `sna
 Both backends use the same names, so a command works the same way on both:
 
 - a snapshot is `TARGET/NAME`, where `NAME` is the UTC capture time and the label: `R1/20261012T130856Z-before`;
-- `TARGET@latest` is the newest snapshot of a target, and `TARGET@LABEL` the newest with that label (`R1@before`);
+- `TARGET@latest` is the newest snapshot of a target, and `TARGET@LABEL` the newest with that label (`R1@before`); with a ticket, both look among the snapshots of that ticket only;
 - a name alone (`20261012T130856Z-before`) works when only one target has it;
 - a diff output is `<UTC time>-<left target>-vs-<right target>`: `20261012T130927Z-R1-vs-R2`; a second output of the same pair in the same second gets `.2` after the time (`20261012T130927Z.2-R1-vs-R2`), and so on.
 
-Unsafe characters in a target or a label become `_`. A name with `..` or another character outside letters, digits, `_`, `.` and `-` is never found, so no name can point outside the store.
+The ticket is not in a name. Unsafe characters in a target or a label become `_`. A name with `..` or another character outside letters, digits, `_`, `.` and `-` is never found, so no name can point outside the store.
 
 ## File store layout
 
@@ -69,26 +72,26 @@ Unsafe characters in a target or a label become `_`. A name with `..` or another
 ```
 
 - Each file is written to a temporary file first, then renamed, so an interrupted write never leaves a broken file.
-- The files are readable JSON. A snapshot holds `schema`, `target`, `source`, `label`, `captured_at`, `created_at`, `versions`, `inputs` (names and SHA-256 of the input files), `loaded` (the models), `warnings`, and `data` (the diffsync data of the load). An output holds `schema`, `created_at`, `versions`, `left` and `right` (target, source, label, capture time, snapshot reference), `compared`, `skipped`, `summary` and `diff` (diffsync `Diff.summary()` and `Diff.dict()`).
-- Long lists read only the directory and file names: the list of targets and of the snapshots of a target never opens a file.
+- The files are readable JSON. A snapshot holds `schema`, `target`, `source`, `label`, `ticket`, `captured_at`, `created_at`, `versions`, `inputs` (names and SHA-256 of the input files), `loaded` (the models), `warnings`, and `data` (the diffsync data of the load). An output holds `schema`, `created_at`, `versions`, `ticket`, `note`, `left` and `right` (target, source, label, capture time, snapshot reference), `compared`, `skipped`, `summary` and `diff` (diffsync `Diff.summary()` and `Diff.dict()`).
+- The list of targets reads directory names only; a snapshot list reads each listed document for its ticket and source.
 
 ## SQLite store layout
 
 ```sql
 create table snapshots (reference text primary key, target text not null, captured_at text not null,
-                        label text, source text not null, body text not null);
+                        label text, source text not null, ticket text, ticket_key text, body text not null);
 create table outputs (name text primary key, created_at text not null, left_target text not null,
-                      right_target text not null, body text not null);
+                      right_target text not null, ticket text, ticket_key text, body text not null);
 ```
 
-- `body` is the same JSON document as the file of a file store.
-- Indexes on the target and on the creation time keep the lists fast with many rows.
+- `body` is the same JSON document as the file of a file store; `ticket` repeats the ticket, and `ticket_key` the same text case-folded (`str.casefold()`), so that a search and an exact filter find it with an index.
+- Indexes on the target, on the creation time and on `ticket_key` keep the lists and the ticket filters fast with many rows. The PostgreSQL store has the same columns and indexes.
 - Each call opens its own connection, and a busy timeout makes a parallel writer wait instead of failing.
 - You can query the file with any SQLite tool, for example `sqlite3 /data/snapdelta.db "select reference from snapshots where target = 'R1'"`.
 
 ## Formats and versions
 
-Each document has a `schema` number. This version writes and reads schema 2.
+Each document has a `schema` number. This version writes and reads schema 3, for snapshots and outputs. A store of snapdelta 0.2, or made by an earlier development build of 0.3.0, must be made again: every command stops with "this store was made by an older snapdelta".
 
 ## Clean up
 
@@ -99,17 +102,17 @@ snapdelta info                                     # backend, location, targets,
 snapdelta delete snapshot R1@latest R2/20261012T130856Z-before
 snapdelta delete output 20261012T130927Z-R1-vs-R2
 snapdelta prune --keep 10 --dry-run                # what would go: all but the 10 newest snapshots of each target
-snapdelta prune --older-than 90 --outputs          # snapshots and outputs older than 90 days
+snapdelta prune --older-than 90 --outputs          # snapshots, outputs and Activity runs older than 90 days
 snapdelta prune --target R1 --keep 3 --older-than 30
 ```
 
-A snapshot is kept when one of the rules that you give keeps it: it is among the `--keep` newest of its target, or it is newer than `--older-than`. Deleting a snapshot keeps the outputs that use it; their pages then show the changed values only. The web UI has the same actions in its Admin tab, with a preview before the delete, and Delete buttons on the lists and the detail pages.
+A snapshot is kept when one of the rules that you give keeps it: it is among the `--keep` newest of its target, or it is newer than `--older-than`. With `--older-than` and no `--target`, the runs of Activity older than the age go too; a run can be about many targets, so a prune of one target keeps them. Deleting a snapshot keeps the outputs that use it; their pages then show the changed values only. The web UI has the same actions in its Admin tab, with a preview before the delete, and Delete buttons on the lists and the detail pages.
 
 ## Use a store from Python
 
 ```python
 from snapdelta.output import compare
-from snapdelta.store import open_store
+from snapdelta.store import OutputQuery, SnapshotQuery, open_store
 
 store = open_store("sqlite:///data/snapdelta.db")  # or a directory
 reference = store.save_snapshot(loaded_source)  # a Source after its load()
@@ -117,7 +120,11 @@ left = store.load_snapshot(store.resolve_snapshot("R1@latest"))
 right = store.load_snapshot("R1/20261012T130856Z-before")
 name = store.save_output(compare(left, right))
 for target in store.targets():
-    print(target, [entry.reference for entry in store.snapshot_entries(target)])
+    print(target, [entry.reference for entry in store.snapshot_entries(SnapshotQuery(targets=(target,)))])
+for entry in store.snapshot_entries(SnapshotQuery(ticket="CHG-1042", label="before")):  # every target, newest first
+    print(entry.reference, entry.ticket, entry.source)
+for entry in store.output_entries(OutputQuery(ticket="CHG-1042")):  # the diffs of one ticket
+    print(entry.name)
 ```
 
 ## Move a store to another backend
@@ -127,14 +134,13 @@ from snapdelta.store import open_store
 
 source = open_store("/data/snapdelta")  # file store
 target = open_store("sqlite:///data/snapdelta.db")  # SQLite store
-for name in source.targets():
-    for entry in source.snapshot_entries(name):
-        target.save_snapshot(source.load_snapshot(entry.reference))
+for entry in source.snapshot_entries():
+    target.save_snapshot(source.load_snapshot(entry.reference))
 for entry in source.output_entries():
     target.save_output(source.load_output(entry.name))
 ```
 
-The references and names stay the same, so the outputs still find their snapshots. The plugins of the copied snapshots must be installed, because loading a snapshot needs its models.
+The references and names stay the same, so the outputs still find their snapshots. The plugins of the copied snapshots must be installed, because loading a snapshot needs its models. After the move, delete only `snapshots/`, `outputs/` and `runs/` of the old store, never the whole directory, because the SQLite file is in the same directory.
 
 ## Add a backend
 
@@ -142,10 +148,11 @@ A plugin package can add a backend, for example an object store or a database se
 
 - `open(address, settings)`, a class method: the store at `address`, the part of the location after `SCHEME://`; `settings` is its `[stores.SCHEME]` table, typed by `settings_class`;
 - `location`: the location that opens the store again, with its scheme;
-- `targets()`, `snapshot_entries()`, `output_entries()`, `info()`;
+- `targets()`, `snapshot_entries(query)`, `output_entries(query)`, `info()`: `snapshot_entries` takes a `SnapshotQuery(targets, label, ticket, limit, offset)` and returns the snapshots that match every field given, of every target when `targets` is empty, newest first (capture time, then reference, both descending); `targets` are exact names, and `limit` and `offset` cut one page out of that list, so that an offset past the end gives `[]` (`SnapshotQuery.page(entries)` does it for a backend that has no query language); each `SnapshotEntry` carries its `ticket` and its `source`, so that a SQL backend keeps both in columns and a list reads no body. The `label` is compared in the form of the reference (`before swap` and `before_swap` are the same), the `ticket` in any case (see `snapdelta.ticket.ticket_key()`). `output_entries` takes an `OutputQuery(search, ticket)`: `search` matches a target or a part of the ticket, `ticket` only the outputs of that ticket;
+- `resolve_snapshot(reference, ticket)` is in the base class, and `describe_output(name, *, ticket, note)` sets the ticket and the note of a saved output through `_replace_output`, which must keep the ticket column;
 - the private primitives of the snapshots, `_has_snapshot`, `_write_snapshot`, `_read_snapshot`, `_delete_snapshot`; of the outputs, `_has_output`, `_write_output`, `_read_output`, `_replace_output`, `_delete_output`; and of Activity, `_write_run`, `_read_run`, `_run_ids` (newest first), `_delete_run`.
 
-The base class gives the naming, the resolution of `TARGET@latest`, the checks of names, and pruning. A backend that holds connections gives them back in `close()`. To read a saved document back, `snapdelta.store.parse_snapshot()`, `parse_output()` and `parse_run()` take its JSON text or its parsed JSON and refuse a document of a schema that this snapdelta does not read; `snapshot_entry()` and `output_entry()` read a snapshot or an output entry from its name alone, as `snapshot_entries()` and `output_entries()` return them. Declare the backend under its scheme in the `pyproject.toml` of the plugin:
+The base class gives the naming, the resolution of `TARGET@latest`, the checks of names, and pruning. A backend that holds connections gives them back in `close()`. To read a saved document back, `snapdelta.store.parse_snapshot()`, `parse_output()` and `parse_run()` take its JSON text or its parsed JSON and refuse a document of a schema that this snapdelta does not read; `snapshot_entry(reference, ticket, source)` and `output_entry()` build an entry from its name, and `snapshot_row(reference, snapshot)` gives the entry to keep in the columns of a snapshot being saved, as `snapshot_entries()` and `output_entries()` return them. Declare the backend under its scheme in the `pyproject.toml` of the plugin:
 
 ```toml
 [project.entry-points."snapdelta.stores"]
@@ -188,7 +195,7 @@ access_key = { env = "S3_ACCESS_KEY" }
 
 ### Test a backend
 
-`snapdelta.testing.StoreContract` holds the behaviour that every backend must have: names, `TARGET@label`, the refusal of unsafe names, outputs and reviews, pruning, Activity, and a location that opens the same store again. The file and SQLite stores pass it in the tests of snapdelta. Subclass it in the tests of the plugin, with a `store` fixture that gives a new, empty store (`pip install "snapdelta[testing]"`):
+`snapdelta.testing.StoreContract` holds the behaviour that every backend must have: names, `TARGET@label`, the refusal of unsafe names, outputs and reviews, the ticket of snapshots and outputs, pruning, Activity, and a location that opens the same store again. The file and SQLite stores pass it in the tests of snapdelta. Subclass it in the tests of the plugin, with a `store` fixture that gives a new, empty store (`pip install "snapdelta[testing]"`):
 
 ```python
 import pytest
