@@ -290,6 +290,15 @@ def test_a_profile_is_created_from_its_name_and_stays_empty(client, settings_fil
     assert "<legend>night</legend>" in page and 'id="profile-night"' in page
 
 
+def test_a_profile_whose_name_is_not_ascii_opens_at_its_group(client, settings_file) -> None:
+    response = client.post("/admin/profiles/new", data={"name": "nuité"}, follow_redirects=False)
+    assert response.status_code == 303
+    # The browser decodes the fragment of the link, so the group carries the name as it is.
+    assert response.headers["location"] == "/admin/profiles#profile-nuit%C3%A9"
+    page = client.get("/admin/profiles").text
+    assert 'id="profile-nuité"' in page
+
+
 def test_a_created_profile_survives_a_save_of_the_page(client, settings_file) -> None:
     client.post("/admin/profiles/new", data={"name": "night"})
     client.post("/admin/profiles", data=form(**{"profiles.night.skip_only_left": "true"}))
