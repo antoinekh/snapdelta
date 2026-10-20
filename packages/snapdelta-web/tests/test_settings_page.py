@@ -310,7 +310,7 @@ def test_the_profiles_page_has_a_name_and_a_create_button_and_no_new_profile_gro
 
 @pytest.mark.parametrize(
     ("name", "message"),
-    [("bad name", "letters, digits, _ and - only"), ("a.b", "letters, digits, _ and - only"), ("", "letters, digits")],
+    [("bad name", "letters, digits, _ and - only"), ("a.b", "letters, digits, _ and - only"), ("", "Give a name")],
 )
 def test_a_bad_profile_name_comes_back_on_its_field(client, settings_file, name, message) -> None:
     before = settings_file.read_text()

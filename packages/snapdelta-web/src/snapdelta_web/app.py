@@ -874,7 +874,9 @@ def create_app(state: AppState) -> FastAPI:
         posted = {NEW_PROFILE_FIELD: name}
         errors: dict[str, str] = {}
         failure = None
-        if name in state.settings.profiles:
+        if not name:
+            errors[NEW_PROFILE_FIELD] = "Give a name"
+        elif name in state.settings.profiles:
             errors[NEW_PROFILE_FIELD] = f"a profile {name!r} exists already"
         else:
             try:

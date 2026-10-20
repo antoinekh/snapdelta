@@ -51,6 +51,7 @@
 - A new profile goes after the last profile and before the comment of the next table, so that comment stays above its own table.
 - A **Prune** error on **Admin > Store** (no rule, or a number that is not whole) shows in the Prune panel with the typed values, in place of the full error page.
 - **Admin > About** shows the store location once, without the backend name before it (`sqlite: sqlite:///...`).
+- Creating a profile with an empty name says **Give a name**, in place of the profile name format message.
 
 ## v0.2.0
 
