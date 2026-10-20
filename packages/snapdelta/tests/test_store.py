@@ -197,6 +197,12 @@ def test_a_file_store_of_an_older_snapdelta_is_refused(tmp_path) -> None:
         store.read_snapshot("R1/20260925T100000Z-before")
 
 
+def test_a_run_id_that_is_not_one_is_left_out(tmp_path) -> None:
+    store = SqliteStore(tmp_path / "s.db")
+    with sqlite3.connect(store.path) as db:
+        db.execute("insert into runs values ('not-a-run-id', '{}')")
+    assert store._run_ids() == []
+
 
 def test_open_store_from_settings(tmp_path) -> None:
     from snapdelta.settings import Settings, StoreSettings

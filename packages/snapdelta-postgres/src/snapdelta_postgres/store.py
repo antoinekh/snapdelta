@@ -23,6 +23,7 @@ from snapdelta.output import Output
 from snapdelta.settings import Secret, StoreBackendSettings
 from snapdelta.snapshot import SnapshotFile
 from snapdelta.store import (
+    RUN_ID_RE,
     OutputEntry,
     OutputQuery,
     SnapshotEntry,
@@ -282,7 +283,7 @@ class PostgresStore(Store):
     def _run_ids(self) -> list[str]:
         with self._connect() as db:
             rows = db.execute('select id from snapdelta_runs order by id collate "C" desc').fetchall()
-        return [row[0] for row in rows]
+        return [row[0] for row in rows if RUN_ID_RE.match(row[0])]
 
     def _delete_run(self, run_id: str) -> None:
         with self._connect() as db:

@@ -919,7 +919,7 @@ class SqliteStore(Store):
 
     def _run_ids(self) -> list[str]:
         with self._connect() as db:
-            return [row[0] for row in db.execute("select id from runs order by id desc")]
+            return [row[0] for row in db.execute("select id from runs order by id desc") if RUN_ID_RE.match(row[0])]
 
     def _delete_run(self, run_id: str) -> None:
         with self._connect() as db:
