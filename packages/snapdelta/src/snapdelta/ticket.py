@@ -13,12 +13,12 @@ TICKET_MAX = 80
 
 
 def one_line(text: str | None) -> str | None:
-    """The text on one line, without the white space around and inside it; an empty text stays empty."""
+    """The text with each white space run collapsed to one space, so it holds no line break."""
     return " ".join(text.split()) if text is not None else None
 
 
 def normalize_ticket(text: str | None) -> str | None:
-    """The text on one line, without the white space around and inside it; None when nothing is left."""
+    """The ticket as it is saved: one line without extra white space; None when nothing is left."""
     return one_line(text) or None
 
 
@@ -36,7 +36,7 @@ def check_ticket(text: str | None) -> str | None:
     return ticket
 
 
-def _of_text(clean: Callable[[str | None], str | None]) -> BeforeValidator:
+def _clean_text(clean: Callable[[str | None], str | None]) -> BeforeValidator:
     """Cleans a text only, so that any other value reaches the type check and fails there."""
 
     def validate(value: Any) -> Any:
@@ -45,6 +45,6 @@ def _of_text(clean: Callable[[str | None], str | None]) -> BeforeValidator:
     return BeforeValidator(validate)
 
 
-TicketText = Annotated[str | None, Field(default=None, max_length=TICKET_MAX), _of_text(normalize_ticket)]
+TicketText = Annotated[str | None, Field(default=None, max_length=TICKET_MAX), _clean_text(normalize_ticket)]
 # A ticket to set: None keeps the current one and an empty text removes it.
-TicketChange = Annotated[str | None, Field(default=None, max_length=TICKET_MAX), _of_text(one_line)]
+TicketChange = Annotated[str | None, Field(default=None, max_length=TICKET_MAX), _clean_text(one_line)]
