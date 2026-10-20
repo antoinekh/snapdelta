@@ -57,6 +57,8 @@ create table if not exists snapdelta_snapshots (
 create index if not exists snapdelta_snapshots_by_target on snapdelta_snapshots (target, reference);
 create index if not exists snapdelta_snapshots_by_ticket on snapdelta_snapshots (ticket_key);
 create index if not exists snapdelta_snapshots_by_label on snapdelta_snapshots (label);
+create index if not exists snapdelta_snapshots_by_time
+    on snapdelta_snapshots (captured_at desc, reference collate "C" desc);
 create table if not exists snapdelta_outputs (
     name text primary key,
     created_at timestamptz not null,
