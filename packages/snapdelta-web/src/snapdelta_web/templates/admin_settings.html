@@ -28,9 +28,9 @@
 <form method="post" action="/admin/{{ section }}" class="settings-form" autocomplete="off" data-track-changes>
   {% for group in groups %}
   {% set profile_name = group.table.removeprefix("profiles.") if section == "profiles" else none %}
-  <fieldset class="settings-group" id="{% if profile_name %}profile-{{ profile_name }}{% else %}group-{{ group.table | replace('.', '-') }}{% endif %}">
+  <fieldset class="settings-group" id="{% if profile_name %}profile-{{ profile_name | urlencode }}{% else %}group-{{ group.table | replace('.', '-') }}{% endif %}">
     <legend>{{ group.title }}</legend>
-    {% if profile_name %}<button type="submit" form="delete-profile-{{ profile_name }}" class="button danger quiet delete-profile">Delete</button>{% endif %}
+    {% if profile_name %}<button type="submit" form="delete-profile-{{ profile_name | urlencode }}" class="button danger quiet delete-profile">Delete</button>{% endif %}
     {% for field in group.fields %}
     {% set value = posted[field.key] if posted is not none and field.key in posted else field.value %}
     <div class="setting-row {{ 'has-error' if field.key in errors }}">
@@ -75,6 +75,6 @@
 </form>
 {% for group in groups if section == "profiles" %}
 {% set profile_name = group.table.removeprefix("profiles.") %}
-<form id="delete-profile-{{ profile_name }}" method="post" action="/admin/profiles/{{ profile_name }}/delete" data-confirm="Delete the profile {{ profile_name }}?"></form>
+<form id="delete-profile-{{ profile_name | urlencode }}" method="post" action="/admin/profiles/{{ profile_name | urlencode }}/delete" data-confirm="Delete the profile {{ profile_name }}?"></form>
 {% endfor %}
 {% endblock %}
