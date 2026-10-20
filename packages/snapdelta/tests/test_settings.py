@@ -398,6 +398,43 @@ def test_removing_the_second_part_of_out_of_order_tables_keeps_the_comments_befo
     assert text == '[profiles.a]\ndescription = "a"\n\n# web\n[web]\nport = 9000\n\n'
 
 
+SPLIT_PROFILE = """\
+# top
+[profiles.a]
+description = "a"
+
+# web
+[web]
+port = 9000
+
+# tol
+[profiles.a.tolerance]
+"interface.mtu" = 10
+
+# second
+[profiles.b]
+description = "b"
+"""
+
+
+def test_removing_a_split_profile_keeps_the_comment_of_the_next_table(tmp_path) -> None:
+    path = tmp_path / "snapdelta.toml"
+    text = remove_profiles(path, SPLIT_PROFILE, "a")
+    assert text == '# top\n\n# web\n[web]\nport = 9000\n\n# second\n[profiles.b]\ndescription = "b"\n'
+    assert load_settings(path).profiles.keys() == {"b"}
+
+
+def test_removing_a_profile_keeps_an_explicit_profiles_header_and_its_comments(tmp_path) -> None:
+    text = (
+        '[store]\nlocation = "x"\n\n[profiles]\n# body note\n\n# first\n[profiles.a]\ndescription = "a"\n\n'
+        '# web\n[web]\nport = 9000\n\n# second\n[profiles.b]\ndescription = "b"\n'
+    )
+    assert remove_profiles(tmp_path / "snapdelta.toml", text, "a") == (
+        '[store]\nlocation = "x"\n\n[profiles]\n# body note\n\n# web\n[web]\nport = 9000\n\n'
+        '# second\n[profiles.b]\ndescription = "b"\n'
+    )
+
+
 def test_save_writes_source_tables_and_secrets(tmp_path) -> None:
     path = tmp_path / "new" / "snapdelta.toml"
     secret = Secret(backend="env", reference="DEMO_PASSWORD")

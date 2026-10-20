@@ -695,34 +695,58 @@ def save_settings(
 
 
 def _remove_table(document: TOMLDocument, parts: list[str]) -> TOMLDocument:
-    path = _find_table(document, parts)
-    if path is not None:
-        container, start, stop = _comment_run_above(path)
-        kept = _tail(_last_container(_table_at(path[-1])))
-        previous = _previous_item(container.body, start)
-        if kept and isinstance(kept[0], Whitespace) and (previous is None or isinstance(previous, Whitespace)):
-            kept = kept[1:]
-        # The splice leaves the key index of the container stale, so the pop below works on a parsed copy.
-        container.body[start:stop] = [(None, item) for item in kept]
-        document = tomlkit.parse(tomlkit.dumps(document))
-    parent: Any = document
-    for part in parts[:-1]:
-        parent = parent.get(part, {})
-    parent.pop(parts[-1], None)
+    """Drop every part of a table path, with the comments that belong to it.
+
+    A table that another table splits into several parts sits in several places of the body, and each
+    part carries the comment of the table that follows it.
+    """
+    while paths := _find_table_paths(document, parts):
+        document = _remove_table_at(document, paths[0])
     return document
 
 
-def _find_table(container: Container, parts: list[str]) -> list[tuple[Container, int]] | None:
-    """Out-of-order tables sit in several places of the body, so the table is searched there and not by key."""
+def _remove_table_at(document: TOMLDocument, path: list[tuple[Container, int]]) -> TOMLDocument:
+    table = _table_at(path[-1])
+    parents = [(entry[0], _table_at(entry)) for entry in path[:-1]]
+    kept = _tail(_last_container(table))
+    container, start, stop = _comment_run_above(path)
+    previous = _previous_item(container.body, start)
+    if kept and isinstance(kept[0], Whitespace) and (previous is None or isinstance(previous, Whitespace)):
+        kept = kept[1:]
+    # The splice leaves the key index of the container stale, so the drops below find their item again.
+    container.body[start:stop] = [(None, item) for item in kept]
+    _drop_entry(path[-1][0], table)
+    for outer, parent in reversed(parents):
+        if not parent.is_super_table():
+            break
+        if any(key is not None for key, _ in parent.value.body):
+            break
+        _drop_entry(outer, parent)
+    return tomlkit.parse(tomlkit.dumps(document))
+
+
+def _drop_entry(container: Container, item: Item) -> None:
+    for index, (_, value) in enumerate(container.body):
+        if value is item:
+            del container.body[index]
+            return
+
+
+def _find_table_paths(
+    container: Container, parts: list[str], prefix: list[tuple[Container, int]] | None = None
+) -> list[list[tuple[Container, int]]]:
+    """Every place of a table path in the body; a table split by another table has more than one."""
+    found: list[list[tuple[Container, int]]] = []
+    prefix = prefix or []
     for index, (key, item) in enumerate(container.body):
         if key is None or key.key != parts[0] or not isinstance(item, Table):
             continue
+        path = [*prefix, (container, index)]
         if len(parts) == 1:
-            return [(container, index)]
-        below = _find_table(item.value, parts[1:])
-        if below is not None:
-            return [(container, index), *below]
-    return None
+            found.append(path)
+        else:
+            found.extend(_find_table_paths(item.value, parts[1:], path))
+    return found
 
 
 def _table_at(entry: tuple[Container, int]) -> Table:
