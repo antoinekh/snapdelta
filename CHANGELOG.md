@@ -54,6 +54,7 @@
 - **Admin > About** shows the store location once, without the backend name before it (`sqlite: sqlite:///...`).
 - Creating a profile with an empty name says **Give a name**, in place of the profile name format message.
 - Enter in the **Target** search of the snapshots page no longer submits the filter form and adds an unused `?q=` to the URL.
+- The theme toggle shows a sun in the light theme and a moon in the dark theme, in place of a half circle that some renderers drew wrong.
 
 ## v0.2.0
 

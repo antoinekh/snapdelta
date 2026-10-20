@@ -27,7 +27,7 @@
     </nav>
     {% if signed_in %}<form method="post" action="/logout" class="logout">{% if user_name %}<span class="muted small">{{ user_name }}</span> {% endif %}<button type="submit" class="button quiet">Log out</button></form>{% elif user_name %}<span class="muted small">{{ user_name }}</span>{% endif %}
     <button class="palette-open" type="button" data-palette-open aria-keyshortcuts="Control+K">Go to <kbd>Ctrl K</kbd></button>
-    <button class="theme-toggle" type="button" data-theme-toggle aria-label="Switch the theme"><span aria-hidden="true">◐</span></button>
+    <button class="theme-toggle" type="button" data-theme-toggle aria-label="Switch the theme"><svg class="theme-sun" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.42 1.42M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.42-1.42M17.66 6.34l1.41-1.41"/></svg><svg class="theme-moon" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg></button>
   </header>
   <dialog id="palette" class="palette" aria-label="Go to">
     <input type="search" name="q" class="palette-input" placeholder="A target, a diff or a page" autocomplete="off" aria-controls="palette-results"

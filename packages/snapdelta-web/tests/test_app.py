@@ -26,6 +26,14 @@ def test_home_redirects_to_the_diffs(client) -> None:
     assert response.headers["location"] == "/diffs"
 
 
+def test_the_theme_toggle_shows_a_sun_and_a_moon(client) -> None:
+    page = client.get("/diffs").text
+    button = page.split("data-theme-toggle")[1].split("</button>")[0]
+    assert 'class="theme-sun"' in button and 'class="theme-moon"' in button
+    assert "◐" not in button
+    assert '[data-theme="dark"] .theme-toggle .theme-moon { display: block; }' in client.get("/static/app.css").text
+
+
 def test_diffs_list(client, names) -> None:
     page = client.get("/diffs")
     assert page.status_code == 200
