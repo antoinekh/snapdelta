@@ -21,7 +21,7 @@
       <input id="f-new-profile" name="{{ new_profile_field }}" value="{{ posted[new_profile_field] if posted else '' }}" placeholder="change-window" required>
       {% if new_profile_field in errors %}<p class="field-error">{{ errors[new_profile_field] }}</p>{% endif %}
     </div>
-    <button type="submit" class="button primary">Create</button>
+    <button type="submit" class="button">Create</button>
   </div>
 </form>
 {% endif %}

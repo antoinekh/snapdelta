@@ -303,6 +303,8 @@ def test_the_profiles_page_has_a_name_and_a_create_button_and_no_new_profile_gro
     assert "New profile" not in page and "profiles.+" not in page
     new_form = page.split('action="/admin/profiles/new"')[1].split("</form>")[0]
     assert 'name="name"' in new_form and 'action="/admin/profiles"' not in new_form
+    assert '<button type="submit" class="button">Create</button>' in new_form
+    assert page.count('class="button primary"') == 1
 
 
 @pytest.mark.parametrize(
