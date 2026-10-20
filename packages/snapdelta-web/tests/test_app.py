@@ -349,6 +349,9 @@ def test_admin_page_shows_the_store(client) -> None:
     page = client.get("/admin")
     assert page.status_code == 200
     assert "file" in page.text and "Prune" in page.text
+    assert "<dt>Diffs</dt>" in page.text and "> Diffs too</label>" in page.text
+    assert ">Keep newest, per target<input" in page.text
+    assert 'placeholder="per target"' not in page.text
 
 
 def test_prune_previews_then_deletes(client, store) -> None:

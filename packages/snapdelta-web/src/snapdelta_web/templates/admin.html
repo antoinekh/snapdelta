@@ -10,7 +10,7 @@
     <div><dt>Backend</dt><dd>{{ info.backend }}</dd></div>
     <div><dt>Targets</dt><dd class="mono">{{ info.targets }}</dd></div>
     <div><dt>Snapshots</dt><dd class="mono">{{ info.snapshots }}</dd></div>
-    <div><dt>Outputs</dt><dd class="mono">{{ info.outputs }}</dd></div>
+    <div><dt>Diffs</dt><dd class="mono">{{ info.outputs }}</dd></div>
     <div><dt>Runs</dt><dd class="mono"><a href="/activity">{{ info.runs }}</a></dd></div>
     <div><dt>Size</dt><dd class="mono">{{ info.size_bytes | size }}</dd></div>
     <div class="wide"><dt>Location</dt><dd class="mono">{{ info.location }}</dd></div>
@@ -21,9 +21,9 @@
   {% if error %}<p class="notice warn">{{ error }}</p>{% endif %}
   <form method="post" action="/admin/prune" class="prune">
     <label class="field">Target<input name="target" value="{{ form.target or "" }}" placeholder="all"></label>
-    <label class="field">Keep newest<input name="keep" value="{{ form.keep or "" }}" inputmode="numeric" placeholder="per target"></label>
+    <label class="field">Keep newest, per target<input name="keep" value="{{ form.keep or "" }}" inputmode="numeric"></label>
     <label class="field">Older than, in days<input name="older_than" value="{{ form.older_than or "" }}" inputmode="numeric"></label>
-    <label class="check"><input type="checkbox" name="outputs" value="1" {{ "checked" if form.outputs }}> Outputs too</label>
+    <label class="check"><input type="checkbox" name="outputs" value="1" {{ "checked" if form.outputs }}> Diffs too</label>
     <button type="submit" class="button">Preview</button>
   </form>
   {% if plan %}
