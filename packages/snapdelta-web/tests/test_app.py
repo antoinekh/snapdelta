@@ -842,13 +842,14 @@ def test_a_diff_gets_a_note_at_the_compare_and_later(client, store, names) -> No
     assert store.load_output(name).note is None
 
 
-def test_every_page_links_the_project_and_the_about_tab_shows_the_versions(client) -> None:
+def test_every_page_links_the_project_and_the_about_tab_shows_the_versions(client, store) -> None:
     page = client.get("/diffs").text
     assert 'href="https://github.com/antoinekh/snapdelta"' in page and ">snapdelta 0.3.0</a>" in page
     about = client.get("/admin/about").text
     assert "snapdelta-web" in about and "diffsync" in about and "Python" in about
     assert "snapdelta-example" in about and "source example, source example-live" in about
     assert "Apache 2.0" in about
+    assert f'<div class="wide"><dt>Store</dt><dd class="mono">{store.info().location}</dd></div>' in about
 
 
 def test_new_diff_selects_a_snapshot_by_its_label(client, names) -> None:
