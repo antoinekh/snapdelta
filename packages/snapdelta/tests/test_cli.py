@@ -401,11 +401,13 @@ def test_list_finds_the_snapshots_by_label_ticket_and_a_part_of_the_target(make_
         return output.partition("snapshots:\n")[2].partition("outputs:")[0].splitlines()
 
     assert listed("--label", "before", "--ticket", "chg-1") == [
-        "  R2/20260925T010000Z-before  CHG-1  example",
-        "  R1/20260925T000000Z-before  CHG-1  example",
+        "  R2/20260925T010000Z-before  ticket: CHG-1  source: example",
+        "  R1/20260925T000000Z-before  ticket: CHG-1  source: example",
     ]
-    assert listed("--label", "before", "--target", "R2") == ["  R2/20260925T010000Z-before  CHG-1  example"]
-    assert listed("--target", "R3") == ["  R3/20260925T090000Z-before  example"]
+    assert listed("--label", "before", "--target", "R2") == [
+        "  R2/20260925T010000Z-before  ticket: CHG-1  source: example"
+    ]
+    assert listed("--target", "R3") == ["  R3/20260925T090000Z-before  source: example"]
     assert len(listed()) == 5 and listed("--ticket", "chg") == []
 
 
