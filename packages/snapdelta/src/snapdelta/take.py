@@ -125,12 +125,13 @@ def take_snapshots(
     name = chosen.snapshot.runner
     runner = require(RUNNERS, name)
     options = chosen.plugin("runners", name, runner.settings_class)
+    per_target = {target: check_ticket(value) for target, value in (tickets or {}).items()}
     tasks = [
         LoadTask(
             source=cls.source,
             target=target,
             label=label,
-            ticket=tickets[target] if tickets and target in tickets else ticket,
+            ticket=per_target.get(target, ticket),
             captured_at=captured_at,
         )
         for target, cls in plan.items()

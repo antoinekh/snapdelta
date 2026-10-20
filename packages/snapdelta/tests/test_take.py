@@ -183,6 +183,8 @@ def test_a_ticket_or_a_note_that_is_too_long_stops_before_any_snapshot_is_taken(
     with pytest.raises(SnapdeltaError, match="not a valid ticket"):
         take_snapshots(store, {"R2": ExampleLiveSource}, ticket=long_ticket)
     with pytest.raises(SnapdeltaError, match="not a valid ticket"):
+        take_snapshots(store, {"R2": ExampleLiveSource}, tickets={"R2": long_ticket})
+    with pytest.raises(SnapdeltaError, match="not a valid ticket"):
         load_source(ExampleLiveSource, target="R2", ticket=long_ticket)
     with pytest.raises(SnapdeltaError, match="not a valid ticket"):
         diff_snapshots(store, settings, "R1@before", live=True, ticket=long_ticket)
