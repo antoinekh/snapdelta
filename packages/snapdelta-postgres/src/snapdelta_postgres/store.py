@@ -130,6 +130,9 @@ class PostgresStore(Store):
         except SnapdeltaError:
             self.pool.close()
             raise
+        except psycopg.Error as error:
+            self.pool.close()
+            raise SnapdeltaError(f"{self.location}: {error}") from error
 
     @classmethod
     def open(cls, address: str, settings: StoreBackendSettings) -> PostgresStore:
