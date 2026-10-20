@@ -824,6 +824,7 @@ def test_new_diff_filters_the_targets_by_group(store, make_app) -> None:
 def test_the_inventory_tab(store, client, make_app) -> None:
     page = inventory_client(store, make_app).get("/admin/inventory").text
     assert "Inventory in use:" in page and '<td class="mono strong">EDGE1</td>' in page
+    assert "<h2>Groups</h2>" in page and "<h2>Hosts</h2>" in page
     assert "192.0.2.10:2222" in page and '<span class="tag">example-live</span>' in page
     assert "No inventory." in client.get("/admin/inventory").text
 
