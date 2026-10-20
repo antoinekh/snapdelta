@@ -89,4 +89,4 @@ The Settings and Profiles tabs end with a bar that says "Unsaved changes" only w
 
 ## Access
 
-By default, the web UI listens on 127.0.0.1 only and needs no login. To open it on the network, set a token: the pages then ask for it once, and the API needs it too. On an isolated network, `auth = "none"` removes the login. See [api.md](api.md#access).
+By default, the web UI listens on 127.0.0.1 only and needs no login. To open it on the network, set a token: the pages then ask for it once, and the API needs it too. On an isolated network, `auth = "none"` removes the login. The server serves htmx, its fonts and the API docs page itself, so it works with no internet access. See [api.md](api.md#access).

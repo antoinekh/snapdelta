@@ -92,6 +92,12 @@ class TestAcmeStore(StoreContract):
         return AcmeStore.open(str(tmp_path / "store"), AcmeStoreSettings())
 ```
 
+### The rules of a source
+
+- Both sides must give the same value for the same meaning: normalize names, units and defaults in `load()`, sort lists, and use `None` when the data gives no value.
+- A source that fetches (`fetches = True`) can list the targets that it reaches with the class method `targets()`, for the pickers of the web UI and `--all-targets`.
+- A snapshot names its source, so keep the plugin installed to read its snapshots.
+
 ## How snapdelta finds the plugins
 
 ```mermaid

@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+### Changed
+
+- Documentation: the README is shorter, and the CLI and the development have their own guides, `docs/cli.md` and `docs/develop.md`.
+
 ## v0.3.0
 
 ### Added
