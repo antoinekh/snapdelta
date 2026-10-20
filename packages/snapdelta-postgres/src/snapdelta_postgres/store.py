@@ -34,6 +34,7 @@ from snapdelta.store import (
     parse_output,
     parse_run,
     parse_snapshot,
+    refuse_older_labels,
     refuse_older_tables,
     snapshot_conditions,
     snapshot_entry,
@@ -125,6 +126,7 @@ class PostgresStore(Store):
                     ).fetchall()
                     refuse_older_tables([column for (column,) in columns])
                 db.execute(TABLES)
+                refuse_older_labels(db.execute("select reference, label from snapdelta_snapshots limit 1"))
         except SnapdeltaError:
             self.pool.close()
             raise
