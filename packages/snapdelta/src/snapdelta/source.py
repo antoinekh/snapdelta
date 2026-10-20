@@ -66,10 +66,11 @@ class Source(Adapter):
         files: Sequence[Path] = (),
         target: str | None = None,
         label: str | None = None,
-        ticket: str | None = None,
         captured_at: datetime | None = None,
         settings: SourceSettings | None = None,
         host: Host | None = None,
+        *,
+        ticket: str | None = None,
     ) -> None:
         super().__init__(name=target)
         self.files = _unique_files(files)
