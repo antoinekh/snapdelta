@@ -18,6 +18,7 @@
 </section>
 <section class="panel">
   <h2>Prune</h2>
+  {% if error %}<p class="notice warn">{{ error }}</p>{% endif %}
   <form method="post" action="/admin/prune" class="prune">
     <label class="field">Target<input name="target" value="{{ form.target or "" }}" placeholder="all"></label>
     <label class="field">Keep newest<input name="keep" value="{{ form.keep or "" }}" inputmode="numeric" placeholder="per target"></label>

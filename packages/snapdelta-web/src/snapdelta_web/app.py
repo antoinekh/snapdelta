@@ -959,7 +959,14 @@ def create_app(state: AppState) -> FastAPI:
 
     @app.get("/admin", response_class=HTMLResponse)
     def admin(request: Request, deleted: str | None = None) -> HTMLResponse:
-        context = {"tab": "admin", "info": state.store.info(), "plan": None, "form": {}, "deleted": deleted}
+        context = {
+            "tab": "admin",
+            "info": state.store.info(),
+            "plan": None,
+            "form": {},
+            "deleted": deleted,
+            "error": None,
+        }
         return render(request, "admin.html", context)
 
     @app.post("/admin/prune", response_class=HTMLResponse)
@@ -971,12 +978,30 @@ def create_app(state: AppState) -> FastAPI:
         outputs: Annotated[str, Form()] = "",
         confirm: Annotated[str, Form()] = "",
     ) -> Response:
-        plan = _prune_plan(state.store, target, keep, older_than, bool(outputs))
+        form = {"target": target, "keep": keep, "older_than": older_than, "outputs": outputs}
+        try:
+            plan = _prune_plan(state.store, target, keep, older_than, bool(outputs))
+        except SnapdeltaError as error:
+            context = {
+                "tab": "admin",
+                "info": state.store.info(),
+                "plan": None,
+                "form": form,
+                "deleted": None,
+                "error": str(error),
+            }
+            return render(request, "admin.html", context, 400)
         if confirm:
             state.store.apply(plan)
             return RedirectResponse(f"/admin?deleted={plan.counts}", status_code=303)
-        form = {"target": target, "keep": keep, "older_than": older_than, "outputs": outputs}
-        context = {"tab": "admin", "info": state.store.info(), "plan": plan, "form": form, "deleted": None}
+        context = {
+            "tab": "admin",
+            "info": state.store.info(),
+            "plan": plan,
+            "form": form,
+            "deleted": None,
+            "error": None,
+        }
         return render(request, "admin.html", context)
 
     return app

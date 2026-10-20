@@ -383,6 +383,18 @@ def test_prune_refuses_a_bad_number(client, store) -> None:
     assert len(store.snapshot_entries(SnapshotQuery(targets=("R1",)))) == 3
 
 
+def test_a_prune_error_stays_on_the_store_page_with_the_typed_values(client) -> None:
+    empty = client.post("/admin/prune", data={"target": "R1"})
+    assert empty.status_code == 400
+    assert "give a number of snapshots to keep, an age, or both" in empty.text
+    assert 'class="notice warn"' in empty.text and 'name="target" value="R1"' in empty.text
+    bad = client.post("/admin/prune", data={"target": "R1", "keep": "many", "outputs": "1"})
+    assert bad.status_code == 400
+    assert "keep and age must be whole numbers" in bad.text
+    assert 'name="keep" value="many"' in bad.text and 'name="outputs" value="1" checked' in bad.text
+    assert "would be deleted" not in bad.text
+
+
 def test_the_delete_buttons_follow_one_rule(client, names) -> None:
     single = 'class="button danger quiet">Delete</button>'
     bulk = 'class="button danger">Delete</button>'
