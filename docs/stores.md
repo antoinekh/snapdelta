@@ -91,7 +91,7 @@ create table outputs (name text primary key, created_at text not null, left_targ
 
 ## Formats and versions
 
-Each document has a `schema` number. This version writes and reads schema 3, for snapshots and outputs. A store of snapdelta 0.2 must be made again.
+Each document has a `schema` number. This version writes and reads schema 3, for snapshots and outputs. A store of snapdelta 0.2, or made by an earlier development build of 0.3.0, must be made again: every command stops with "this store was made by an older snapdelta".
 
 ## Clean up
 

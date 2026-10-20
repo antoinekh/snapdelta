@@ -7,7 +7,7 @@ import os
 import re
 import sqlite3
 from abc import ABC, abstractmethod
-from collections.abc import Collection, Iterator, Mapping
+from collections.abc import Collection, Iterable, Iterator, Mapping
 from contextlib import closing, contextmanager
 from dataclasses import dataclass, field, replace
 from datetime import UTC, datetime, timedelta
@@ -17,7 +17,7 @@ from typing import Any, ClassVar
 from pydantic import Field, ValidationError
 
 from .activity import Run, run_started_at
-from .errors import NotFoundError, SnapdeltaError
+from .errors import NotFoundError, SchemaVersionError, SnapdeltaError
 from .jsonfile import read_json, write_json
 from .output import SCHEMA as OUTPUT_SCHEMA
 from .output import Output, Review, described, load_output, reviewed, save_output
@@ -528,6 +528,11 @@ def store_classes() -> dict[str, type[Store]]:
     return plugins(STORES)
 
 
+def refuse_older_store() -> SnapdeltaError:
+    """The refusal of a store that an older snapdelta made."""
+    return SnapdeltaError("this store was made by an older snapdelta: make it again")
+
+
 class FileStore(Store):
     """One JSON file per snapshot (`snapshots/<target>/<name>.json`) and per output (`outputs/<name>.json`)."""
 
@@ -595,6 +600,8 @@ class FileStore(Store):
         try:
             # Parsed as JSON only: validating the models of the data would make every list read a whole snapshot.
             document = read_json(self._snapshot_path(named.reference), SNAPSHOT_SCHEMA)
+        except SchemaVersionError as error:
+            raise refuse_older_store() from error
         except SnapdeltaError:
             return named
         source = document.get("source")
@@ -648,7 +655,10 @@ class FileStore(Store):
         write_json(self._snapshot_path(reference), snapshot.model_dump_json(by_alias=True, indent=2))
 
     def _read_snapshot(self, reference: str) -> SnapshotFile:
-        return read_snapshot_file(self._snapshot_path(reference))
+        try:
+            return read_snapshot_file(self._snapshot_path(reference))
+        except SchemaVersionError as error:
+            raise refuse_older_store() from error
 
     def _delete_snapshot(self, reference: str) -> None:
         path = self._snapshot_path(reference)
@@ -666,7 +676,10 @@ class FileStore(Store):
         save_output(output, self._output_path(name))
 
     def _read_output(self, name: str) -> Output:
-        return load_output(self._output_path(name))
+        try:
+            return load_output(self._output_path(name))
+        except SchemaVersionError as error:
+            raise refuse_older_store() from error
 
     def _replace_output(self, name: str, output: Output) -> None:
         save_output(output, self._output_path(name))
@@ -730,6 +743,14 @@ def refuse_older_tables(columns: Collection[str]) -> None:
         raise SnapdeltaError("this store was made by an older snapdelta: make it again")
 
 
+def refuse_older_labels(rows: Iterable[tuple[str, str | None]]) -> None:
+    """A store of a development build holds the label of a snapshot as it was written, not as its reference has it."""
+    for reference, label in rows:
+        entry = snapshot_entry(reference)
+        if entry is not None and entry.label != label:
+            raise SnapdeltaError("this store was made by an older snapdelta: make it again")
+
+
 class SqliteSettings(StoreBackendSettings):
     busy_timeout_s: float = Field(
         default=BUSY_TIMEOUT_S, gt=0, description="How long a writer waits for the lock of the database, in seconds."
@@ -752,6 +773,7 @@ class SqliteStore(Store):
             for table in ("snapshots", "outputs"):
                 refuse_older_tables([row[1] for row in db.execute(f"pragma table_info({table})")])
             db.executescript(SQLITE_SCHEMA)
+            refuse_older_labels(db.execute("select reference, label from snapshots limit 1"))
 
     @classmethod
     def open(cls, address: str, settings: StoreBackendSettings) -> SqliteStore:

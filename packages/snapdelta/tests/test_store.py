@@ -1,3 +1,5 @@
+import json
+import sqlite3
 from datetime import UTC, datetime
 
 import pytest
@@ -143,8 +145,6 @@ def test_a_snapshot_saved_with_unmapped_still_reads(make_adapter, tmp_path) -> N
 
 
 def test_sqlite_tables_use_target_columns(tmp_path) -> None:
-    import sqlite3
-
     store = SqliteStore(tmp_path / "s.db")
     with sqlite3.connect(store.path) as db:
         snapshots = [row[1] for row in db.execute("pragma table_info(snapshots)")]
@@ -154,13 +154,48 @@ def test_sqlite_tables_use_target_columns(tmp_path) -> None:
 
 
 def test_sqlite_store_of_an_older_snapdelta_is_refused(tmp_path) -> None:
-    import sqlite3
-
     path = tmp_path / "old.db"
     with sqlite3.connect(path) as db:
         db.execute("create table snapshots (reference text primary key, target text not null, body text not null)")
     with pytest.raises(SnapdeltaError, match="made by an older snapdelta: make it again"):
         SqliteStore(path)
+
+
+def test_a_store_of_a_development_build_is_refused(tmp_path) -> None:
+    path = tmp_path / "dev.db"
+    with sqlite3.connect(path) as db:
+        db.execute(
+            "create table snapshots (reference text primary key, target text not null, captured_at text not null, "
+            "label text, source text not null, ticket text, ticket_key text, body text not null)"
+        )
+        # The development build wrote the label as it was given, the release writes it as the reference writes it.
+        db.execute(
+            "insert into snapshots values (?, ?, ?, ?, ?, ?, ?, ?)",
+            (
+                "R1/20260101T100000Z-before_swap",
+                "R1",
+                "2026-01-01T10:00:00+00:00",
+                "before swap",
+                "junos",
+                None,
+                None,
+                "{}",
+            ),
+        )
+    with pytest.raises(SnapdeltaError, match="made by an older snapdelta: make it again"):
+        SqliteStore(path)
+
+
+def test_a_file_store_of_an_older_snapdelta_is_refused(tmp_path) -> None:
+    store = FileStore(tmp_path / "store")
+    path = store.snapshots_dir / "R1" / "20260925T100000Z-before.json"
+    path.parent.mkdir(parents=True)
+    path.write_text(json.dumps({"schema": 2, "target": "R1", "source": "example", "label": "before"}))
+    with pytest.raises(SnapdeltaError, match="made by an older snapdelta: make it again"):
+        store.snapshot_entries()
+    with pytest.raises(SnapdeltaError, match="made by an older snapdelta: make it again"):
+        store.read_snapshot("R1/20260925T100000Z-before")
+
 
 
 def test_open_store_from_settings(tmp_path) -> None:
