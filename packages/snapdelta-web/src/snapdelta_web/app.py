@@ -961,6 +961,7 @@ def create_app(state: AppState) -> FastAPI:
     def admin(request: Request, deleted: str | None = None) -> HTMLResponse:
         context = {
             "tab": "admin",
+            "section": "store",
             "info": state.store.info(),
             "plan": None,
             "form": {},
@@ -984,6 +985,7 @@ def create_app(state: AppState) -> FastAPI:
         except SnapdeltaError as error:
             context = {
                 "tab": "admin",
+                "section": "store",
                 "info": state.store.info(),
                 "plan": None,
                 "form": form,
@@ -996,6 +998,7 @@ def create_app(state: AppState) -> FastAPI:
             return RedirectResponse(f"/admin?deleted={plan.counts}", status_code=303)
         context = {
             "tab": "admin",
+            "section": "store",
             "info": state.store.info(),
             "plan": plan,
             "form": form,

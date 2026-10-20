@@ -643,6 +643,7 @@ def test_the_lists_come_one_page_at_a_time(big_store, monkeypatch, make_app) -> 
 def test_admin_has_store_and_settings_sections(client) -> None:
     page = client.get("/admin")
     assert 'href="/admin/settings"' in page.text and '<a aria-current="page" href="/admin">' in page.text
+    assert '<a aria-current="page" href="/admin">' in client.post("/admin/prune", data={"keep": "1"}).text
 
 
 def test_the_target_search_can_be_refreshed_after_an_uncheck(client) -> None:

@@ -2,7 +2,7 @@
 {% block title %}Admin · snapdelta{% endblock %}
 {% block content %}
 <div class="title-row"><h1>Admin</h1></div>
-{% with section = "store" %}{% include "_admin_nav.html" %}{% endwith %}
+{% include "_admin_nav.html" %}
 {% if deleted %}<p class="notice">Deleted {{ deleted }}.</p>{% endif %}
 <section class="panel">
   <h2>Store</h2>
