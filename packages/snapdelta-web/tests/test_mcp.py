@@ -164,6 +164,14 @@ def test_an_agent_lists_the_snapshots_of_several_targets(two_targets) -> None:
     assert [row["target"] for row in one.structured_content["result"]] == ["R2"]
 
 
+def test_an_agent_that_sends_the_old_target_argument_is_told_of_the_new_one(two_targets) -> None:
+    async def steps(client: Client) -> Any:
+        return await client.call_tool("list_snapshots", {"target": "R1"})
+
+    refused = call(two_targets, steps)
+    assert refused.is_error and "targets" in refused.content[0].text
+
+
 def test_an_agent_sets_the_ticket_and_the_note_and_finds_the_diff(ticketed) -> None:
     async def steps(client: Client) -> Any:
         compared = await client.call_tool(

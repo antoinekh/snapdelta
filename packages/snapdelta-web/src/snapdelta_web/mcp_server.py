@@ -175,8 +175,13 @@ def create_mcp(state: AppState) -> MCPServer:
         label: Annotated[str | None, Field(description="Only the snapshots with this label.")] = None,
         ticket: Annotated[str | None, Field(description="Only the snapshots of this ticket (any case).")] = None,
         limit: Annotated[int, Field(ge=1, le=MAX_LIMIT, description="How many snapshots, newest first.")] = 20,
+        target: Annotated[
+            str | None, Field(description="The old name of targets; use targets, a list of names.")
+        ] = None,
     ) -> list[SnapshotInfo]:
         """The snapshots of every target, newest first, with their ticket and source; the filters narrow them."""
+        if target is not None:
+            raise ToolError("the argument target is now targets, a list of names")
         query = SnapshotQuery(targets=tuple(targets or ()), label=label, ticket=ticket, limit=limit)
         return [SnapshotInfo.of(entry) for entry in state.store.snapshot_entries(query)]
 
