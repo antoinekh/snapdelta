@@ -591,6 +591,8 @@ def describe_output(
     name = store.resolve_output(output)
     changed = store.describe_output(name, ticket=ticket, note=note)
     typer.echo(f"{name}: {changed.ticket or 'no ticket'}")
+    if changed.note:
+        typer.echo(f"note: {changed.note}")
 
 
 @app.command("accept")

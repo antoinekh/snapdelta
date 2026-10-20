@@ -362,7 +362,7 @@ def test_describe_sets_the_ticket_and_the_note_and_keeps_what_is_not_given(make_
     runner.invoke(app, [*base, "diff", "R1@before", "R1@after", "--ticket", "CHG-7", "--note", "uplink"])
     name = store.output_entries()[0].name
     noted = runner.invoke(app, [*base, "describe", name, "--note", "r1 uplink"])
-    assert noted.exit_code == 0 and noted.output == f"{name}: CHG-7\n"
+    assert noted.exit_code == 0 and noted.output == f"{name}: CHG-7\nnote: r1 uplink\n"
     assert (store.load_output(name).ticket, store.load_output(name).note) == ("CHG-7", "r1 uplink")
     cleared = runner.invoke(app, [*base, "describe", name, "--note", ""])
     assert cleared.output == f"{name}: CHG-7\n"
