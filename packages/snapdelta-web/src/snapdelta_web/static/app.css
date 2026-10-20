@@ -429,7 +429,7 @@ table.list.model-list td { vertical-align: top; }
 /* Settings */
 .settings-form { display: flex; flex-direction: column; gap: 20px; }
 .settings-group { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; min-width: 0; scroll-margin-top: 84px; margin: 0; padding-bottom: 10px; }
-/* A floated legend is no longer the rendered legend, so it sits in the box as a grid item. */
+/* A floated legend is not the fieldset's rendered legend, so it sits in the box as a grid item. */
 .settings-group legend { float: left; grid-column: 1; padding: 0; }
 .settings-group > :not(legend, .delete-profile) { grid-column: 1 / -1; }
 .settings-group .delete-profile { grid-column: 2; grid-row: 1; }
