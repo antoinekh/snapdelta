@@ -370,6 +370,7 @@ def test_the_save_bar_tracks_the_changes_on_both_tabs(client) -> None:
         page = client.get(f"/admin/{tab}").text
         assert f'action="/admin/{tab}" class="settings-form" autocomplete="off" data-track-changes>' in page
         assert '<div class="save-bar">' in page and "Unsaved changes" in page and f"Save {tab}" in page
+        assert "Saves to" not in page.split('<div class="save-bar">')[1].split("</div>")[0]
         assert '<button type="reset" class="button" data-discard disabled>Discard</button>' in page
 
 
