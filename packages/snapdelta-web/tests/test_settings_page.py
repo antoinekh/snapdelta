@@ -290,7 +290,7 @@ def test_a_failed_save_keeps_the_saved_values_as_the_baseline(client, settings_f
 
 def test_every_field_of_the_settings_form_carries_its_saved_value(client) -> None:
     page = client.get("/admin/settings").text
-    form = page.split('data-track-changes>')[1].split("</form>")[0]
+    form = page.split("data-track-changes>")[1].split("</form>")[0]
     controls = re.findall(r'<(?:input|select|textarea)\b[^>]*name="[^"]+"[^>]*>', form)
     assert controls and all("data-saved=" in control for control in controls)
 
