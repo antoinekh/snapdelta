@@ -7,7 +7,7 @@ from typing import Annotated, Any, Literal, Self
 from fastapi import FastAPI, Query, Request
 from fastapi.openapi.docs import get_swagger_ui_html
 from fastapi.responses import HTMLResponse, JSONResponse, PlainTextResponse, Response
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 from snapdelta.about import components, package_version, plugins
 from snapdelta.activity import Run, RunStatus
@@ -85,6 +85,8 @@ class SnapshotInfo(BaseModel):
 
 
 class SnapshotRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
     source: str | None = Field(default=None, description="The source; none: the platform of each inventory host.")
     targets: list[str] = Field(default=[], description="Target names.")
     groups: list[str] = Field(default=[], description="Inventory groups: every host of each group.")
@@ -100,6 +102,8 @@ class SnapshotResult(BaseModel):
 
 
 class DiffRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
     left: str = Field(description="A snapshot: TARGET/NAME, TARGET@latest or TARGET@LABEL (newest with that label).")
     right: str | None = Field(default=None, description="The right snapshot; none with live.")
     live: bool = Field(default=False, description="Fetch the target of left now as the right side.")
@@ -119,6 +123,8 @@ class DiffRequest(BaseModel):
 
 
 class TargetsDiffRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
     targets: list[str] = Field(default=[], description="Target names.")
     groups: list[str] = Field(default=[], description="Every host of these inventory groups.")
     all_targets: bool = Field(default=False, description="Every target of the store that has a left snapshot.")
@@ -262,6 +268,8 @@ class RunItem(BaseModel):
 
 
 class ReviewRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
     key: str = Field(description="MODEL:UNIQUE_ID of a changed object, as in the reviews of the output.")
     accepted: bool = Field(default=True, description="False withdraws the acceptance.")
     by: str | None = Field(default=None, description="Who accepts.")
@@ -276,6 +284,8 @@ class ReviewState(BaseModel):
 
 
 class DescribeRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
     ticket: TicketChange = Field(description="The new ticket; none keeps it, an empty text removes it.")
     note: str | None = Field(
         default=None, max_length=NOTE_MAX, description="The new note; none keeps it, an empty text removes it."

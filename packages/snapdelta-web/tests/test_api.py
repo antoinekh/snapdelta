@@ -266,6 +266,22 @@ def test_a_ticket_or_a_note_that_is_too_long_is_refused_before_any_work(api, sto
     )
 
 
+@pytest.mark.parametrize(
+    ("method", "path", "body"),
+    [
+        ("post", "/api/v1/snapshots", {"targets": ["R1"], "source": "example-live", "title": "old"}),
+        ("post", "/api/v1/diffs", {"left": "R1@before", "right": "R1@after", "title": "old"}),
+        ("post", "/api/v1/diffs", {"left": "R1@before", "right": "R1@after", "description": "old"}),
+        ("post", "/api/v1/diffs/targets", {"targets": ["R1"], "left": "before", "live": True, "title": "old"}),
+        ("patch", "/api/v1/diffs/any", {"title": "old"}),
+    ],
+)
+def test_an_argument_that_is_not_known_is_refused(api, method, path, body) -> None:
+    response = getattr(api, method)(path, json=body)
+    assert response.status_code == 422
+    assert "title" in response.text or "description" in response.text
+
+
 def test_a_ticket_is_checked_after_its_normalization(api, store) -> None:
     ticket = f"  {'x' * 40}   {'y' * 39}  "
     padded = "x" * 40 + " " + "y" * 39

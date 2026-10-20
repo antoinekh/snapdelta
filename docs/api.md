@@ -110,7 +110,7 @@ allowed_hosts = ["10.0.0.5", "snapdelta.lab"]   # required on the network; "*" a
 | `GET /api/v1/diffs/{name}/reviews` | The accepted changes, and `to_review`: the keys of the changes that nobody accepted yet |
 | `POST /api/v1/diffs/{name}/reviews` | Accept one change: `key`, `by`, `comment`; `"accepted": false` withdraws it |
 
-A snapshot reference is `TARGET/NAME`, `TARGET@latest`, or `TARGET@LABEL`: the newest snapshot of the target with that label. An error answers with a status `400` or `404` and `{"error": "..."}`.
+A snapshot reference is `TARGET/NAME`, `TARGET@latest`, or `TARGET@LABEL`: the newest snapshot of the target with that label. An error answers with a status `400` or `404` and `{"error": "..."}`. A call that sends a field the API does not know is refused with a `422`, so a pipeline of an older version learns it at once.
 
 Every call waits for its result: `POST /api/v1/snapshots` returns when every target is done, with `ok`, the reference of each saved snapshot, and the error of each failed target.
 
