@@ -48,6 +48,7 @@
 - The Profiles and Settings forms show "Unsaved changes" and ask before the page is left only while their values differ from the saved ones; checking then unchecking a box, or typing then deleting a text, no longer counts as a change.
 - The PostgreSQL collation test is skipped, not failed, on a server built without ICU or older than PostgreSQL 15.
 - Deleting a profile keeps the comments above the other tables, including when another table splits the profile in two parts or an explicit `[profiles]` header holds comments; the comment above the next table used to be lost, and the header used to go with the profile.
+- A new profile goes after the last profile and before the comment of the next table, so that comment stays above its own table.
 - A **Prune** error on **Admin > Store** (no rule, or a number that is not whole) shows in the Prune panel with the typed values, in place of the full error page.
 - **Admin > About** shows the store location once, without the backend name before it (`sqlite: sqlite:///...`).
 

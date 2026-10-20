@@ -807,6 +807,10 @@ def _comment_run_above(path: list[tuple[Container, int]]) -> tuple[Container, in
 
 
 def _table(document: Any, parts: list[str], created: list[tuple[Any, list[str]]]) -> Any:
+    if len(parts) == 2 and parts[0] == "profiles" and parts[1] not in document.get("profiles", {}):
+        profile = _new_profile(document, parts[1])
+        if profile is not None:
+            return profile
     current = document
     super_tables = (*plugin_tables(), "profiles")
     for depth, part in enumerate(parts, 1):
@@ -815,6 +819,32 @@ def _table(document: Any, parts: list[str], created: list[tuple[Any, list[str]]]
             created.append((current, parts[:depth]))
         current = current[part]
     return current
+
+
+def _new_profile(document: TOMLDocument, name: str) -> Table | None:
+    """A profile goes after the last profile, before the comment run of the next table; None without a profile."""
+    parts = [index for index, (key, item) in enumerate(document.body) if key is not None and key.key == "profiles"]
+    if not parts:
+        return None
+    last = parts[-1]
+    following = next(
+        (index for index in range(last + 1, len(document.body)) if document.body[index][0] is not None), None
+    )
+    run: list[Item] = []
+    if following is not None:
+        container, start, stop = _comment_run_above([(document, following)])
+        run = [item for _, item in container.body[start:stop]]
+        if run:
+            del container.body[start:stop]
+    table = tomlkit.table(is_super_table=True)
+    profile = tomlkit.table()
+    table[name] = profile
+    document.body.insert(last + 1, (tomlkit.key("profiles"), table))
+    if run:
+        tail = _last_container(profile)
+        tail.body.append((None, tomlkit.ws("\n")))
+        tail.body.extend((None, item) for item in run)
+    return profile
 
 
 def _toml_value(value: Any) -> Any:

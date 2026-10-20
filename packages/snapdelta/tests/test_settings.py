@@ -435,6 +435,20 @@ def test_removing_a_profile_keeps_an_explicit_profiles_header_and_its_comments(t
     )
 
 
+def test_a_new_profile_goes_before_the_comment_of_the_next_table(tmp_path) -> None:
+    path = write(
+        tmp_path / "snapdelta.toml",
+        '# first\n[profiles.a]\ndescription = "a"\n\n# second\n[profiles.b]\ndescription = "b"\n\n'
+        "# web\n[web]\nport = 9000\n",
+    )
+    save_settings(path, {"profiles.c": {}})
+    assert path.read_text() == (
+        '# first\n[profiles.a]\ndescription = "a"\n\n# second\n[profiles.b]\ndescription = "b"\n\n'
+        "[profiles.c]\n\n# web\n[web]\nport = 9000\n"
+    )
+    assert load_settings(path).profiles.keys() == {"a", "b", "c"}
+
+
 def test_save_writes_source_tables_and_secrets(tmp_path) -> None:
     path = tmp_path / "new" / "snapdelta.toml"
     secret = Secret(backend="env", reference="DEMO_PASSWORD")
