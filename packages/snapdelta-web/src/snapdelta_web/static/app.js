@@ -367,16 +367,44 @@
     if (event.key === "Enter" && event.target.matches("[data-target-search]")) event.preventDefault();
   });
 
-  // Comparing with the values the form loaded with lets a reverted field clear the unsaved state, and the leave-page prompt follows it.
+  // Comparing with the values the settings file holds lets a reverted field clear the unsaved state, and the leave-page prompt follows it.
   var dirtyForm = null;
-  var loadedValues = new Map();
+  var savedValues = new Map();
 
-  function formValues(form) {
-    return new URLSearchParams(new FormData(form)).toString();
+  function fieldValues(form) {
+    var values = {};
+    new FormData(form).forEach(function (value, name) {
+      values[name] = value;
+    });
+    return values;
+  }
+
+  function savedFields(form) {
+    // The saved value of each field, which the server puts in the markup: the form of a page that failed to save holds the values that were sent, not the ones of the file.
+    var values = fieldValues(form);
+    Array.prototype.forEach.call(form.elements, function (control) {
+      if (!control.name || !control.hasAttribute("data-saved")) return;
+      var saved = control.getAttribute("data-saved");
+      if (control.type === "checkbox") {
+        if (saved === "true") values[control.name] = "true";
+        else delete values[control.name];
+      } else {
+        values[control.name] = saved;
+      }
+    });
+    return values;
+  }
+
+  function sameValues(one, other) {
+    var names = Object.keys(one);
+    if (names.length !== Object.keys(other).length) return false;
+    return names.every(function (name) {
+      return one[name] === other[name];
+    });
   }
 
   function showChanges(form) {
-    var changed = formValues(form) !== loadedValues.get(form);
+    var changed = !sameValues(fieldValues(form), savedValues.get(form));
     if (changed) dirtyForm = form;
     else if (dirtyForm === form) dirtyForm = null;
     var bar = form.querySelector(".save-bar");
@@ -393,7 +421,7 @@
   }
 
   document.querySelectorAll("form[data-track-changes]").forEach(function (form) {
-    loadedValues.set(form, formValues(form));
+    savedValues.set(form, savedFields(form));
   });
 
   document.addEventListener("input", trackChanges);
@@ -403,7 +431,12 @@
     var discard = event.target.closest("[data-discard]");
     if (!discard) return;
     event.preventDefault();
-    discard.form.reset();
+    Array.prototype.forEach.call(discard.form.elements, function (control) {
+      if (!control.name || !control.hasAttribute("data-saved")) return;
+      var saved = control.getAttribute("data-saved");
+      if (control.type === "checkbox") control.checked = saved === "true";
+      else control.value = saved;
+    });
     showChanges(discard.form);
   });
 

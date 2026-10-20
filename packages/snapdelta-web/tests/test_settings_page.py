@@ -280,6 +280,21 @@ def test_a_bad_profile_value_comes_back_on_its_field(client, settings_file) -> N
     assert "write one KEY = VALUE per line" in broken.text
 
 
+def test_a_failed_save_keeps_the_saved_values_as_the_baseline(client, settings_file) -> None:
+    before = settings_file.read_text()
+    page = client.post("/admin/settings", data=form(**{"snapshot.jobs": "not a number"}))
+    assert page.status_code == 400 and settings_file.read_text() == before
+    # The values of the file, and not the ones that were sent, are what the unsaved-changes check compares with.
+    assert 'name="snapshot.jobs" value="not a number"' in page.text and 'data-saved="10"' in page.text
+
+
+def test_every_field_of_the_settings_form_carries_its_saved_value(client) -> None:
+    page = client.get("/admin/settings").text
+    form = page.split('data-track-changes>')[1].split("</form>")[0]
+    controls = re.findall(r'<(?:input|select|textarea)\b[^>]*name="[^"]+"[^>]*>', form)
+    assert controls and all("data-saved=" in control for control in controls)
+
+
 def test_a_profile_is_created_from_its_name_and_stays_empty(client, settings_file) -> None:
     response = client.post("/admin/profiles/new", data={"name": "night"}, follow_redirects=False)
     assert response.status_code == 303 and response.headers["location"] == "/admin/profiles#profile-night"
@@ -402,7 +417,7 @@ def test_a_field_with_known_values_is_a_menu(client, settings_file) -> None:
     page = client.get("/admin/settings").text
     assert '<a href="#group-snapshot">Snapshot</a>' in page and 'id="group-snapshot"' in page
     log_level = '<option value="">info (default)</option><option>debug</option><option>info</option>'
-    assert f'<select id="f-snapshot.log_level" name="snapshot.log_level">{log_level}' in page
+    assert f'<select id="f-snapshot.log_level" name="snapshot.log_level" data-saved="">{log_level}' in page
     assert '<option value="">threads (default)</option><option>processes</option><option>threads</option>' in page
     assert '<option value="">token (default)</option><option>header</option><option>none</option>' in page
     saved = client.post("/admin/settings", data=form(**{"snapshot.log_level": "debug"}), follow_redirects=False)
