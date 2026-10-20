@@ -383,6 +383,16 @@ def test_prune_refuses_a_bad_number(client, store) -> None:
     assert len(store.snapshot_entries(SnapshotQuery(targets=("R1",)))) == 3
 
 
+def test_the_delete_buttons_follow_one_rule(client, names) -> None:
+    single = 'class="button danger quiet">Delete</button>'
+    bulk = 'class="button danger">Delete</button>'
+    assert single in client.get(f"/snapshots/{names.config}").text
+    assert single in client.get(f"/diffs/{names.same}").text
+    assert bulk in client.get("/diffs").text
+    assert bulk in client.get("/snapshots/R1").text
+    assert bulk in client.post("/admin/prune", data={"keep": "1"}).text
+
+
 def test_delete_buttons(client, store, names) -> None:
     page = client.get(f"/snapshots/{names.config}")
     assert f'action="/snapshots/{names.config}/delete"' in page.text

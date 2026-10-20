@@ -217,6 +217,7 @@ def test_each_profile_has_a_delete_button_in_its_own_form(client, settings_file)
         '<form id="delete-profile-quiet" method="post" action="/admin/profiles/quiet/delete"'
         ' data-confirm="Delete the profile quiet?">'
     ) in page
+    assert 'class="button danger quiet delete-profile">Delete</button>' in page
 
 
 def test_a_profile_is_deleted_at_once_and_the_rest_of_the_file_stays(client, settings_file) -> None:
