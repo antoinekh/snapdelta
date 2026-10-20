@@ -366,16 +366,15 @@ def list_files(
 ) -> None:
     """List the snapshots, newest first, and the outputs of the store."""
     store = ctx.obj.store
-    targets = set(store.targets(target or ""))
+    targets = tuple(store.targets(target or ""))
     typer.echo("snapshots:")
-    for entry in store.snapshot_entries(SnapshotQuery(label=label, ticket=ticket)):
-        if entry.target in targets:
-            parts = [entry.reference]
-            if entry.ticket:
-                parts.append(f"ticket: {entry.ticket}")
-            if entry.source:
-                parts.append(f"source: {entry.source}")
-            typer.echo("  " + "  ".join(parts))
+    for entry in store.snapshot_entries(SnapshotQuery(targets=targets, label=label, ticket=ticket)):
+        parts = [entry.reference]
+        if entry.ticket:
+            parts.append(f"ticket: {entry.ticket}")
+        if entry.source:
+            parts.append(f"source: {entry.source}")
+        typer.echo("  " + "  ".join(parts))
     typer.echo("outputs:")
     for output in store.output_entries(OutputQuery(search=target or "", ticket=ticket)):
         typer.echo(f"  {output.name}")
