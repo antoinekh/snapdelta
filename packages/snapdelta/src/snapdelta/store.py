@@ -144,7 +144,7 @@ class SnapshotQuery:
         if isinstance(self.targets, str):
             raise SnapdeltaError("the targets of a snapshot list are a tuple of names, not one string")
         # A field left empty in a form or a request means no filter, whichever door the query comes through.
-        wanted = dict.fromkeys(name for name in self.targets if name.strip())
+        wanted = dict.fromkeys(name.strip() for name in self.targets if name.strip())
         object.__setattr__(self, "targets", tuple(wanted))
         for name in ("label", "ticket"):
             value = getattr(self, name)

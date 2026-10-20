@@ -55,6 +55,10 @@ def test_the_blank_and_repeated_targets_of_a_query_are_dropped() -> None:
     assert SnapshotQuery(targets=("R2", " ", "R1", "R2", "")).targets == ("R2", "R1")
 
 
+def test_the_targets_of_a_query_are_trimmed() -> None:
+    assert SnapshotQuery(targets=(" R1 ", "R2")).targets == ("R1", "R2")
+
+
 def test_a_reference_with_a_slash_that_is_not_found_lists_no_snapshot(monkeypatch, tmp_path) -> None:
     store = FileStore(tmp_path / "store")
     store.save_snapshot(sample())
